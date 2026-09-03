@@ -1,0 +1,38 @@
+/* theworld design tokens — single warm cartoon world, no dark theme by design */
+:root {
+  --paper: #FFF6E6;
+  --paper-2: #FFEBCB;
+  --card: #FFFFFF;
+  --ink: #2A2118;
+  --ink-2: #6B5B4B;
+  --ink-3: #A08C76;
+  --line: #E8D6B6;
+  --skin: #FFD9B8;
+  --coral: #FF6A48;
+  --coral-2: #FFD2C4;
+  --coral-3: #FFF1EC;
+  --sun: #FFC64D;
+  --sun-2: #FFE9B3;
+  --mint: #5FC9A6;
+  --mint-2: #CDEFE3;
+  --sky: #A9DCF5;
+  --sky-2: #E3F3FC;
+  --leaf: #8FD37E;
+  --night: #1E2440;
+  --night-2: #3A4270;
+
+  --display: 'Jua', 'Noto Sans KR', sans-serif;
+  --body: 'Noto Sans KR', system-ui, -apple-system, sans-serif;
+  --mono: 'DM Mono', ui-monospace, SFMono-Regular, monospace;
+
+  --outline: 2px solid var(--ink);
+  --shadow-hard: 4px 4px 0 var(--ink);
+  --shadow-hard-sm: 3px 3px 0 var(--ink);
+  --shadow-soft: 0 12px 30px rgba(42, 33, 24, 0.18);
+  --r-card: 26px;
+  --r-chip: 999px;
+  --r-btn: 16px;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}

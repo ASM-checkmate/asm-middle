@@ -1,0 +1,78 @@
+[
+  {
+    "eval": "\nwindow.__H = 3600000;\nwindow.__S = () => window.__world.getState();\nwindow.__parts = (t, tz) => { const p = {}; for (const x of new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).formatToParts(t)) if (x.type !== 'literal') p[x.type] = +x.value; return p; };\nwindow.__at = (tz, y, m, d, h, mi) => { const g = Date.UTC(y, m - 1, d, h, mi); const p = __parts(g, tz); return g - (Date.UTC(p.year, p.month - 1, p.day, p.hour % 24, p.minute) - g); };\nwindow.__dayStart = (tz, t) => { const p = __parts(t, tz); return __at(tz, p.year, p.month, p.day, 0, 0); };\nwindow.__fmt = (t, tz) => { const p = __parts(t, tz); const z = n => String(n).padStart(2, '0'); return p.month + '-' + z(p.day) + ' ' + z(p.hour) + ':' + z(p.minute); };\nwindow.__cityOf = id => (window.__places || []).find(p => p.id === id)?.city ?? null;\nwindow.__countryOf = id => (window.__places || []).find(p => p.id === id)?.country ?? null;\nwindow.__goto = t => __S().jumpBy(t - __S().now);\nwindow.__q = extra => { const s = __S(); const ph = s.phase; const q = sel => document.querySelector(sel)?.textContent ?? null;\n  return JSON.stringify(Object.assign({ tz: ph.tz, kind: ph.kind, onboard: ph.kind === 'moving' ? ph.onboard : null,\n    jetlag: 'jetlag' in ph ? ph.jetlag : ph.kind === 'moving' ? ph.act.jetlagUntil !== null && s.now < ph.act.jetlagUntil : null,\n    dayKey: s.today, clockText: q('.chrome-row > .num'), ownerPill: q('.chrome-owner'), label: q('.chrome-clock small'),\n    local: __fmt(s.now, ph.tz), kst: __fmt(s.now, 'Asia/Seoul'), chips: document.querySelectorAll('.jetlag').length,\n    card: ph.kind === 'moving' ? { sub: q('.mc-sub'), eta: q('.mc-eta'), bubble: !!document.querySelector('.mv-bubble.is-on') } : undefined }, extra || {})); };\nwindow.__plans = () => { const s = __S(); const o = {}; for (const id of ['morning', 'am', 'lunch', 'pm', 'evening', 'night']) { const p = s.plans[id]; const c = p.options.find(x => x.id === p.chosenId); o[id] = c ? c.placeId + '(' + __cityOf(c.placeId) + ')/' + p.category + '/' + p.chosenBy : (p.category || '-') + '/none'; } return o; };\nwindow.__timeline = () => __S().timeline.map(a => a.dayKey.split('@')[0] + '@' + a.dayKey.split('@')[1].split('/').pop() + ':' + a.blockIds[0] + ' ' + a.fromPlace.id + '→' + a.place.id + '(' + a.place.city + ') dep ' + __fmt(a.departAt, a.originTz) + ' arr ' + __fmt(a.arriveAt, a.tz) + ' [' + a.journey.legs.map(l => l.mode).join('>') + '] ' + a.option.title + (a.option.stayDays !== undefined ? ' stay=' + a.option.stayDays : ''));\n'helpers ok'"
+  },
+  {
+    "eval": "__S().resetDay(); __S().jumpToHour(8, 50); __q({ step: '08:50 KST at home' })",
+    "wait": 2500,
+    "shot": "01-home-0850"
+  },
+  {
+    "eval": "(() => { const s = __S(); s.setCategory('am', 'travel');\n      let opt = null; for (let i = 0; i < 16 && !opt; i++) { opt = __S().plans.am.options.find(o => __cityOf(o.placeId) === 'newyork') ?? null; if (!opt) __S().regenerateOptions('am'); }\n      let fallback = false;\n      if (!opt) { fallback = true; for (let i = 0; i < 16 && !opt; i++) { opt = __S().plans.am.options.find(o => o.category === 'travel' && __countryOf(o.placeId) && __countryOf(o.placeId) !== 'KR') ?? null; if (!opt) __S().regenerateOptions('am'); } }\n      if (!opt) return 'NO ABROAD OPTION: ' + JSON.stringify(__S().plans.am.options.map(o => o.title));\n      __S().chooseOption('am', opt.id, 'user'); __S().setScale(1);\n      const a = __S().timeline.find(x => x.option.id === opt.id);\n      window.__trip = a ? { key: a.key, arriveAt: a.arriveAt, tz: a.tz, stayDays: a.option.stayDays } : null;\n      return __q({ step: 'chose trip', fallback, title: opt.title, stayDays: opt.stayDays, dep: a && __fmt(a.departAt, a.originTz) + ' ' + a.originTz, arr: a && __fmt(a.arriveAt, a.tz) + ' ' + a.tz, legs: a && a.journey.legs.map(l => l.mode + ':' + l.durationMin + 'm').join(' '), plans: __plans() }); })()",
+    "wait": 2000,
+    "shot": "02-trip-chosen"
+  },
+  {
+    "eval": "__S().jumpBy(2 * __H); __q({ step: '+2h (10:50 KST)' })",
+    "wait": 7000,
+    "shot": "03-departure-plus2h"
+  },
+  {
+    "eval": "__goto(__dayStart('Asia/Seoul', __S().now) + 12.5 * __H); __q({ step: 'KST 12:30 onboard meal' })",
+    "wait": 7000,
+    "shot": "04-kst1230-onboard-meal"
+  },
+  {
+    "eval": "__goto(__dayStart('Asia/Seoul', __S().now) + 26 * __H); __q({ step: 'KST 02:00 next day onboard sleep' })",
+    "wait": 7000,
+    "shot": "05-kst0200-onboard-sleep"
+  },
+  {
+    "eval": "(() => { const a = __S().timeline.find(x => x.key === __trip.key); __goto(a.arriveAt + 2 * 60000); return __q({ step: 'just after arrival', arr: __fmt(a.arriveAt, a.tz), plans: __plans() }); })()",
+    "wait": 4000,
+    "shot": "06-arrived-ny"
+  },
+  {
+    "eval": "__S().jumpToHour(19, 0); __q({ step: 'NY 19:00 arrival day (evening auto-pick)', plans: __plans(), eveningCity: (() => { const p = __S().plans.evening; const c = p.options.find(x => x.id === p.chosenId); return c ? __cityOf(c.placeId) : null; })() })",
+    "wait": 4000,
+    "shot": "07-ny-evening-1900"
+  },
+  {
+    "eval": "__S().jumpToHour(27, 0); __q({ step: 'NY 03:00 next night', sleepUntil: __S().phase.kind === 'sleeping' ? __fmt(__S().phase.until, __S().phase.tz) : null, at: __S().phase.at ? __S().phase.at.id : null })",
+    "wait": 2500,
+    "shot": "08-ny-0300-sleeping"
+  },
+  {
+    "eval": "__S().jumpToHour(11, 45); __q({ step: 'NY 11:45 next day (timetable)', plans: __plans() })",
+    "wait": 2500,
+    "shot": "09-ny-1145-timetable"
+  },
+  {
+    "eval": "__S().jumpToHour(12, 30); __q({ step: 'NY 12:30 next day (lunch auto-pick)', plans: __plans(), lunchCity: (() => { const p = __S().plans.lunch; const c = p.options.find(x => x.id === p.chosenId); return c ? __cityOf(c.placeId) : null; })() })",
+    "wait": 4000,
+    "shot": "10-ny-1230-lunch"
+  },
+  {
+    "eval": "(() => { const t = __dayStart('America/New_York', __trip.arriveAt) + __trip.stayDays * 24 * __H + 7 * __H + 10 * 60000; __goto(t); const p = __S().plans.morning; const c = p.options.find(x => x.id === p.chosenId); return __q({ step: 'return day 07:10 (auto-return)', morning: c ? c.title + ' → ' + c.placeId + ' by ' + p.chosenBy : 'none', plans: __plans() }); })()",
+    "wait": 7000,
+    "shot": "11-return-morning"
+  },
+  {
+    "eval": "(() => { const s = __S(); const r = [...s.timeline].reverse().find(x => x.place.id === s.memory.homePlaceId && x.originTz === 'America/New_York'); if (!r) return 'NO RETURN ACT'; window.__ret = { key: r.key, arriveAt: r.arriveAt }; __goto(r.departAt + (r.arriveAt - r.departAt) * 0.7); return __q({ step: 'mid return flight', dep: __fmt(r.departAt, r.originTz), arr: __fmt(r.arriveAt, r.tz), legs: r.journey.legs.map(l => l.mode + ':' + l.durationMin + 'm').join(' ') }); })()",
+    "wait": 7000,
+    "shot": "12-return-midflight"
+  },
+  {
+    "eval": "__S().setTtOpen(true); 'sheet open'",
+    "wait": 2000,
+    "shot": "13-return-sheet"
+  },
+  {
+    "eval": "__S().setTtOpen(false); (() => { const r = __S().timeline.find(x => x.key === __ret.key); __goto(r.arriveAt + 2 * 60000); return __q({ step: 'landed home', plans: __plans() }); })()",
+    "wait": 4000,
+    "shot": "14-landed-seoul"
+  },
+  {
+    "eval": "JSON.stringify(__timeline(), null, 0)"
+  }
+]

@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "theworld-dev", "runtimeExecutable": "sh", "runtimeArgs": ["-c", "cd frontend && npx vite --port 5173 --strictPort"], "port": 5173 }
+  ]
+}

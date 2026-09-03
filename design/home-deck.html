@@ -1,0 +1,390 @@
+<title>theworld 홈 화면 덱</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --paper:#FFF6E6; --paper-2:#FFEBCB; --ink:#2A2118; --ink-2:#6B5B4B; --line:#E8D6B6;
+  --coral:#FF6A48; --coral-2:#FFD2C4; --mint:#5FC9A6; --sky:#A9DCF5; --sun:#FFC64D; --night:#1E2440; --night-2:#3A4270;
+  --card:#FFFFFF;
+  --display:'Jua','Noto Sans KR',sans-serif; --body:'Noto Sans KR',system-ui,sans-serif; --mono:'DM Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.65}
+h1,h2,h3{font-family:var(--display);font-weight:400;line-height:1.15;margin:0;text-wrap:balance}
+p{margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding:0 32px}
+
+/* cover */
+.cover{padding:72px 0 40px;display:grid;grid-template-columns:1.1fr 1fr;gap:40px;align-items:center}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+.cover h1{font-size:64px;margin:12px 0 18px}
+.cover h1 em{font-style:normal;color:var(--coral)}
+.cover p{max-width:34em;color:var(--ink-2);font-size:17px}
+.cover .big{display:flex;justify-content:center}
+.cover .big svg{width:360px;height:360px}
+
+/* nav */
+.toc{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 56px}
+.toc a{font-family:var(--display);font-size:16px;color:var(--ink);text-decoration:none;background:var(--card);border:2px solid var(--ink);border-radius:999px;padding:6px 16px;box-shadow:3px 3px 0 var(--ink)}
+.toc a:focus-visible,.toc a:hover{background:var(--sun)}
+
+/* slides */
+.slide{display:grid;grid-template-columns:420px 1fr;gap:56px;align-items:start;padding:56px 0;border-top:2px dashed var(--line)}
+.slide .num{font-family:var(--mono);font-size:12px;color:var(--coral);letter-spacing:.1em}
+.slide h2{font-size:38px;margin:6px 0 14px}
+.slide .lead{font-size:16px;color:var(--ink-2);max-width:32em;margin-bottom:22px}
+.notes{display:grid;gap:12px}
+.note{background:var(--card);border-radius:14px;padding:14px 16px;border:1.5px solid var(--line)}
+.note b{font-family:var(--display);font-weight:400;font-size:17px;display:block;margin-bottom:2px}
+.note span{color:var(--ink-2);font-size:14px}
+.note.key{border-color:var(--coral);background:var(--coral-2)}
+
+/* phone */
+.phone{width:390px;height:844px;border-radius:52px;background:var(--ink);padding:12px;box-shadow:0 30px 60px rgba(42,33,24,.22);position:relative;flex:none}
+.screen{width:100%;height:100%;border-radius:42px;overflow:hidden;position:relative;background:var(--paper)}
+.notch{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:120px;height:34px;border-radius:20px;background:var(--ink);z-index:9}
+.clock{position:absolute;top:58px;left:0;right:0;text-align:center;font-family:var(--mono);font-size:15px;color:var(--ink);z-index:5;letter-spacing:.06em}
+.clock small{display:block;font-family:var(--display);font-size:13px;color:var(--ink-2);letter-spacing:0}
+.ui-min{position:absolute;top:52px;right:22px;z-index:5;width:38px;height:38px;border-radius:50%;background:var(--card);border:2px solid var(--ink);display:grid;place-items:center;font-family:var(--display);font-size:16px}
+
+/* screen 1: timetable */
+.s1 .sky{position:absolute;inset:0 0 auto 0;height:330px;background:linear-gradient(180deg,#BEE6F8 0%,#FFF1D6 100%)}
+.s1 .hill{position:absolute;top:250px;left:-40px;right:-40px;height:180px;border-radius:50%;background:#D9EFC2}
+.s1 .chara{position:absolute;top:120px;left:50%;transform:translateX(-50%);width:260px;height:260px;z-index:3}
+.s1 .bubble{position:absolute;top:96px;left:44px;background:var(--card);border:2px solid var(--ink);border-radius:18px 18px 18px 4px;padding:8px 14px;font-family:var(--display);font-size:15px;z-index:4;box-shadow:3px 3px 0 var(--ink)}
+.s1 .panel{position:absolute;left:0;right:0;bottom:0;height:470px;background:var(--card);border-radius:36px 36px 42px 42px;padding:22px 18px 18px;z-index:4}
+.s1 .ttl{font-family:var(--display);font-size:20px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline}
+.s1 .ttl small{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+.s1 .row{display:grid;grid-template-columns:190px 1fr;gap:14px;align-items:center}
+.s1 .ring{width:190px;height:190px}
+.s1 .blockinfo{display:grid;gap:6px}
+.s1 .bl{font-family:var(--mono);font-size:11px;color:var(--ink-2);letter-spacing:.08em}
+.s1 .bh{font-family:var(--display);font-size:24px;line-height:1.1}
+.s1 .cat{display:inline-flex;align-self:flex-start;background:var(--sun);border:2px solid var(--ink);border-radius:999px;padding:3px 12px;font-family:var(--display);font-size:14px}
+.s1 .choices{display:grid;gap:8px;margin-top:14px}
+.s1 .ch{display:flex;align-items:center;gap:12px;border:2px solid var(--line);border-radius:16px;padding:10px 12px;font-size:14px}
+.s1 .ch .ic{width:40px;height:40px;border-radius:12px;background:var(--paper-2);display:grid;place-items:center;font-size:20px;flex:none}
+.s1 .ch b{display:block;font-family:var(--display);font-weight:400;font-size:16px}
+.s1 .ch span{color:var(--ink-2);font-size:12px}
+.s1 .ch.on{border-color:var(--coral);background:#FFF1EC;box-shadow:3px 3px 0 var(--coral)}
+.s1 .cta{margin-top:12px;background:var(--ink);color:var(--paper);border-radius:16px;text-align:center;font-family:var(--display);font-size:18px;padding:12px}
+
+/* screen 2: map */
+.s2 .map{position:absolute;inset:0;background:#EAF3D6}
+.s2 .map svg{width:100%;height:100%}
+.s2 .card{position:absolute;left:16px;right:16px;bottom:22px;background:var(--card);border-radius:26px;padding:18px 20px;display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;border:2px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
+.s2 .card .to{font-family:var(--display);font-size:22px}
+.s2 .card .sub{font-size:13px;color:var(--ink-2)}
+.s2 .card .eta{font-family:var(--mono);font-size:30px;text-align:right;line-height:1}
+.s2 .card .eta small{display:block;font-family:var(--display);font-size:13px;color:var(--ink-2);margin-top:4px}
+.s2 .bar{grid-column:1/-1;height:10px;border-radius:99px;background:var(--paper-2);overflow:hidden}
+.s2 .bar i{display:block;width:62%;height:100%;background:var(--coral);border-radius:99px}
+.s2 .marker{position:absolute;left:150px;top:390px;width:150px;height:150px;z-index:3;animation:bob 1.6s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-6px)}}
+@media (prefers-reduced-motion:reduce){.s2 .marker{animation:none}}
+
+/* screen 3: activity */
+.s3 .scene{position:absolute;inset:0;background:linear-gradient(180deg,#FFE4B8 0%,#FFD39A 60%,#C68A55 60%,#B67A48 100%)}
+.s3 .chara{position:absolute;left:50%;top:150px;transform:translateX(-50%);width:330px;height:330px;z-index:3}
+.s3 .tag{position:absolute;left:18px;top:118px;background:var(--card);border:2px solid var(--ink);border-radius:14px;padding:8px 12px;font-family:var(--display);font-size:15px;box-shadow:3px 3px 0 var(--ink);z-index:4}
+.s3 .tag small{display:block;font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+.s3 .frames{position:absolute;bottom:120px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:4}
+.s3 .frames i{width:8px;height:8px;border-radius:50%;background:rgba(42,33,24,.25)}
+.s3 .frames i.on{background:var(--ink);width:22px;border-radius:99px}
+.s3 .stat{position:absolute;left:16px;right:16px;bottom:22px;background:rgba(255,255,255,.9);border-radius:22px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;z-index:4;border:2px solid var(--ink)}
+.s3 .stat b{font-family:var(--display);font-weight:400;font-size:18px;display:block}
+.s3 .stat span{font-size:12px;color:var(--ink-2)}
+.s3 .stat .t{font-family:var(--mono);font-size:22px}
+.s3 .lock{font-size:12px;color:var(--ink-2);display:block}
+
+/* screen 4: comic */
+.s4 .screen{background:var(--paper-2)}
+.s4 .head{position:absolute;top:100px;left:24px;right:24px;z-index:3}
+.s4 .head h3{font-size:24px}
+.s4 .head p{font-size:13px;color:var(--ink-2)}
+.s4 .grid{position:absolute;top:170px;left:20px;right:20px;display:grid;grid-template-columns:1fr 1fr;gap:12px;z-index:3}
+.s4 .p{aspect-ratio:1;background:var(--card);border:2.5px solid var(--ink);border-radius:8px;position:relative;overflow:hidden}
+.s4 .p svg{position:absolute;inset:0;width:100%;height:100%}
+.s4 .p .cap{position:absolute;left:8px;right:8px;bottom:8px;background:var(--card);border:1.5px solid var(--ink);border-radius:6px;font-size:11px;padding:3px 6px;line-height:1.3}
+.s4 .p .k{position:absolute;top:6px;left:6px;font-family:var(--mono);font-size:10px;background:var(--ink);color:var(--paper);border-radius:4px;padding:1px 5px}
+.s4 .foot{position:absolute;left:20px;right:20px;bottom:24px;display:grid;grid-template-columns:1fr 1fr;gap:10px;z-index:3}
+.s4 .foot div{border:2px solid var(--ink);border-radius:16px;padding:12px;text-align:center;font-family:var(--display);font-size:16px;background:var(--card)}
+.s4 .foot div.pri{background:var(--coral);color:#fff}
+
+/* principles */
+.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:24px 0}
+.st{background:var(--card);border:2px solid var(--ink);border-radius:20px;padding:18px;box-shadow:4px 4px 0 var(--ink)}
+.st .k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--coral)}
+.st h3{font-size:22px;margin:4px 0 8px}
+.st p{font-size:13px;color:var(--ink-2)}
+.st .can{margin-top:10px;font-family:var(--display);font-size:14px;padding:4px 10px;border-radius:999px;display:inline-block}
+.can.watch{background:var(--sky)}.can.act{background:var(--sun)}
+.tokens{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:18px}
+.tk{border-radius:14px;height:84px;display:flex;align-items:flex-end;padding:8px;font-family:var(--mono);font-size:11px;border:1.5px solid var(--line)}
+.wide{grid-column:1/-1}
+.type-row{display:flex;gap:28px;align-items:baseline;margin-top:14px;flex-wrap:wrap}
+.type-row .a{font-family:var(--display);font-size:40px}.type-row .b{font-size:16px}.type-row .c{font-family:var(--mono);font-size:16px}
+footer{padding:40px 0 60px;color:var(--ink-2);font-size:13px;border-top:2px dashed var(--line);margin-top:40px}
+@media (max-width:900px){.cover,.slide{grid-template-columns:1fr}.flow{grid-template-columns:1fr 1fr}.tokens{grid-template-columns:repeat(3,1fr)}.phone{transform:scale(.85);transform-origin:top left}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="chara" viewBox="0 0 200 200">
+      <ellipse cx="100" cy="186" rx="52" ry="8" fill="rgba(42,33,24,.12)"/>
+      <path d="M52 120c0-45 22-78 48-78s48 33 48 78c0 32-22 56-48 56s-48-24-48-56z" fill="#FFD9B8" stroke="#2A2118" stroke-width="4"/>
+      <path d="M60 96c8-30 24-46 40-46s32 16 40 46c-12-8-26-12-40-12s-28 4-40 12z" fill="#3A2A22" stroke="#2A2118" stroke-width="4" stroke-linejoin="round"/>
+      <circle cx="82" cy="118" r="7" fill="#2A2118"/><circle cx="118" cy="118" r="7" fill="#2A2118"/>
+      <circle cx="84.5" cy="115.5" r="2.2" fill="#fff"/><circle cx="120.5" cy="115.5" r="2.2" fill="#fff"/>
+      <ellipse cx="68" cy="134" rx="8" ry="5" fill="#FF9B86"/><ellipse cx="132" cy="134" rx="8" ry="5" fill="#FF9B86"/>
+      <path d="M92 136q8 8 16 0" stroke="#2A2118" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M58 150c-14 10-20 26-16 34" stroke="#2A2118" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M142 150c14 10 20 26 16 34" stroke="#2A2118" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M74 166h52v14H74z" fill="#FF6A48" stroke="#2A2118" stroke-width="4" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="chara-side" viewBox="0 0 200 200">
+      <ellipse cx="100" cy="186" rx="50" ry="8" fill="rgba(42,33,24,.12)"/>
+      <path d="M52 120c0-45 22-78 48-78s48 33 48 78c0 32-22 56-48 56s-48-24-48-56z" fill="#FFD9B8" stroke="#2A2118" stroke-width="4"/>
+      <path d="M60 96c8-30 24-46 40-46s32 16 40 46c-12-8-26-12-40-12s-28 4-40 12z" fill="#3A2A22" stroke="#2A2118" stroke-width="4" stroke-linejoin="round"/>
+      <path d="M78 116q6-6 12 0M112 116q6-6 12 0" stroke="#2A2118" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <ellipse cx="68" cy="132" rx="8" ry="5" fill="#FF9B86"/><ellipse cx="132" cy="132" rx="8" ry="5" fill="#FF9B86"/>
+      <ellipse cx="100" cy="138" rx="9" ry="7" fill="#2A2118"/>
+      <ellipse cx="100" cy="140" rx="5" ry="3" fill="#FF6A48"/>
+      <path d="M118 162a28 28 0 0 1 20-26" stroke="#2A2118" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <circle cx="146" cy="150" r="14" fill="#fff" stroke="#2A2118" stroke-width="4"/>
+      <path d="M160 146h6a6 6 0 0 1 0 12h-6" stroke="#2A2118" stroke-width="4" fill="none"/>
+      <path d="M140 136q6-8 2-14M148 136q6-8 2-14" stroke="#2A2118" stroke-width="3" fill="none" stroke-linecap="round" opacity=".5"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <section class="cover">
+    <div>
+      <div class="eyebrow">theworld · home screen concept · v0.1</div>
+      <h1>심심해서 켜는 앱은<br><em>캐릭터가</em> 화면의 주인이다</h1>
+      <p>홈 화면은 네 가지 상태만 가진다. 활동 전(시간표), 이동 중(지도), 활동 중(장면), 활동 후(만화). 어느 상태든 캐릭터가 화면의 40% 이상을 차지하고, UI는 그 아래 한 장의 카드로만 존재한다.</p>
+      <nav class="toc">
+        <a href="#s0">0 · 원칙</a><a href="#s1">1 · 시간표</a><a href="#s2">2 · 이동 중</a><a href="#s3">3 · 활동 중</a><a href="#s4">4 · 만화</a><a href="#s5">5 · 룩앤필</a>
+      </nav>
+    </div>
+    <div class="big"><svg><use href="#chara"/></svg></div>
+  </section>
+
+  <section class="slide" id="s0" style="grid-template-columns:1fr">
+    <div>
+      <div class="num">00 · PRINCIPLE</div>
+      <h2>홈은 하나, 상태가 네 개</h2>
+      <p class="lead">탭 바도, 메뉴도 없다. 앱을 열면 캐릭터가 지금 뭘 하고 있는지가 곧 화면이다. 사용자가 손댈 수 있는 순간은 "활동 전" 하나뿐이므로, 그때만 시간표 카드가 올라온다.</p>
+      <div class="flow">
+        <div class="st"><div class="k">STATE 1</div><h3>활동 전 · 시간표</h3><p>캐릭터가 마당에서 기다린다. 원형 시간표와 선택지 3개 카드.</p><span class="can act">정할 수 있음</span></div>
+        <div class="st"><div class="k">STATE 2</div><h3>이동 중 · 지도</h3><p>실제 지구 기반 지도 위를 캐릭터가 걷는다. 목적지와 남은 시간.</p><span class="can watch">구경만</span></div>
+        <div class="st"><div class="k">STATE 3</div><h3>활동 중 · 장면</h3><p>장소 유형 공용 배경 위에 캐릭터. 2~4프레임 루프.</p><span class="can watch">구경만</span></div>
+        <div class="st"><div class="k">STATE 4</div><h3>활동 후 · 만화</h3><p>방금 있었던 일이 1컷/4컷으로. book에 저장 후 다음 상태로.</p><span class="can watch">읽기</span></div>
+      </div>
+      <div class="notes" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="note"><b>겉에 남는 UI는 딱 둘</b><span>상단 중앙 현재 시각, 우상단 집(book) 버튼. 나머지는 상태별 카드 한 장.</span></div>
+        <div class="note"><b>카드는 항상 아래에서</b><span>캐릭터가 위, 정보가 아래. 손이 닿는 영역에 조작, 눈이 가는 영역에 캐릭터.</span></div>
+        <div class="note"><b>잠금은 색이 아니라 문장으로</b><span>수정 불가 상태는 회색 처리 대신 "끝날 때까지 지켜봐요" 한 줄로 알려준다.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s1">
+    <div class="phone"><div class="screen s1">
+      <div class="notch"></div>
+      <div class="clock">09:12<small>수요일 · 오전 블록 시작 전</small></div>
+      <div class="ui-min">📖</div>
+      <div class="sky"></div><div class="hill"></div>
+      <div class="bubble">오늘 오전엔 뭐 할까?</div>
+      <svg class="chara"><use href="#chara"/></svg>
+      <div class="panel">
+        <div class="ttl">오늘의 생활계획표 <small>3 / 6 정해짐</small></div>
+        <div class="row">
+          <svg class="ring" viewBox="0 0 200 200">
+            <!-- 7 blocks: sleep 0-7, morning 7-9, am 9-12, lunch 12-14, pm 14-18, evening 18-20, night 20-24 -->
+            <g transform="translate(100 100)">
+              <path d="M0 0 L0 -90 A90 90 0 0 1 77.9 -45 Z" fill="#1E2440"/>
+              <path d="M0 0 L77.9 -45 A90 90 0 0 1 90 0 Z" fill="#FFC64D"/>
+              <path d="M0 0 L90 0 A90 90 0 0 1 0 90 Z" fill="#FF6A48" stroke="#2A2118" stroke-width="4"/>
+              <path d="M0 0 L0 90 A90 90 0 0 1 -77.9 45 Z" fill="#FFEBCB"/>
+              <path d="M0 0 L-77.9 45 A90 90 0 0 1 -77.9 -45 Z" fill="#5FC9A6"/>
+              <path d="M0 0 L-77.9 -45 A90 90 0 0 1 -45 -77.9 Z" fill="#FFEBCB"/>
+              <path d="M0 0 L-45 -77.9 A90 90 0 0 1 0 -90 Z" fill="#A9DCF5"/>
+              <circle r="90" fill="none" stroke="#2A2118" stroke-width="3"/>
+              <circle r="34" fill="#fff" stroke="#2A2118" stroke-width="3"/>
+              <text y="6" text-anchor="middle" font-family="Jua" font-size="16" fill="#2A2118">오전</text>
+              <text x="35" y="-56" text-anchor="middle" font-family="Jua" font-size="11" fill="#fff">잠</text>
+              <text x="66" y="-18" text-anchor="middle" font-family="Jua" font-size="11" fill="#2A2118">아침</text>
+              <text x="48" y="52" text-anchor="middle" font-family="Jua" font-size="12" fill="#fff">놀기</text>
+              <text x="-38" y="60" text-anchor="middle" font-family="Jua" font-size="11" fill="#6B5B4B">?</text>
+              <text x="-66" y="4" text-anchor="middle" font-family="Jua" font-size="11" fill="#fff">운동</text>
+              <text x="-60" y="-52" text-anchor="middle" font-family="Jua" font-size="11" fill="#6B5B4B">?</text>
+              <text x="-22" y="-66" text-anchor="middle" font-family="Jua" font-size="11" fill="#2A2118">밤</text>
+            </g>
+          </svg>
+          <div class="blockinfo">
+            <div class="bl">09:00 – 12:00</div>
+            <div class="bh">오전 블록</div>
+            <span class="cat">🎈 놀기</span>
+            <span style="font-size:12px;color:var(--ink-2)">범주 바꾸기 ›</span>
+          </div>
+        </div>
+        <div class="choices">
+          <div class="ch on"><div class="ic">☕</div><div><b>연남동 카페에서 그림 그리기</b><span>지난주에 갔던 곳, 창가 자리 좋았음</span></div></div>
+          <div class="ch"><div class="ic">🎮</div><div><b>집에서 게임하기</b><span>어젯밤에 못 깬 스테이지</span></div></div>
+          <div class="ch"><div class="ic">🛹</div><div><b>한강 스케이트보드</b><span>민수 에이전트도 같은 시간에 한강</span></div></div>
+        </div>
+        <div class="cta">이걸로 정할래</div>
+      </div>
+    </div></div>
+    <div>
+      <div class="num">01 · 활동 전</div>
+      <h2>시간표는 캐릭터 발밑에 올라오는 카드</h2>
+      <p class="lead">스펙의 "왼쪽 원형, 오른쪽 블록 정보"를 폰 세로 화면에 맞춰 상단 절반은 캐릭터, 하단 절반은 시간표 카드로 나눴다. 원형 계획표와 블록 정보가 한 줄, 그 아래 제안 3개가 리스트.</p>
+      <div class="notes">
+        <div class="note key"><b>캐릭터 260px, 카드 470px</b><span>화면 844px 중 캐릭터 영역이 먼저 눈에 들어오고, 말풍선이 "지금 결정할 게 있다"는 신호가 된다.</span></div>
+        <div class="note"><b>원형 시간표 190px</b><span>7블록을 시간 비율대로 그린다. 수면은 짙은 밤색으로 고정, 지나간 블록은 채도 낮게, 미정 블록은 물음표. 선택된 블록만 굵은 테두리.</span></div>
+        <div class="note"><b>블록 정보는 세 줄</b><span>시간대, 블록 이름, 범주 칩. 범주가 비어 있으면 칩 자리에 범주 선택 칩 6개가 나온다.</span></div>
+        <div class="note"><b>제안 3개에 이유 한 줄</b><span>"지난주에 갔던 곳" 같은 메모리 근거를 부제로 붙인다. 이게 캐릭터가 나를 안다는 느낌을 만든다.</span></div>
+        <div class="note"><b>확정 버튼 하나</b><span>탭 한 번으로 확정. 안 고르면 카드 상단에 "캐릭터가 대신 골랐어요" 라벨과 함께 첫 번째가 선택된 채로 보인다.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s2">
+    <div class="phone"><div class="screen s2">
+      <div class="notch"></div>
+      <div class="clock">09:41<small>이동 중</small></div>
+      <div class="ui-min">📖</div>
+      <div class="map"><svg viewBox="0 0 390 844" preserveAspectRatio="xMidYMid slice">
+        <rect width="390" height="844" fill="#EAF3D6"/>
+        <path d="M-20 300 Q120 260 200 330 T420 380" stroke="#BFE1F2" stroke-width="70" fill="none"/>
+        <g stroke="#FFF9EE" stroke-width="26" stroke-linecap="round" fill="none">
+          <path d="M60 0V844M190 0V844M320 0V844M0 180H390M0 470H390M0 640H390"/>
+        </g>
+        <g fill="#FFE1B3" stroke="#2A2118" stroke-width="2.5">
+          <rect x="80" y="200" width="80" height="60" rx="8"/><rect x="210" y="210" width="90" height="40" rx="8"/>
+          <rect x="90" y="500" width="70" height="110" rx="8"/><rect x="220" y="490" width="80" height="60" rx="8"/>
+          <rect x="230" y="580" width="70" height="40" rx="8"/><rect x="340" y="500" width="40" height="120" rx="8"/>
+        </g>
+        <g fill="#8FD37E" stroke="#2A2118" stroke-width="2.5">
+          <circle cx="120" cy="720" r="26"/><circle cx="300" cy="150" r="22"/><circle cx="20" cy="560" r="18"/>
+        </g>
+        <path d="M210 640 C 200 560, 260 520, 240 440 S 300 380, 320 330" stroke="#FF6A48" stroke-width="6" stroke-dasharray="12 10" fill="none" stroke-linecap="round"/>
+        <circle cx="210" cy="640" r="9" fill="#fff" stroke="#2A2118" stroke-width="3"/>
+        <text x="228" y="646" font-family="Jua" font-size="13" fill="#2A2118">집</text>
+        <g transform="translate(320 330)"><path d="M0 0 c-16-18 -16-40 0-40 s16 22 0 40z" fill="#FF6A48" stroke="#2A2118" stroke-width="3" transform="translate(0 -6)"/><circle cy="-30" r="5" fill="#fff"/></g>
+        <text x="240" y="300" font-family="Jua" font-size="13" fill="#2A2118">☕ 카페 어라운드</text>
+      </svg></div>
+      <svg class="marker"><use href="#chara-side"/></svg>
+      <div class="card">
+        <div><div class="to">카페 어라운드로</div><div class="sub">연남동 · 걸어서 · 도착하면 그림 그리기</div></div>
+        <div class="eta">11<small>분 남음</small></div>
+        <div class="bar"><i></i></div>
+      </div>
+    </div></div>
+    <div>
+      <div class="num">02 · 이동 중</div>
+      <h2>지도 위를 걷는 캐릭터, 그게 전부</h2>
+      <p class="lead">실제 지구 기반 지도를 만화 톤으로 렌더링한다. 길은 크림색, 건물은 살구색 블록, 공원은 연두 원. 경로는 코랄 점선, 캐릭터는 경로 위에서 150px 크기로 통통 걷는다.</p>
+      <div class="notes">
+        <div class="note key"><b>캐릭터 마커는 핀이 아니다</b><span>작은 핀 대신 캐릭터 자체를 마커로 쓴다. 지도를 축소해도 캐릭터 크기는 유지해 항상 찾을 수 있다.</span></div>
+        <div class="note"><b>카드 한 장, 숫자 하나</b><span>목적지, 이동 수단, 도착 후 할 일, 남은 시간. 남은 시간이 카드에서 가장 큰 글자.</span></div>
+        <div class="note"><b>조작 없음</b><span>지도는 핀치·드래그로 둘러볼 수만 있다. 이 시간에 백그라운드에서 장소 그림을 생성한다.</span></div>
+        <div class="note"><b>친구 에이전트 동행</b><span>같은 경로면 두 캐릭터가 나란히 걷고, 카드에 상대 캐릭터 얼굴이 작게 붙는다.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s3">
+    <div class="phone"><div class="screen s3">
+      <div class="notch"></div>
+      <div class="clock">10:20<small>활동 중</small></div>
+      <div class="ui-min">📖</div>
+      <div class="scene">
+        <svg viewBox="0 0 390 844" style="position:absolute;inset:0;width:100%;height:100%">
+          <rect x="40" y="200" width="120" height="150" rx="10" fill="#BEE6F8" stroke="#2A2118" stroke-width="3"/>
+          <rect x="230" y="200" width="120" height="150" rx="10" fill="#BEE6F8" stroke="#2A2118" stroke-width="3"/>
+          <rect x="0" y="470" width="390" height="40" fill="#8B5E3C" stroke="#2A2118" stroke-width="3"/>
+          <rect x="120" y="560" width="150" height="16" rx="6" fill="#A46B45" stroke="#2A2118" stroke-width="3"/>
+          <rect x="185" y="576" width="20" height="90" fill="#8B5E3C" stroke="#2A2118" stroke-width="3"/>
+          <ellipse cx="150" cy="555" rx="16" ry="9" fill="#fff" stroke="#2A2118" stroke-width="3"/>
+          <rect x="70" y="600" width="60" height="70" rx="6" fill="#FF6A48" stroke="#2A2118" stroke-width="3"/>
+          <text x="80" y="640" font-family="Jua" font-size="12" fill="#fff">MENU</text>
+        </svg>
+        <svg class="chara"><use href="#chara"/></svg>
+      </div>
+      <div class="tag">☕ 카페 어라운드<small>연남동 · 범용 카페 장면</small></div>
+      <div class="frames"><i class="on"></i><i></i><i></i></div>
+      <div class="stat">
+        <div><b>창가에서 그림 그리는 중</b><span class="lock">끝날 때까지 지켜봐요</span></div>
+        <div class="t">1:40</div>
+      </div>
+    </div></div>
+    <div>
+      <div class="num">03 · 활동 중</div>
+      <h2>장면은 배경, 캐릭터는 330px</h2>
+      <p class="lead">장소 유형별 공용 배경(카페, 학교, 헬스장…) 위에 캐릭터를 얹는다. 배경은 캐릭터를 덮지 않도록 시선 높이 아래는 단색 바닥으로 비워 둔다.</p>
+      <div class="notes">
+        <div class="note key"><b>화면의 40%가 캐릭터</b><span>2~4프레임 루프가 보이는 유일한 움직임. 배경은 정지, 캐릭터만 살아 있어야 시선이 캐릭터로 간다.</span></div>
+        <div class="note"><b>장소 태그 좌상단</b><span>실제 가게 이름 + "범용 카페 장면"이라는 정직한 부제. 실제 장소 기반 추천이라는 정체성을 지킨다.</span></div>
+        <div class="note"><b>잠금은 문장으로</b><span>"끝날 때까지 지켜봐요"와 남은 시간. 버튼이 없으니 비활성화 상태를 표현할 필요도 없다.</span></div>
+        <div class="note"><b>공백 구간 복귀 시</b><span>이 화면 위에 "자는 동안 이런 일이" 요약 시트가 먼저 올라오고, 닫으면 진행 중인 장면으로 돌아온다.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s4">
+    <div class="phone"><div class="screen s4">
+      <div class="notch"></div>
+      <div class="clock">12:02<small>활동 끝</small></div>
+      <div class="ui-min">📖</div>
+      <div class="head"><h3>카페 어라운드에서 생긴 일</h3><p>오전 블록 · 놀기 · 연남동</p></div>
+      <div class="grid">
+        <div class="p"><svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#FFE4B8"/><use href="#chara" x="20" y="10" width="60" height="60"/></svg><span class="k">1</span><div class="cap">창가 자리 성공. 오늘은 사람이 없다.</div></div>
+        <div class="p"><svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#EAF3D6"/><use href="#chara-side" x="10" y="10" width="60" height="60"/><use href="#chara" x="45" y="25" width="50" height="50"/></svg><span class="k">2</span><div class="cap">민수 에이전트가 우연히 같은 카페에.</div></div>
+        <div class="p"><svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#BEE6F8"/><use href="#chara" x="5" y="20" width="55" height="55"/><rect x="60" y="40" width="30" height="40" rx="4" fill="#fff" stroke="#2A2118" stroke-width="2"/></svg><span class="k">3</span><div class="cap">그림을 보여줬더니 "고양이야?" 강아지였다.</div></div>
+        <div class="p"><svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#FFD2C4"/><use href="#chara" x="20" y="10" width="60" height="60"/></svg><span class="k">4</span><div class="cap">결국 고양이로 고쳤다. 점심은 뭐 먹지.</div></div>
+      </div>
+      <div class="foot"><div>book에 담기</div><div class="pri">점심 정하러 가기</div></div>
+    </div></div>
+    <div>
+      <div class="num">04 · 활동 후</div>
+      <h2>만화는 보상이자 다음 블록의 문</h2>
+      <p class="lead">활동이 끝나면 4컷이 화면을 채운다. 여기서 유일한 다음 행동은 "다음 블록 정하기"라, 만화가 곧 시간표로 돌아가는 관문이 된다.</p>
+      <div class="notes">
+        <div class="note key"><b>컷 안에서도 캐릭터 우선</b><span>배경은 단색에 가깝게, 캐릭터와 대사 캡션만. 작화 일관성 에이전트가 이 규칙을 지킨다.</span></div>
+        <div class="note"><b>제목은 실제 장소명</b><span>"카페 어라운드에서 생긴 일". 장소 유형이 아니라 실제 방문지를 쓴다.</span></div>
+        <div class="note"><b>두 버튼</b><span>book에 담기(보조), 다음 블록 정하기(주). 다음 블록이 이미 확정돼 있으면 주 버튼은 "이동 보러 가기"로 바뀐다.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s5" style="grid-template-columns:1fr">
+    <div>
+      <div class="num">05 · LOOK & FEEL</div>
+      <h2>따뜻한 만화 세계의 재료</h2>
+      <p class="lead">스펙의 "만화 같은 따뜻한 느낌"을 검은 외곽선 2.5~4px, 살구·크림 바탕, 코랄 액센트 하나로 정의한다. 시간대(아침/낮/밤)에 따라 하늘 그라데이션만 바뀌고 UI 색은 고정.</p>
+      <div class="tokens">
+        <div class="tk" style="background:#FFF6E6">paper #FFF6E6</div>
+        <div class="tk" style="background:#FFD9B8">skin #FFD9B8</div>
+        <div class="tk" style="background:#FF6A48;color:#fff">coral #FF6A48</div>
+        <div class="tk" style="background:#FFC64D">sun #FFC64D</div>
+        <div class="tk" style="background:#5FC9A6">mint #5FC9A6</div>
+        <div class="tk" style="background:#1E2440;color:#fff">night #1E2440</div>
+      </div>
+      <div class="type-row">
+        <span class="a">Jua · 제목과 버튼</span>
+        <span class="b">Noto Sans KR · 본문과 제안 설명</span>
+        <span class="c">DM Mono · 09:12 시각과 남은 시간</span>
+      </div>
+      <div class="notes" style="grid-template-columns:1fr 1fr 1fr;margin-top:22px">
+        <div class="note"><b>외곽선은 UI에도</b><span>카드, 칩, 버튼에 캐릭터와 같은 굵기의 검은 선과 오프셋 그림자. 캐릭터와 UI가 한 세계로 보인다.</span></div>
+        <div class="note"><b>움직이는 건 캐릭터뿐</b><span>버튼 애니메이션, 스켈레톤, 로딩 스피너 없음. 화면에서 움직이는 유일한 것은 캐릭터여야 한다.</span></div>
+        <div class="note"><b>밤에는 하늘만 바뀐다</b><span>수면 블록엔 시간표 화면 대신 창문 너머 잠든 캐릭터. 카드는 없고 시각만 남는다.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>theworld · 홈 화면 구성안 v0.1 · 캐릭터는 자리 표시용 임시 작화. 다음 단계: 캐릭터 시트 3종(정면/측면/앉기) 확정 후 장소 배경 5종 제작.</footer>
+</div>

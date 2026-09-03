@@ -1,0 +1,40 @@
+@import './theme/tokens.css';
+@import 'maplibre-gl/dist/maplibre-gl.css';
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+h1, h2, h3, h4 { font-family: var(--display); font-weight: 400; margin: 0; line-height: 1.15; text-wrap: balance; }
+p { margin: 0; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* Phone stage: the app is a 390x844 stage; on desktop it sits centred with the paper ground around it */
+#root { display: grid; place-items: center; background: var(--paper-2); }
+.stage {
+  position: relative; width: 100%; height: 100%; max-width: 430px; max-height: 932px;
+  overflow: hidden; background: var(--paper);
+}
+@media (min-width: 500px) and (min-height: 900px) {
+  .stage { border-radius: 44px; box-shadow: var(--shadow-soft); height: 844px; width: 390px; }
+}
+
+/* MapLibre chrome we never want */
+.maplibregl-ctrl-attrib { font-family: var(--mono); font-size: 9px; opacity: .55; }
+.maplibregl-ctrl-logo { display: none !important; }
+.maplibregl-canvas:focus { outline: none; }
+
+/* ── screens shell additions (appended by the screens task) ── */
+.lab-note { font-family: var(--display); font-size: 16px; color: var(--ink-2); padding: 24px; text-align: center; }
+.stage > .home { position: absolute; inset: 0; }

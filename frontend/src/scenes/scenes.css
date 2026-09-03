@@ -1,0 +1,104 @@
+/* ─── Generic place scenes (warm 2-layer illustrations; props loop with transform/opacity only) ─── */
+.scene {
+  position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+  /* derived scene palette (from tokens only) */
+  --sc-wood: color-mix(in srgb, var(--ink-3) 52%, var(--sun));
+  --sc-wood-2: color-mix(in srgb, var(--ink-2) 60%, var(--sun));
+  --sc-grass: color-mix(in srgb, var(--leaf) 62%, var(--paper));
+  --sc-grass-2: color-mix(in srgb, var(--leaf) 80%, var(--mint));
+  --sc-sand: color-mix(in srgb, var(--sun-2) 60%, var(--paper));
+  --sc-water: var(--sky);
+  --sc-water-2: color-mix(in srgb, var(--sky) 72%, var(--mint));
+  --sc-stone: color-mix(in srgb, var(--ink-3) 30%, var(--paper));
+  --sc-stone-2: color-mix(in srgb, var(--ink-3) 55%, var(--paper));
+  --sc-cream: color-mix(in srgb, var(--sun-2) 45%, var(--paper));
+  --sc-rubber: color-mix(in srgb, var(--night-2) 55%, var(--paper-2));
+}
+
+/* fills */
+.f-paper { fill: var(--paper); } .f-paper2 { fill: var(--paper-2); } .f-card { fill: var(--card); }
+.f-ink { fill: var(--ink); } .f-ink2 { fill: var(--ink-2); } .f-ink3 { fill: var(--ink-3); } .f-line { fill: var(--line); }
+.f-skin { fill: var(--skin); } .f-coral { fill: var(--coral); } .f-coral2 { fill: var(--coral-2); } .f-coral3 { fill: var(--coral-3); }
+.f-sun { fill: var(--sun); } .f-sun2 { fill: var(--sun-2); } .f-mint { fill: var(--mint); } .f-mint2 { fill: var(--mint-2); }
+.f-sky { fill: var(--sky); } .f-sky2 { fill: var(--sky-2); } .f-leaf { fill: var(--leaf); } .f-night { fill: var(--night); } .f-night2 { fill: var(--night-2); }
+.f-wood { fill: var(--sc-wood); } .f-wood2 { fill: var(--sc-wood-2); } .f-grass { fill: var(--sc-grass); } .f-grass2 { fill: var(--sc-grass-2); }
+.f-sand { fill: var(--sc-sand); } .f-water { fill: var(--sc-water); } .f-water2 { fill: var(--sc-water-2); } .f-stone { fill: var(--sc-stone); } .f-stone2 { fill: var(--sc-stone-2); }
+.f-cream { fill: var(--sc-cream); } .f-rubber { fill: var(--sc-rubber); } .f-none { fill: none; }
+/* gradient stops */
+.st-sky { stop-color: var(--sky); } .st-sky2 { stop-color: var(--sky-2); } .st-paper { stop-color: var(--paper); } .st-paper2 { stop-color: var(--paper-2); }
+.st-sun2 { stop-color: var(--sun-2); } .st-coral2 { stop-color: var(--coral-2); } .st-coral3 { stop-color: var(--coral-3); } .st-mint2 { stop-color: var(--mint-2); }
+.st-cream { stop-color: var(--sc-cream); } .st-sun { stop-color: var(--sun); }
+/* strokes */
+.s-ink { stroke: var(--ink); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+.s-ink2 { stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.s-ink4 { stroke: var(--ink); stroke-width: 4; stroke-linejoin: round; stroke-linecap: round; }
+.s-paper { stroke: var(--paper); stroke-width: 3; stroke-linecap: round; }
+.s-card { stroke: var(--card); stroke-width: 3; stroke-linecap: round; }
+.s-water { stroke: var(--sc-water-2); stroke-width: 4; stroke-linecap: round; }
+.s-line { stroke: var(--line); stroke-width: 2; stroke-linecap: round; }
+.s-wood2 { stroke: var(--sc-wood-2); stroke-width: 2; }
+.s-coral { stroke: var(--coral); stroke-width: 3; stroke-linecap: round; }
+.s-mint { stroke: var(--mint); stroke-width: 3; stroke-linecap: round; }
+.s-none { stroke: none; }
+
+/* timetable-over-scene: the top-left speech bubble replaces the props under it */
+.scene--hush .sc-top { display: none; }
+
+/* looping props — every animated group sets transform-box so origins are local (iOS Safari needs both) */
+.scene [class*="an-"] { transform-box: fill-box; transform-origin: center; will-change: transform; }
+
+.an-steam { transform-origin: 50% 100%; animation: sc-steam 2.8s ease-in-out infinite; }
+.an-steam.d1 { animation-delay: -.95s; } .an-steam.d2 { animation-delay: -1.9s; }
+@keyframes sc-steam {
+  0% { transform: translateY(0) scale(1); opacity: 0; }
+  25% { opacity: .85; }
+  100% { transform: translateY(-30px) scale(1.35); opacity: 0; }
+}
+.an-sway { transform-origin: 50% 0%; animation: sc-sway 3.4s ease-in-out infinite alternate; }
+.an-sway.d1 { animation-delay: -1.2s; } .an-sway.d2 { animation-delay: -2.1s; }
+@keyframes sc-sway { from { transform: rotate(-3.5deg); } to { transform: rotate(3.5deg); } }
+.an-swayb { transform-origin: 50% 100%; animation: sc-sway 4s ease-in-out infinite alternate; }
+.an-swayb.d1 { animation-delay: -1.7s; }
+.an-drift { animation: sc-drift 34s linear infinite; }
+.an-drift.d1 { animation-delay: -17s; animation-duration: 42s; }
+@keyframes sc-drift { from { transform: translateX(-140px); } to { transform: translateX(440px); } }
+.an-wave { animation: sc-wave 2.8s linear infinite; }
+.an-wave.d1 { animation-duration: 3.6s; animation-delay: -1s; } .an-wave.d2 { animation-duration: 4.4s; animation-delay: -2s; }
+@keyframes sc-wave { to { transform: translateX(-60px); } }
+.an-bob { animation: sc-bob 2.2s ease-in-out infinite alternate; }
+.an-bob.d1 { animation-delay: -.8s; } .an-bob.d2 { animation-delay: -1.5s; }
+@keyframes sc-bob { from { transform: translateY(0) rotate(-2deg); } to { transform: translateY(-7px) rotate(2deg); } }
+.an-bounce { transform-origin: 50% 100%; animation: sc-bounce 1.15s cubic-bezier(.45, 0, .55, 1) infinite alternate; }
+@keyframes sc-bounce { from { transform: translateY(0) scale(1.06, .94); } 15% { transform: translateY(-2px) scale(1, 1); } to { transform: translateY(-22px) scale(.97, 1.03); } }
+.an-glow { animation: sc-glow 2.6s ease-in-out infinite alternate; }
+@keyframes sc-glow { from { opacity: .35; } to { opacity: .85; } }
+.an-blink { animation: sc-blink 1.4s steps(2, jump-none) infinite; }
+@keyframes sc-blink { from { opacity: .55; } to { opacity: 1; } }
+.an-leaf { animation: sc-leaf 7.5s ease-in-out infinite; }
+.an-leaf.d1 { animation-delay: -2.6s; } .an-leaf.d2 { animation-delay: -5s; }
+@keyframes sc-leaf {
+  0% { transform: translate(0, -20px) rotate(0deg); opacity: 0; }
+  12% { opacity: 1; }
+  50% { transform: translate(-30px, 150px) rotate(160deg); }
+  92% { opacity: 1; }
+  100% { transform: translate(-70px, 320px) rotate(340deg); opacity: 0; }
+}
+.an-swing { transform-origin: 50% 0%; animation: sc-swing 1.5s ease-in-out infinite alternate; }
+@keyframes sc-swing { from { transform: rotate(-14deg); } to { transform: rotate(14deg); } }
+.an-tail { transform-origin: 0% 100%; animation: sc-tail 1.3s ease-in-out infinite alternate; }
+@keyframes sc-tail { from { transform: rotate(-14deg); } to { transform: rotate(18deg); } }
+.an-fly { animation: sc-fly 16s linear infinite; }
+.an-fly.d1 { animation-delay: -7s; animation-duration: 21s; }
+@keyframes sc-fly { from { transform: translate(-80px, 10px); } 50% { transform: translate(200px, -18px); } to { transform: translate(480px, 6px); } }
+.an-mote { animation: sc-mote 6.5s ease-in-out infinite; }
+.an-mote.d1 { animation-delay: -2.2s; } .an-mote.d2 { animation-delay: -4.4s; }
+@keyframes sc-mote { 0% { transform: translateY(0); opacity: 0; } 30% { opacity: .9; } 70% { opacity: .6; } 100% { transform: translateY(-120px) translateX(14px); opacity: 0; } }
+.an-spin { animation: sc-spin 5s linear infinite; }
+@keyframes sc-spin { to { transform: rotate(360deg); } }
+.an-twinkle { animation: sc-twinkle 2.2s ease-in-out infinite alternate; }
+.an-twinkle.d1 { animation-delay: -.7s; } .an-twinkle.d2 { animation-delay: -1.4s; }
+@keyframes sc-twinkle { from { opacity: .25; transform: scale(.8); } to { opacity: 1; transform: scale(1.1); } }
+.an-duck { animation: sc-duck 2.6s ease-in-out infinite alternate; }
+@keyframes sc-duck { from { transform: translate(0, 0) rotate(-3deg); } to { transform: translate(6px, -3px) rotate(3deg); } }
+.an-scan { animation: sc-scan 3.2s ease-in-out infinite alternate; }
+@keyframes sc-scan { from { transform: translateX(0); } to { transform: translateX(26px); } }

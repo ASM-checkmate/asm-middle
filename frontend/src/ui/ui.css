@@ -1,0 +1,156 @@
+/* ─── theworld shared UI bits (deck look: 2px ink outline, 4px hard shadow, Jua display) ─── */
+
+/* Top chrome: centre clock + round book button. Persistent on every screen. */
+.chrome {
+  position: absolute; top: calc(14px + var(--safe-top)); left: 0; right: 0; z-index: 30;
+  pointer-events: none;
+}
+.chrome-clock {
+  text-align: center; font-family: var(--mono); font-size: 16px; letter-spacing: .06em; line-height: 1.2;
+  color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.chrome-clock small {
+  display: block; font-family: var(--display); font-size: 13px; color: var(--ink-2); letter-spacing: 0; margin-top: 1px;
+}
+.chrome.is-paper .chrome-clock { color: var(--paper); }
+.chrome.is-paper .chrome-clock small { color: var(--sky); }
+.chrome-scale {
+  display: inline-block; font-family: var(--mono); font-size: 11px; line-height: 1;
+  background: var(--sun); color: var(--ink); border: 2px solid var(--ink); border-radius: 999px; padding: 3px 8px;
+}
+/* left of the clock, level with the round buttons: the dev x-scale badge */
+.chrome-side { position: absolute; left: 16px; top: -3px; height: 44px; display: flex; align-items: center; gap: 6px; pointer-events: none; }
+/* the clock row: the big local time stays centred; the owner's own time hangs left of it as a small house pill (the
+   top-left is otherwise empty, so the pill can grow with long city names without touching the round buttons) */
+.chrome-row { display: inline-flex; align-items: center; vertical-align: top; }
+.chrome-owner {
+  position: absolute; right: calc(50% + 38px); top: -2px;
+  display: inline-flex; align-items: center; gap: 4px; min-height: 22px; padding: 1px 8px 1px 6px;
+  background: var(--card); color: var(--ink); border: var(--outline); border-radius: 999px; box-shadow: 2px 2px 0 var(--ink);
+  font-family: var(--display); font-size: 11px; line-height: 1; letter-spacing: 0; white-space: nowrap;
+  animation: chrome-owner-in .4s cubic-bezier(.34, 1.56, .64, 1) both;
+}
+.chrome-owner em { font-style: normal; }
+.chrome-owner .num { font-size: 11px; letter-spacing: .04em; }
+.chrome-owner .glyph { margin-top: -1px; }
+@keyframes chrome-owner-in { from { transform: scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
+/* the pill grows in from its right end (toward the clock) */
+.chrome-owner { transform-origin: 100% 50%; }
+.chrome-book {
+  position: absolute; top: -3px; right: 16px; width: 44px; height: 44px; border-radius: 50%;
+  background: var(--card); border: var(--outline); box-shadow: var(--shadow-hard-sm);
+  display: grid; place-items: center; pointer-events: auto;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.chrome-book:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+
+/* Card */
+.card {
+  background: var(--card); border: var(--outline); border-radius: var(--r-card); box-shadow: var(--shadow-hard);
+}
+.card--soft { box-shadow: none; background: rgba(255, 255, 255, .92); }
+.card--flat { box-shadow: none; }
+
+/* Chip */
+.chip {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: var(--outline); border-radius: var(--r-chip); padding: 4px 12px; min-height: 32px;
+  font-family: var(--display); font-size: 14px; line-height: 1.2; color: var(--ink); white-space: nowrap;
+  background: var(--sun); vertical-align: middle;
+}
+.chip--paper { background: var(--card); }
+.chip--paper2 { background: var(--paper-2); }
+.chip--ghost { background: var(--card); border-style: dashed; color: var(--ink-2); }
+.chip--coral { background: var(--coral); color: #fff; }
+.chip--mint { background: var(--mint); }
+.chip--sky { background: var(--sky); }
+.chip--night { background: var(--night); color: var(--paper); }
+.chip--ink { background: var(--ink); color: var(--paper); }
+.chip--big { min-height: 44px; padding: 6px 16px; font-size: 16px; }
+.chip--tiny { min-height: 24px; padding: 2px 9px 2px 7px; font-size: 12px; gap: 4px; box-shadow: 2px 2px 0 var(--ink); }
+.chip.is-on { background: var(--sun); box-shadow: var(--shadow-hard-sm); }
+.chip--big.is-on { transform: translate(-1px, -1px); }
+button.chip { cursor: pointer; transition: transform .12s ease, box-shadow .12s ease, background .12s ease; }
+button.chip:active { transform: translate(1px, 1px); box-shadow: none; }
+
+/* Button */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+  min-height: 48px; padding: 10px 16px; border-radius: var(--r-btn);
+  font-family: var(--display); font-size: 18px; line-height: 1.1; color: var(--ink);
+  background: var(--card); border: var(--outline); box-shadow: var(--shadow-hard-sm);
+  transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+}
+.btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.btn--ink { background: var(--ink); color: var(--paper); border-color: var(--ink); box-shadow: none; }
+.btn--ink:active { transform: translateY(1px); box-shadow: none; opacity: .9; }
+.btn--coral { background: var(--coral); color: #fff; }
+.btn--sun { background: var(--sun); }
+.btn--text {
+  width: auto; min-height: 32px; padding: 4px 6px; border: 0; box-shadow: none; background: none;
+  font-family: var(--body); font-size: 12px; font-weight: 500; color: var(--ink-2); text-decoration: underline;
+  text-decoration-color: var(--line); text-underline-offset: 3px;
+}
+.btn--text:active { transform: none; opacity: .6; }
+.btn--small { min-height: 40px; font-size: 15px; padding: 6px 12px; border-radius: 12px; }
+.btn--round { width: 44px; min-height: 44px; padding: 0; border-radius: 50%; }
+.btn[disabled] { opacity: .55; pointer-events: none; }
+.btn--done { background: var(--mint-2); color: var(--ink); }
+
+/* Progress bar: fill scales with transform only (never width) */
+.pbar {
+  position: relative; height: 10px; border-radius: 99px; background: var(--paper-2);
+  border: 2px solid var(--ink); overflow: hidden;
+}
+.pbar > i {
+  position: absolute; inset: 0; display: block; border-radius: 99px; background: var(--coral);
+  transform-origin: left center; transition: transform 1s linear;
+}
+
+/* Speech bubble */
+.bubble {
+  position: relative; display: inline-block; background: var(--card); border: var(--outline);
+  border-radius: 18px 18px 18px 4px; padding: 8px 14px; font-family: var(--display); font-size: 15px;
+  line-height: 1.3; box-shadow: var(--shadow-hard-sm); color: var(--ink); max-width: 210px;
+  animation: bubble-pop .32s cubic-bezier(.34, 1.56, .64, 1) both; transform-origin: 0 100%;
+}
+.bubble--right { border-radius: 18px 18px 4px 18px; transform-origin: 100% 100%; }
+@keyframes bubble-pop { from { transform: scale(.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* "😴 시차 적응 중": a sun sticker, tilted onto the corner of a tag / bubble / sheet, or inline in a caption */
+.jetlag { animation: jetlag-in .45s cubic-bezier(.34, 1.56, .64, 1) both; }
+.jetlag-zz { font-size: 13px; line-height: 1; }
+.jetlag--sticker { position: absolute; right: -16px; top: -12px; --tilt: 4deg; transform: rotate(var(--tilt)); z-index: 1; animation-name: jetlag-in-sticker; }
+.jetlag--inline { vertical-align: middle; margin-left: 6px; position: relative; top: -1px; }
+@keyframes jetlag-in { from { transform: scale(.5); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes jetlag-in-sticker { from { transform: rotate(var(--tilt)) scale(.5); opacity: 0; } to { transform: rotate(var(--tilt)) scale(1); opacity: 1; } }
+
+/* Glyph icons (SVG) */
+.glyph { display: block; }
+
+/* second round button: the timetable (left of the book) */
+.chrome-tt { right: 68px; }
+
+/* Companion chip (FRIENDS_SPEC 동행 표시 규칙): stacked friend heads + the name, outlined in the friend's colour */
+.cchip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  background: var(--card); border: 2px solid var(--friend-line, var(--ink)); border-radius: 999px;
+  padding: 2px 10px 2px 3px; min-height: 30px; vertical-align: middle;
+}
+.cchip--sm { min-height: 26px; padding: 1px 8px 1px 2px; gap: 5px; }
+.cchip-heads { display: inline-flex; align-items: center; flex: none; }
+.cchip-heads .fh { display: block; }
+.cchip-tx {
+  font-family: var(--display); font-size: 13px; line-height: 1.2; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cchip--sm .cchip-tx { font-size: 12px; }
+.cchip-tx em { font-style: normal; color: var(--ink-2); }
+/* screen styles like `.opt span { display:block }` must never restack the chip */
+.cchip.cchip { display: inline-flex; width: auto; margin: 0; }
+.cchip .cchip-heads { display: inline-flex; width: auto; }
+.cchip .cchip-tx { display: inline-block; width: auto; margin: 0; color: var(--ink); }
+
+/* third round button: friends (left of the timetable) */
+.chrome-friends { left: 16px; right: auto; }
+.chrome-tt.is-alone { right: 68px; }

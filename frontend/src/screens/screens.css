@@ -1,0 +1,391 @@
+/* ─── Home shell + the 4 states (deck: design/home-deck.html) ───────────────── */
+.home { position: absolute; inset: 0; overflow: hidden; background: var(--paper); }
+.scr { position: absolute; inset: 0; overflow: hidden; }
+.scr-leave { z-index: 1; pointer-events: none; animation: scr-fade-out .42s ease both; }
+.scr-enter { z-index: 2; }
+.scr-enter:not(.from-none) { animation: scr-fade-in .42s ease both; }
+/* timetable → map: the timetable stays on top while its pieces morph away (see .tt below) */
+.scr-leave.to-map { z-index: 3; animation: none; }
+.scr-enter.from-timetable { animation: scr-fade-in .4s ease both; }
+/* map → scene (§6.2): iris + character growth are on .act and start at once; the map is hidden ~900ms later (≈1.8s after p = 1) */
+.scr-enter.from-map { animation: none; }
+.scr-leave.to-active { animation: scr-fade-out .3s ease .6s both; }
+/* hidden pre-warm layer (the next ride's map, already constructed and loading tiles) */
+.scr-prewarm { z-index: 0; visibility: hidden; pointer-events: none; animation: none; }
+.scr-hold { position: absolute; inset: 0; background: var(--paper); }
+@keyframes scr-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scr-fade-out { from { opacity: 1; } to { opacity: 0; } }
+
+/* ─── 1 · Timetable (waiting) ─────────────────────────────────────────────── */
+.tt { position: absolute; inset: 0; }
+.tt-sky { position: absolute; inset: 0 0 auto 0; height: 380px; background: linear-gradient(180deg, var(--sky) 0%, var(--sky-2) 58%, var(--paper) 100%); }
+.tt-sun {
+  /* top-left, under the speech bubble (≈62–120px) and clear of the character's head and its thought bubble (right side) */
+  position: absolute; top: 152px; left: 24px; width: 42px; height: 42px; border-radius: 50%; background: var(--sun); border: var(--outline);
+  box-shadow: 0 0 0 7px color-mix(in srgb, var(--sun) 26%, transparent);
+}
+.tt-cloud { position: absolute; width: 92px; height: 32px; background: var(--card); border-radius: 30px; opacity: .95; animation: tt-cloud 40s linear infinite; }
+.tt-cloud::before { content: ''; position: absolute; left: 16px; top: -16px; width: 40px; height: 40px; background: var(--card); border-radius: 50%; }
+.tt-cloud::after { content: ''; position: absolute; left: 46px; top: -9px; width: 30px; height: 30px; background: var(--card); border-radius: 50%; }
+.tt-cloud.c1 { top: 118px; left: -110px; }
+.tt-cloud.c2 { top: 196px; left: -110px; --s: .68; animation-delay: -22s; animation-duration: 52s; }
+@keyframes tt-cloud { from { transform: translateX(0) scale(var(--s, 1)); } to { transform: translateX(560px) scale(var(--s, 1)); } }
+.tt-hill { position: absolute; top: 268px; left: -70px; right: -70px; height: 230px; border-radius: 50%; background: color-mix(in srgb, var(--leaf) 40%, var(--paper)); }
+.tt-hill2 { position: absolute; top: 300px; left: -140px; right: 46%; height: 200px; border-radius: 50%; background: color-mix(in srgb, var(--leaf) 56%, var(--paper)); }
+.tt-yard { position: absolute; left: 0; right: 0; top: 232px; height: 120px; pointer-events: none; z-index: 2; }
+.tt-chara {
+  /* 290px ≈ 34% of the stage above the panel; head starts ≈ y 130 so the bubble (top 62) clears it */
+  position: absolute; top: 70px; left: 50%; width: 290px; height: 290px; margin-left: -145px; z-index: 3;
+  transform-origin: 50% 100%; animation: tt-breathe 3.2s ease-in-out infinite;
+}
+@keyframes tt-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+.tt-bubble { position: absolute; top: 62px; left: 20px; z-index: 4; }
+/* 😴 시차 적응 중 hangs under the bubble's tail corner (its top corner would touch the chrome sub-line, its right end the text) */
+.tt-bubble .jetlag--sticker { top: auto; bottom: -15px; left: 10px; right: auto; --tilt: -4deg; }
+.tt-panel {
+  position: absolute; left: 0; right: 0; top: 344px; bottom: 0; z-index: 4; background: var(--card);
+  border-radius: 36px 36px 0 0; padding: 10px 18px calc(16px + var(--safe-bottom));
+  display: flex; flex-direction: column; box-shadow: 0 -10px 30px rgba(42, 33, 24, .08);
+}
+/* waiting away from home: the previous place's scene sits behind the character (unshifted, so its props stay clear of the chrome; the bubble takes the place tag's slot) */
+.tt-scene { position: absolute; left: 0; right: 0; top: 0; height: 844px; z-index: 0; pointer-events: none; }
+.tt-scene::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 560px; background: linear-gradient(180deg, transparent, rgba(42, 33, 24, .06)); }
+.tt-bubble-where {
+  display: block; margin-top: 3px; padding-top: 3px; border-top: 1.5px dashed var(--line);
+  font-family: var(--body); font-size: 11px; color: var(--ink-2); line-height: 1.3; max-width: 236px; white-space: normal;
+}
+/* short stages (≤ 800px): lift the yard + panel so the option list and CTA keep their room */
+@media (max-height: 800px) {
+  .tt-sky { height: 340px; }
+  .tt-bubble { top: 56px; }
+  .tt-chara { top: 38px; }
+  .tt-sun { top: 128px; }
+  .tt-yard { top: 200px; }
+  .tt-hill { top: 236px; }
+  .tt-hill2 { top: 268px; }
+  .tt-panel { top: 312px; }
+}
+/* departure: panel slides down, sky fades, the big character shrinks toward the map anchor (195,355) */
+.scr-leave.to-map .tt-chara { animation: tt-morph .6s cubic-bezier(.34, 1.56, .64, 1) both; }
+@keyframes tt-morph { 0% { transform: translateY(0) scale(1); opacity: 1; } 86% { opacity: 1; } 100% { transform: translateY(-5px) scale(.33); opacity: 0; } }
+.scr-leave.to-map .tt-panel { animation: tt-panel-out .32s cubic-bezier(.4, 0, .2, 1) both; }
+@keyframes tt-panel-out { to { transform: translateY(540px); opacity: 0; } }
+.scr-leave.to-map .tt-sky, .scr-leave.to-map .tt-scene, .scr-leave.to-map .tt-hill, .scr-leave.to-map .tt-hill2, .scr-leave.to-map .tt-yard,
+.scr-leave.to-map .tt-bubble, .scr-leave.to-map .tt-cloud, .scr-leave.to-map .tt-sun { animation: scr-fade-out .4s ease both; }
+
+.tt-ttl { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-family: var(--display); font-size: 20px; line-height: 1.3; flex: none; }
+/* abroad the title carries the local date ("뉴욕 · 9월 4일의 생활계획표"): it may ellipsize, the count never wraps */
+.tt-ttl-tx { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tt-ttl small { font-family: var(--mono); font-size: 12px; color: var(--ink-2); flex: none; white-space: nowrap; }
+/* 😴 시차 적응 중 — stuck on the sheet's rim, left of the grip */
+.tt-sheet-jetlag { left: 18px; right: auto; top: -13px; --tilt: -4deg; }
+.tt-row { display: grid; grid-template-columns: 190px 1fr; gap: 10px; align-items: center; margin-top: 0; flex: none; }
+.ring { width: 190px; height: 190px; display: block; overflow: visible; }
+.ring-seg { cursor: pointer; transition: transform .28s cubic-bezier(.34, 1.56, .64, 1); outline: none; }
+.ring-seg.is-sel { filter: drop-shadow(2px 2px 0 var(--ink)); }
+.ring-lbl { transition: transform .28s cubic-bezier(.34, 1.56, .64, 1); }
+.ring-cur { animation: ring-pulse 1.6s ease-in-out infinite; }
+@keyframes ring-pulse { 0%, 100% { opacity: .2; } 50% { opacity: 1; } }
+.tt-info { display: grid; gap: 6px; align-content: center; justify-items: start; min-width: 0; }
+.tt-bl { font-family: var(--mono); font-size: 11px; color: var(--ink-2); letter-spacing: .08em; }
+.tt-bh { font-family: var(--display); font-size: 24px; line-height: 1.1; }
+.tt-note { font-size: 12px; color: var(--ink-2); line-height: 1.35; }
+.tt-link {
+  display: inline-flex; align-items: center; gap: 3px; min-height: 44px; margin: -8px 0; padding: 0 4px; font-size: 12px; color: var(--ink-2);
+  text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line);
+}
+/* the tappable category chip keeps its 32px pill look inside a 44px hit box */
+.tt-chipbtn { display: inline-flex; align-items: center; min-height: 44px; margin: -6px 0; padding: 0 4px 0 0; }
+.tt-chipbtn .chip { transition: transform .12s ease, box-shadow .12s ease; }
+.tt-chipbtn:active .chip { transform: translate(1px, 1px); }
+.tt-link:active { opacity: .6; }
+.tt-body { flex: 1; min-height: 0; display: flex; flex-direction: column; margin-top: 4px; }
+.tt-head { display: flex; justify-content: space-between; align-items: center; min-height: 22px; font-size: 12px; color: var(--ink-2); flex: none; }
+.tt-agent { display: inline-flex; align-items: center; gap: 4px; font-family: var(--display); font-size: 12px; color: var(--coral); }
+.tt-agent.is-ok { color: var(--mint); }
+.tt-list {
+  /* 3 × 50px + 2 × 5px gap + 5px padding = 165px: fits the panel (top 344) without scrolling */
+  flex: 1; min-height: 0; overflow-y: auto; display: grid; gap: 5px; align-content: start; margin-top: 4px;
+  padding: 2px 4px 3px 1px; scrollbar-width: none;
+}
+.tt-list::-webkit-scrollbar { display: none; }
+.opt {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  border: 2px solid var(--line); border-radius: 16px; padding: 5px 10px; min-height: 50px; background: var(--card);
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease;
+}
+.opt:active { transform: translate(1px, 1px); }
+.opt-ic { width: 38px; height: 38px; border-radius: 12px; background: var(--paper-2); display: grid; place-items: center; font-size: 20px; flex: none; }
+.opt-tx { min-width: 0; flex: 1; }
+.opt b { display: block; font-family: var(--display); font-weight: 400; font-size: 16px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.opt span { display: block; font-size: 12px; color: var(--ink-2); line-height: 1.3; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.opt.is-on { border-color: var(--coral); background: var(--coral-3); box-shadow: 3px 3px 0 var(--coral); }
+.opt.is-on .opt-ic { background: var(--coral-2); }
+.opt-check { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--coral); display: grid; place-items: center; }
+.tt-cta { margin-top: 8px; flex: none; min-height: 46px; }
+.tt-cats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 6px; flex: none; }
+.tt-cats .chip { justify-content: center; min-height: 44px; padding: 8px 4px; font-size: 15px; white-space: nowrap; }
+.tt-hint { font-size: 12px; color: var(--ink-2); margin-top: 2px; flex: none; }
+/* ghost preview: three dashed placeholders (a '?' tile + one line of musing copy — never a skeleton) + a sticky note */
+.tt-ghost { position: relative; flex: 1; min-height: 0; overflow: hidden; display: grid; gap: 5px; align-content: start; margin-top: 6px; padding: 0 4px 0 1px; }
+.opt--ghost { border-style: dashed; border-color: var(--line); background: transparent; min-height: 36px; padding: 2px 10px; pointer-events: none; }
+.opt--ghost .opt-ic { width: 30px; height: 30px; border-radius: 10px; background: transparent; border: 2px dashed var(--line); font-family: var(--display); font-size: 16px; color: var(--ink-3); }
+.opt-ghost-tx { display: block; font-family: var(--display); font-size: 14px; line-height: 1.2; color: var(--ink-3); }
+.tt-ghost-note {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-2deg); display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+  background: var(--sun-2); border: var(--outline); border-radius: 12px; padding: 6px 12px; font-family: var(--display); font-size: 14px; color: var(--ink); box-shadow: var(--shadow-hard-sm);
+  animation: tt-note-pop .4s cubic-bezier(.34, 1.56, .64, 1) both;
+}
+@keyframes tt-note-pop { from { transform: translate(-50%, -50%) rotate(-2deg) scale(.6); opacity: 0; } to { transform: translate(-50%, -50%) rotate(-2deg) scale(1); opacity: 1; } }
+.done {
+  display: flex; align-items: center; gap: 10px; border: var(--outline); border-radius: 16px; padding: 8px 12px;
+  background: var(--paper); margin-top: 8px; box-shadow: var(--shadow-hard-sm); text-align: left;
+}
+.done .opt-ic { background: var(--card); border: 2px solid var(--line); }
+.done b { display: block; font-family: var(--display); font-weight: 400; font-size: 16px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.done span { display: block; font-size: 12px; color: var(--ink-2); line-height: 1.3; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.done-tag { flex: none; }
+.tt-empty { font-size: 12px; color: var(--ink-2); margin-top: 8px; }
+
+/* ─── 3 · Activity (active) ──────────────────────────────────────────────── */
+.act { position: absolute; inset: 0; overflow: hidden; background: var(--paper-2); }
+.act-scene { position: absolute; inset: 0; z-index: 2; } /* above the paper iris (z 1) so it can fade in over it */
+.act-chara {
+  /* 350px ≈ 41% of the stage; feet ≈ y 455 */
+  position: absolute; top: 140px; left: 50%; width: 350px; height: 350px; margin-left: -175px; z-index: 3;
+  transform-origin: 50% 100%; animation: act-breathe 3s ease-in-out infinite;
+}
+.act.has-friend .act-chara { margin-left: -215px; }
+.act-friend { position: absolute; top: 266px; left: 50%; width: 224px; height: 224px; margin-left: 26px; z-index: 2; animation: act-breathe 3.4s ease-in-out -1s infinite; }
+@keyframes act-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+/* the happy pose hops (character.css ch-bounce, 900ms); the ground shadow shrinks under the hop so it reads as a jump, not a hover */
+.act-chara[data-pose="happy"] .ch-shadow { transform-box: fill-box; transform-origin: center; animation: act-hop-shadow 900ms ease-in-out infinite; }
+@keyframes act-hop-shadow {
+  0%, 100% { transform: scale(1); opacity: .12; }
+  20% { transform: scale(1.08, 1); opacity: .14; }
+  50% { transform: scale(.72, .8); opacity: .07; }
+  80% { transform: scale(1.08, 1); opacity: .14; }
+}
+.act-tag {
+  position: absolute; left: 16px; top: calc(74px + var(--safe-top)); z-index: 4; max-width: 240px;
+  background: var(--card); border: var(--outline); border-radius: 14px; padding: 7px 12px;
+  font-family: var(--display); font-size: 15px; line-height: 1.25; box-shadow: var(--shadow-hard-sm);
+}
+.act-tag small { display: block; font-family: var(--mono); font-size: 11px; color: var(--ink-2); letter-spacing: .02em; }
+/* 😴 시차 적응 중 hangs off the tag's top-right corner, clear of the place name */
+.act-tag .jetlag--sticker { top: -21px; right: -20px; }
+.act-stat {
+  position: absolute; left: 16px; right: 16px; bottom: calc(22px + var(--safe-bottom)); z-index: 4;
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 12px;
+  background: rgba(255, 255, 255, .93); border: var(--outline); border-radius: 22px; padding: 12px 18px 12px; box-shadow: var(--shadow-hard);
+}
+.act-stat b { font-family: var(--display); font-weight: 400; font-size: 18px; display: block; line-height: 1.2; }
+.act-stat .lock { font-size: 12px; color: var(--ink-2); display: block; margin-top: 2px; }
+.act-t { font-family: var(--mono); font-size: 24px; line-height: 1; text-align: right; flex: none; }
+.act-t small { display: block; font-family: var(--display); font-size: 12px; color: var(--ink-2); margin-top: 4px; }
+.act-bar { grid-column: 1 / -1; }
+/* map → scene (§6.2, t = 0 is 900ms after p = 1): a paper iris opens from the marker point (600ms easeInCubic) while the
+   character grows back from the 96px marker (700ms overshoot); the scene fades in under it; the move card crossfades into
+   the status card (300ms); the ghost map is gone by 900ms. */
+.act-iris {
+  position: absolute; left: 195px; top: 355px; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%;
+  background: var(--paper); z-index: 1; transform: scale(0); opacity: 0; pointer-events: none;
+}
+.scr-enter.from-map .act-iris { animation: act-iris .6s cubic-bezier(.32, 0, .67, 0) both; }
+@keyframes act-iris { from { transform: scale(0); opacity: 1; } to { transform: scale(64); opacity: 1; } }
+.scr-enter.from-map .act-scene { animation: scr-fade-in .4s ease .15s both; }
+.scr-enter.from-map .act-chara { animation: act-grow .7s cubic-bezier(.34, 1.56, .64, 1) both, act-breathe 3s ease-in-out .8s infinite; }
+@keyframes act-grow { from { transform: translateY(-100px) scale(.27); } to { transform: translateY(0) scale(1); } }
+.scr-enter.from-map .act-friend { animation: scr-fade-in .4s ease .5s both, act-breathe 3.4s ease-in-out .9s infinite; }
+.scr-enter.from-map .act-stat { animation: scr-fade-in .3s ease .3s both; }
+.scr-enter.from-map .act-tag { animation: scr-fade-in .3s ease .5s both; }
+
+/* ─── 4 · Comic (after the activity) ─────────────────────────────────────── */
+.cm { position: absolute; inset: 0; overflow: hidden; background: var(--paper-2); }
+.cm-head { position: absolute; top: calc(70px + var(--safe-top)); left: 24px; right: 24px; z-index: 3; }
+.cm-head h3 { font-size: 24px; line-height: 1.2; }
+.cm-head p { font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+.cm-gridwrap { position: absolute; top: 146px; left: 20px; right: 20px; z-index: 3; }
+.cm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cm-p {
+  aspect-ratio: 1 / 1.08; background: var(--card); border: 2.5px solid var(--ink); border-radius: 8px;
+  position: relative; overflow: hidden; animation: cm-pop .45s cubic-bezier(.34, 1.56, .64, 1) both;
+}
+.cm-p:nth-child(2) { animation-delay: .1s; } .cm-p:nth-child(3) { animation-delay: .2s; } .cm-p:nth-child(4) { animation-delay: .3s; }
+@keyframes cm-pop { from { transform: scale(.7) rotate(-3deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.cm-floor { position: absolute; left: 0; right: 0; bottom: 0; height: 40%; background: rgba(42, 33, 24, .07); }
+.cm-k { position: absolute; top: 6px; left: 6px; z-index: 2; font-family: var(--mono); font-size: 10px; background: var(--ink); color: var(--paper); border-radius: 4px; padding: 1px 5px; }
+.cm-cap { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 2; background: var(--card); border: 1.5px solid var(--ink); border-radius: 6px; font-size: 11px; padding: 3px 6px; line-height: 1.3; }
+.cm-c { position: absolute; bottom: 34px; left: 50%; margin-left: -59px; }
+.cm-c.is-left { left: 6px; margin-left: 0; }
+.cm-f { position: absolute; bottom: 36px; right: 2px; }
+.cm-prop { position: absolute; z-index: 1; }
+.cm-me { position: absolute; left: 6px; bottom: calc(84px + var(--safe-bottom)); z-index: 2; animation: act-breathe 3s ease-in-out infinite; }
+.cm-me-bubble { position: absolute; left: 150px; bottom: calc(200px + var(--safe-bottom)); z-index: 3; }
+.cm-stamp {
+  position: absolute; right: 22px; bottom: calc(104px + var(--safe-bottom)); z-index: 2; transform: rotate(-8deg);
+  font-family: var(--mono); font-size: 11px; letter-spacing: .1em; color: var(--coral); border: 2px solid var(--coral); border-radius: 8px; padding: 4px 8px; opacity: .85;
+}
+.cm-foot { position: absolute; left: 20px; right: 20px; bottom: calc(24px + var(--safe-bottom)); z-index: 3; display: grid; grid-template-columns: 1fr 1.3fr; gap: 10px; }
+.cm-foot .btn { font-size: 16px; padding-left: 8px; padding-right: 8px; }
+
+/* ─── 5 · Sleeping ───────────────────────────────────────────────────────── */
+/* the house: warm paper walls and a coral roof, both dimmed for night (tokens only) */
+.slp-wall { fill: color-mix(in srgb, var(--paper-2) 58%, var(--ink-2)); }
+.slp-roof { fill: color-mix(in srgb, var(--coral) 74%, var(--night)); }
+.slp { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(180deg, var(--night) 0%, var(--night-2) 70%, color-mix(in srgb, var(--night-2) 72%, var(--sky)) 100%); }
+.slp-sky { position: absolute; inset: 0; width: 100%; height: 100%; }
+.slp-star { animation: slp-twinkle 2.4s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+.slp-star.d1 { animation-delay: -.8s; } .slp-star.d2 { animation-delay: -1.6s; } .slp-star.d3 { animation-delay: -1.2s; animation-duration: 3.1s; }
+@keyframes slp-twinkle { from { opacity: .25; transform: scale(.7); } to { opacity: 1; transform: scale(1.15); } }
+.slp-smoke { animation: slp-smoke 3.2s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+.slp-smoke.d1 { animation-delay: -1.1s; } .slp-smoke.d2 { animation-delay: -2.2s; }
+@keyframes slp-smoke { 0% { transform: translateY(0) scale(.6); opacity: 0; } 25% { opacity: .7; } 100% { transform: translateY(-40px) scale(1.4); opacity: 0; } }
+.slp-win {
+  position: absolute; left: 85px; top: 362px; width: 220px; height: 220px; border-radius: 50%; overflow: hidden; z-index: 2;
+  background: radial-gradient(circle at 50% 40%, var(--paper) 0%, var(--sun-2) 70%, var(--sun) 100%);
+}
+.slp-chara { position: absolute; left: 0; top: -18px; animation: slp-breathe 3.6s ease-in-out infinite; }
+@keyframes slp-breathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(2px) scale(1.015); } }
+.slp-frame { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
+.slp-z { position: absolute; font-family: var(--display); color: var(--sun); z-index: 4; opacity: 0; animation: slp-z 2.7s ease-in-out infinite; text-shadow: 2px 2px 0 var(--night); }
+/* rise from the window's upper-right rim, next to the sleeping head (clear of the chimney at x ≤ 288) */
+.slp-z.z1 { left: 284px; top: 398px; font-size: 18px; }
+.slp-z.z2 { left: 302px; top: 368px; font-size: 24px; animation-delay: .9s; }
+.slp-z.z3 { left: 324px; top: 334px; font-size: 30px; animation-delay: 1.8s; }
+@keyframes slp-z { 0% { opacity: 0; transform: translateY(6px) scale(.8); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(-22px) scale(1.1); } }
+.slp-caption { position: absolute; left: 0; right: 0; bottom: calc(34px + var(--safe-bottom)); z-index: 4; text-align: center; font-family: var(--display); font-size: 14px; color: var(--sky); }
+.slp-caption.is-away { display: grid; gap: 3px; line-height: 1.25; }
+.slp-caption b { font-family: var(--mono); font-weight: 400; color: var(--paper); letter-spacing: .06em; }
+
+/* ─── Overlays ───────────────────────────────────────────────────────────── */
+.sheet-dim { position: absolute; inset: 0; z-index: 40; background: color-mix(in srgb, var(--night) 55%, transparent); animation: scr-fade-in .3s ease both; }
+.sheet {
+  /* min-height keeps the sheet's top edge above the timetable panel title (≈ 328px) so nothing peeks out half-clipped */
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 41; min-height: 62%; max-height: 74%;
+  background: var(--card); border-top: var(--outline); border-radius: 30px 30px 0 0;
+  padding: 18px 20px calc(18px + var(--safe-bottom)); display: flex; flex-direction: column;
+  animation: sheet-up .45s cubic-bezier(.22, 1, .36, 1) both;
+}
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+.sheet-hd { display: flex; align-items: center; gap: 10px; flex: none; }
+.sheet-hd h3 { font-size: 22px; line-height: 1.2; }
+.sheet-hd p { font-size: 13px; color: var(--ink-2); }
+.sheet-list { flex: 1; min-height: 0; overflow-y: auto; display: grid; gap: 10px; margin: 14px 0; padding: 2px 4px 5px 1px; scrollbar-width: none; }
+.sheet-list::-webkit-scrollbar { display: none; }
+.sum {
+  display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; text-align: left; width: 100%;
+  border: var(--outline); border-radius: 16px; padding: 10px 12px; background: var(--paper); box-shadow: var(--shadow-hard-sm);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.sum:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.sum-ic { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-size: 22px; border: var(--outline); background: var(--sun-2); }
+.sum b { font-family: var(--display); font-weight: 400; font-size: 16px; display: block; line-height: 1.2; }
+.sum span { font-size: 12px; color: var(--ink-2); display: block; line-height: 1.35; margin-top: 2px; }
+.sum .sum-meta { font-family: var(--mono); font-size: 10px; color: var(--ink-2); letter-spacing: .06em; margin: 0 0 3px; }
+
+.book { position: absolute; inset: 0; z-index: 50; background: var(--paper); display: flex; flex-direction: column; animation: book-in .4s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes book-in { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.book-hd { display: flex; align-items: center; gap: 12px; padding: calc(14px + var(--safe-top)) 16px 10px 20px; flex: none; }
+.book-hd h2 { font-size: 26px; line-height: 1.1; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.book-hd h2 small { display: block; font-family: var(--mono); font-size: 11px; color: var(--ink-2); letter-spacing: .08em; margin-top: 3px; }
+.book-list { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 20px calc(24px + var(--safe-bottom)); display: grid; gap: 12px; align-content: start; }
+.book-item {
+  display: grid; gap: 4px; text-align: left; width: 100%; background: var(--card); border: var(--outline); border-radius: 18px;
+  padding: 12px 14px; box-shadow: var(--shadow-hard-sm); transition: transform .12s ease, box-shadow .12s ease;
+}
+.book-item:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.book-item .book-meta { font-family: var(--mono); font-size: 10px; color: var(--ink-2); letter-spacing: .06em; }
+.book-item b { font-family: var(--display); font-weight: 400; font-size: 17px; line-height: 1.2; }
+.book-item span { font-size: 12px; color: var(--ink-2); line-height: 1.35; }
+.book-thumbs { display: flex; gap: 6px; margin-top: 6px; }
+.book-thumbs i { width: 36px; height: 36px; border-radius: 6px; border: 2px solid var(--ink); display: grid; place-items: end center; overflow: hidden; }
+.book-thumbs .ch-fx { display: none; } /* sparkles / thought bubbles read as stray glyphs at thumbnail scale */
+.book-empty { text-align: center; padding: 40px 20px; color: var(--ink-2); font-family: var(--display); font-size: 16px; line-height: 1.5; display: grid; justify-items: center; gap: 8px; }
+.book-view { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 20px calc(24px + var(--safe-bottom)); }
+.book-sum { margin-top: 14px; font-size: 13px; color: var(--ink-2); line-height: 1.5; background: var(--card); border: var(--outline); border-radius: 14px; padding: 10px 12px; }
+
+/* ─── Dev panel (?dev=1) ─────────────────────────────────────────────────── */
+.dev { position: absolute; left: 8px; top: calc(62px + var(--safe-top)); z-index: 90; font-family: var(--mono); font-size: 11px; }
+.dev-pill { background: var(--ink); color: var(--paper); border-radius: 999px; padding: 5px 10px; font-family: var(--mono); font-size: 10px; letter-spacing: .04em; opacity: .85; }
+.dev-body { margin-top: 6px; width: 262px; background: rgba(255, 255, 255, .97); border: var(--outline); border-radius: 14px; padding: 8px; display: grid; gap: 6px; box-shadow: var(--shadow-hard-sm); }
+.dev-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.dev-k { font-size: 10px; color: var(--ink-2); width: 34px; flex: none; }
+.dev-b { font-family: var(--mono); font-size: 10px; border: 1.5px solid var(--ink); border-radius: 8px; padding: 4px 6px; background: var(--card); min-height: 26px; }
+.dev-b.is-on { background: var(--sun); }
+.dev-b--warn { background: var(--coral-2); }
+
+/* ─── Reduced motion: one block. Position/progress/time still update; everything decorative is static. ─── */
+@media (prefers-reduced-motion: reduce) {
+  .scr, .scr *, .scene *, .sheet, .sheet-dim, .book, .bubble, .cm-p, .dev, .tt-chara, .act-chara, .act-friend, .slp-z, .slp-chara, .chrome-owner, .jetlag { animation: none !important; transition: none !important; }
+}
+
+/* ─── timetable as a bottom sheet (opened from the top-right ring button on any screen) ─── */
+.tt-sheet { z-index: 45; }
+.tt-backdrop { position: absolute; inset: 0; background: rgba(42, 33, 24, .28); animation: tt-fade .25s ease both; }
+.tt-sheet .tt-panel { top: auto; height: auto; max-height: calc(100% - 90px); border: var(--outline); border-bottom: 0; box-shadow: 0 -6px 0 rgba(42, 33, 24, .12); animation: tt-up .38s cubic-bezier(.22, 1, .36, 1) both; padding-top: 6px; }
+.tt-grip { width: 44px; height: 5px; border-radius: 999px; background: var(--line); margin: 2px auto 8px; }
+.tt-sheet .tt-ttl { position: relative; padding-right: 44px; }
+.tt-close { position: absolute; right: -4px; top: -6px; width: 36px; height: 36px; border-radius: 50%; background: var(--card); border: var(--outline); box-shadow: var(--shadow-hard-sm); display: grid; place-items: center; }
+.tt-close:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+@keyframes tt-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes tt-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .tt-sheet .tt-panel, .tt-backdrop { animation: none; } }
+
+/* ─── 동행 (FRIENDS_SPEC) ────────────────────────────────────────────────── */
+/* 범주 칩 옆의 동행 칩 */
+.tt-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; max-width: 100%; }
+.tt-chips .cchip { max-width: 150px; }
+/* 옵션 카드 오른쪽 아래 친구 칩 */
+.opt { position: relative; }
+.opt-friend { align-self: flex-end; margin-left: auto; flex: 0 0 auto; }
+.opt.is-on .cchip { background: var(--card); }
+.opt-ask { display: block; font-family: var(--display); font-size: 12px; color: var(--coral); line-height: 1.25; margin-top: 2px; }
+/* 체류 일수 칩 (여행 옵션을 고르면 확정 버튼 위에) */
+.tt-stay { flex: none; margin-top: 8px; display: grid; gap: 4px; }
+.tt-stay-k { font-size: 11px; color: var(--ink-2); font-family: var(--display); }
+.tt-stay-row { display: flex; gap: 6px; }
+.tt-stay-c { flex: 1; min-height: 34px; padding: 4px 6px; font-size: 14px; }
+/* 기다리는 중 말풍선의 동행 줄 */
+.tt-bubble-with { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--ink-2); }
+
+/* 활동 장면: 동행 칩은 장소 태그 아래, 마주친 사람은 옆에 (FRIENDS_SPEC §4) */
+.act-with, .act-metchip { position: absolute; left: 16px; z-index: 4; max-width: 240px; box-shadow: var(--shadow-hard-sm); }
+.act-with { top: calc(136px + var(--safe-top)); }
+.act-metchip { top: calc(136px + var(--safe-top)); }
+.act-with ~ .act-metchip { top: calc(172px + var(--safe-top)); }
+.act.has-met .act-chara { margin-left: -215px; }
+.act.has-friend.has-met .act-chara { margin-left: -175px; }
+.act-met { position: absolute; top: 296px; left: 50%; width: 190px; height: 190px; margin-left: 30px; z-index: 3; animation: act-breathe 3.6s ease-in-out -.6s infinite; }
+.act.has-friend .act-met { left: auto; right: 4px; margin-left: 0; top: 320px; }
+.act-met-bubble {
+  position: absolute; top: 268px; left: 50%; margin-left: 96px; z-index: 5;
+  background: var(--card); border: var(--outline); border-radius: 14px; padding: 4px 10px;
+  font-family: var(--display); font-size: 14px; box-shadow: var(--shadow-hard-sm);
+}
+.act.has-friend .act-met-bubble { left: auto; right: 66px; margin-left: 0; top: 292px; }
+/* 말은 못 걸고 스쳐 지나간 사람 — 배경 실루엣 */
+.act-ghost {
+  position: absolute; top: 262px; right: 8px; width: 190px; height: 190px; z-index: 2;
+  opacity: .35; filter: grayscale(1) brightness(.55);
+}
+/* 만화 부제의 동행·마주침 칩 */
+.cm-with { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.cm.has-with .cm-gridwrap { top: 182px; }
+.sum-with { margin-top: 6px; }
+.opt .cchip { flex: 0 0 auto; }
+.act-ghost { top: 244px; right: 0; }
+/* `.opt span { display:block }` must not stack the chip's own parts */
+.opt .cchip { display: inline-flex; margin: 0; }
+.opt .cchip-heads { display: inline-flex; width: auto; }
+.opt .cchip-tx { display: inline-block; font-size: 12px; color: var(--ink); margin: 0; }
+.opt .opt-ask { color: var(--coral); font-family: var(--display); font-size: 12px; }
+
+/* ─── friends list (same shell as the book) ─── */
+.fr-item { border-color: var(--friend, var(--ink)); }
+.fr-row { display: flex; align-items: center; gap: 12px; }
+.fr-main { display: grid; gap: 2px; min-width: 0; }
+.fr-main b { font-family: var(--display); font-weight: 400; font-size: 20px; line-height: 1.1; }
+.fr-home { font-size: 12px; color: var(--ink-2); }
+.fr-now { display: inline-flex; align-items: center; gap: 6px; font-family: var(--display); font-size: 14px; color: var(--ink); margin-top: 2px; }
+.fr-now i { width: 8px; height: 8px; border-radius: 50%; background: var(--mint); border: 1.5px solid var(--ink); }

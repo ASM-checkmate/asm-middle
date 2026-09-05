@@ -65,6 +65,27 @@ const memoryOf = (a: Agent): Memory => ({ name: a.name, likes: a.likes, dislikes
 
 const planCache = new Map<string, AgentActivity[]>();
 
+// ─── 합의 오버라이드 (docs/adr/0001-agentness.md §6.5 — 오너 결정) ────────────
+// 조율이 타결되면 **상대 에이전트의 하루도 그에 맞춰 바뀐다.** 그래야 친구 목록의
+// "민수 지금 뭐 하는 중"도 약속과 맞고, 마주침도 어긋나지 않는다.
+// `agentDayPlan`은 여전히 (agent, dayKey, overrides)에 대해 결정적이다 — overrides가 지속 상태이므로.
+/** 키 = `${agentId}:${dayKey}:${blockId}` */
+const agentOverrides = new Map<string, { placeId: string; title: string; category: Category }>();
+
+/**
+ * 타결된 약속들을 에이전트 시뮬레이터에 반영한다. 스토어가 부팅 때와 조율이 바뀔 때 부른다.
+ * 영향받는 (agent, day)의 캐시만 지운다.
+ *
+ * @param deals 타결된 약속들 (`agentId` · `dayKey` · `blockId` · 장소)
+ */
+export function applyDeals(deals: { agentId: string; dayKey: DayKey; blockId: BlockId; placeId: string; title: string; category: Category }[]): void {
+  agentOverrides.clear();
+  for (const d of deals) {
+    agentOverrides.set(`${d.agentId}:${d.dayKey}:${d.blockId}`, { placeId: d.placeId, title: d.title, category: d.category });
+  }
+  planCache.clear();   // 오버라이드가 바뀌면 그 날의 계획을 다시 만든다
+}
+
 /**
  * The agent's day, lived with the same engine the owner's agent uses: meal blocks eat, the rest is a random
  * non-travel category, the first suggestion wins, journeys are estimated. Deterministic per agent + day.
@@ -84,7 +105,11 @@ export function agentDayPlan(agent: Agent, dayKey: DayKey, tz: string = tzOf(pla
     const r = rng(`${agent.id}:${localKey}:${blockId}`);
     const category = MEAL_BLOCKS.has(blockId) ? 'meal' : r.pick(AGENT_CATEGORIES);
     const options = suggestOptions({ dateKey: localKey, blockId, category, memory, from, usedPlaceIds: used, regenSalt: seedFrom(agent.id) % 997 });  // per-agent salt so two agents never share a day
-    const option = options[0];
+    // 약속이 잡힌 블록은 그 약속이 이긴다 (오너 결정: 타결되면 상대 하루도 바뀐다)
+    const ov = agentOverrides.get(`${agent.id}:${localKey}:${blockId}`);
+    const option = ov
+      ? { id: `deal-${blockId}`, title: ov.title, reason: '약속', emoji: '🤝', placeId: ov.placeId, category: ov.category }
+      : options[0];
     if (!option) continue;
     const place = placeById(option.placeId);
     const start = blockStartAt(dayStart, blockId);
@@ -143,7 +168,8 @@ const EASY_PLACES: ReadonlySet<PlaceType> = new Set<PlaceType>(['bar', 'market',
 const HARD_PLACES: ReadonlySet<PlaceType> = new Set<PlaceType>(['library', 'office']);
 const HOUR_MS = 3600_000;
 
-const traitShift = (traits: string[]) =>
+/** 성향이 사교성에 주는 보정 (+0.15 ~ −0.15). 말 걸기와 조율 수락 확률이 같은 값을 쓴다. */
+export const traitShift = (traits: string[]) =>
   (traits.some(t => OUTGOING.includes(t)) ? 0.15 : 0) - (traits.some(t => SHY.includes(t)) ? 0.15 : 0);
 
 /** 0.1–0.9. Base 35 %, moved by both sides' traits, shared likes, how long we sat there, the place, and history. */

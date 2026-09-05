@@ -1,7 +1,8 @@
 // ─── QA preview: `?preview=…` forces a phase WITHOUT touching the store ─────
-//   timetable[&tz=<IANA>][&hour=15[:30]][&jetlag=1][&proposal=1][&travel=1]   sleeping[&tz=]
+//   timetable[&tz=][&hour=][&jetlag=1][&proposal=1][&travel=1][&money=][&fatigue=][&mood=][&judge=pushback|refuse]   sleeping[&tz=]
 //   active:{placeType}[&tz=][&jetlag=1][&encounter=talked|seen]
-//   comic[&tz=][&jetlag=1]   summary   book   moving:{walk|car|subway|train|plane|boat}[&p=0.35][&onboard=sleep|meal]
+//   comic[&tz=][&jetlag=1][&friction=…]   summary[&gap=1]   book
+//   *[&request=decide|money|worry][&call=in|answered|refused][&chat=1]   moving:{walk|car|subway|train|plane|boat}[&p=0.35][&onboard=sleep|meal]
 // `tz` puts the character in a city of that zone (America/New_York → 뉴욕); `timetable&tz=` also fakes the whole day
 // around it (yesterday's flight from home landing this morning, the agent's picks for the rest), so the flight-covered
 // blocks, the local date title and the jet-lag chip can be screenshotted without living the trip.
@@ -17,23 +18,39 @@ import { buildTimeline, companionsOf, encounterOf, currentPlaceAt, emptyPlans, m
 import { suggestOptions } from '../sim/suggest';
 import { AGENTS, agentById } from '../sim/agents';
 import { makeComic } from '../sim/comic';
+import { INITIAL_STATUS, wonKo, type Status } from '../sim/status';
+import { WORRY_CHOICES, type AgentRequest, type RequestKind } from '../sim/requests';
+import { callLines, lateText, type CallEvent } from '../sim/call';
+import { optionCost, review, type ReviewCtx } from '../sim/review';
+import { pickAlternative, diverts, type FrictionKind } from '../sim/friction';
+import { narrate } from '../sim/narrate';
 
-export type PreviewSpec =
-  | { kind: 'timetable'; tz: string; hour: number | null; jetlag: boolean; plan: PlanPreview }
+/** `&money=` / `&fatigue=` / `&mood=` — 상태를 강제해 거절·근거 칩을 스크린샷으로 확인한다. */
+export type StatusOverride = Partial<Pick<Status, 'money' | 'fatigue' | 'mood'>> | null;
+
+export type PreviewSpec = PreviewKind & { status: StatusOverride; request: RequestKind | null; call: CallPreview; chat: boolean };
+
+/** `&call=` — 걸려온 벨 / 받은 통화 / 못 받은 발신. */
+export type CallPreview = 'in' | 'answered' | 'refused' | null;
+
+type PreviewKind =
+  | { kind: 'timetable'; tz: string; hour: number | null; jetlag: boolean; plan: PlanPreview; judge: JudgePreview }
   | { kind: 'sleeping'; tz: string }
   | { kind: 'active'; placeType: PlaceType; tz: string; jetlag: boolean; encounter: EncounterPreview }
-  | { kind: 'comic'; tz: string; jetlag: boolean }
-  | { kind: 'summary' }
+  | { kind: 'comic'; tz: string; jetlag: boolean; friction: FrictionKind | null }
+  | { kind: 'summary'; gap: boolean }
   | { kind: 'book' }
   | { kind: 'moving'; mode: TransportMode; p: number; onboard: Onboard };
 
 /** What the timetable screen reads besides the phase — swapped in wholesale for `?preview=timetable&tz=…` / `&hour=`. */
 /** `&proposal=1` — a friend already planned the next block; `&travel=1` — a travel option is selected (stay chips). */
 export type PlanPreview = 'none' | 'proposal' | 'travel';
+/** `&judge=` — 확정 직후 에이전트가 반대/거절한 상태를 그대로 그린다 (ADR-0001). */
+export type JudgePreview = 'pushback' | 'refuse' | null;
 /** `&encounter=talked|seen` — the other agent said hello, or was only ever a silhouette. */
 export type EncounterPreview = 'talked' | 'seen' | null;
 
-export interface TimetableWorld { now: number; today: DayKey; plans: Plans; timeline: ScheduledActivity[]; anchor: Anchor }
+export interface TimetableWorld { now: number; today: DayKey; plans: Plans; timeline: ScheduledActivity[]; anchor: Anchor; status?: Status }
 
 const MODES: TransportMode[] = ['walk', 'car', 'subway', 'train', 'plane', 'boat'];
 
@@ -54,19 +71,36 @@ export function parsePreview(search: string = typeof location !== 'undefined' ? 
     const n = Number(hh) + Number(mm) / 60;
     return Number.isFinite(n) ? Math.min(23.98, Math.max(0, n)) : null;
   })();
+  const num = (k: string) => { const v = q.get(k); const n = Number(v); return v !== null && Number.isFinite(n) ? n : undefined; };
+  const so: StatusOverride = (() => {
+    const money = num('money'), fatigue = num('fatigue'), mood = num('mood');
+    return money === undefined && fatigue === undefined && mood === undefined ? null : { money, fatigue, mood };
+  })();
+  const cv = q.get('call');
+  const call: CallPreview = cv === 'in' || cv === 'answered' || cv === 'refused' ? cv : null;
+  const chat = q.get('chat') === '1';
+  const rq = q.get('request');
+  const request: RequestKind | null = rq === 'decide' || rq === 'money' || rq === 'worry' ? rq : null;
   const onboardRaw = q.get('onboard');
   const onboard: Onboard = onboardRaw === 'sleep' || onboardRaw === 'meal' ? onboardRaw : null;
   switch (kind) {
-    case 'timetable': return { kind: 'timetable', tz, hour, jetlag, plan: q.get('proposal') === '1' ? 'proposal' : q.get('travel') === '1' ? 'travel' : 'none' };
-    case 'sleeping': return { kind: 'sleeping', tz };
-    case 'comic': return { kind: 'comic', tz, jetlag };
-    case 'summary': return { kind: 'summary' };
-    case 'book': return { kind: 'book' };
+    case 'timetable': {
+      const j = q.get('judge');
+      return { kind: 'timetable', tz, hour, jetlag, plan: q.get('proposal') === '1' ? 'proposal' : q.get('travel') === '1' ? 'travel' : 'none', judge: j === 'pushback' || j === 'refuse' ? j : null, status: so, request, call, chat };
+    }
+    case 'sleeping': return { kind: 'sleeping', tz, status: so, request, call, chat };
+    case 'comic': {
+      const f = q.get('friction');
+      const ok: FrictionKind[] = ['closed', 'full', 'weather', 'detour', 'sold-out'];
+      return { kind: 'comic', tz, jetlag, friction: ok.includes(f as FrictionKind) ? (f as FrictionKind) : null, status: so, request, call, chat };
+    }
+    case 'summary': return { kind: 'summary', gap: q.get('gap') === '1', status: so, request, call, chat };
+    case 'book': return { kind: 'book', status: so, request, call, chat };
     case 'active': {
       const e = q.get('encounter');
-      return { kind: 'active', placeType: (arg || 'park') as PlaceType, tz, jetlag, encounter: e === 'talked' || e === 'seen' ? e : null };
+      return { kind: 'active', placeType: (arg || 'park') as PlaceType, tz, jetlag, encounter: e === 'talked' || e === 'seen' ? e : null, status: so, request, call, chat };
     }
-    case 'moving': return { kind: 'moving', mode: MODES.includes(arg as TransportMode) ? (arg as TransportMode) : 'walk', p, onboard };
+    case 'moving': return { kind: 'moving', mode: MODES.includes(arg as TransportMode) ? (arg as TransportMode) : 'walk', p, onboard, status: so, request, call, chat };
     default: return null;
   }
 }
@@ -202,9 +236,9 @@ function previewWorld(now0: number, tz: string, landedYesterday = false): Timeta
   const depDay = dayKeyIn(departAt, ownerTz);
   const option: ActivityOption = { ...NY_TRIP, id: 'preview-trip', title: `${dest.name}까지 훌쩍 (3박)`, placeId: dest.id, spanBlocks: BLOCK_ORDER.slice(blockIndex('morning')), stayDays: 3 };
   const plans = emptyPlans();
-  plans.morning = { blockId: 'morning', category: 'travel', options: [option], chosenId: option.id, chosenBy: 'user' };
+  plans.morning = { blockId: 'morning', category: 'travel', options: [option], chosenId: option.id, chosenBy: 'user', status: 'confirmed' };
   const anchor: Anchor = { placeId: home.id, t: departAt, tz: ownerTz };
-  const world: World = { days: { [depDay]: plans }, anchor, memory: memory(), journeys: {}, regen: {}, encounters: {} };
+  const world: World = { days: { [depDay]: plans }, anchor, memory: memory(), journeys: {}, regen: {}, encounters: {}, requests: [], calls: [], negotiations: {}, messages: [], dueCalls: [] };
   const first = decide(today, world, now0 + 36 * HOUR_MS, now0);
   const trip = first.timeline.find(a => a.option.id === option.id);
   const now = trip && !landedYesterday ? Math.max(now0, trip.comicUntil + 2 * 60_000) : now0;
@@ -236,15 +270,45 @@ function planWorld(now0: number, kind: 'proposal' | 'travel'): TimetableWorld {
       emoji: '🧺', placeId: place.id, category: 'play', friendId: f.id, proposedBy: agent?.id ?? f.id,
     };
     const rest = suggestOptions(ctx('play')).filter(o => o.placeId !== place.id).slice(0, 2);
-    plans.am = { blockId: 'am', category: 'play', options: [companion, ...rest], chosenId: companion.id, chosenBy: 'friend' };
+    plans.am = { blockId: 'am', category: 'play', options: [companion, ...rest], chosenId: companion.id, chosenBy: 'friend', status: 'confirmed' };
   } else {
     const options = suggestOptions(ctx('travel'));
     const chosen = options.find(o => (o.stayDays ?? 0) > 0) ?? options[0];
-    plans.am = { blockId: 'am', category: 'travel', options, chosenId: chosen?.id ?? null, chosenBy: 'user' };
+    plans.am = { blockId: 'am', category: 'travel', options, chosenId: chosen?.id ?? null, chosenBy: 'user', status: chosen ? 'confirmed' : 'proposed' };
   }
   const days = { [today]: plans };
   const timeline = buildTimeline(anchor, days, mem, {}, now + 3 * DAY_MS, {});
   return { now, today, plans, timeline, anchor };
+}
+
+/**
+ * `?preview=timetable&judge=…` — 오늘 오전 블록을 고른 직후, 에이전트가 반대(pushback)하거나
+ * 거절(refuse)한 상태. 판정을 손으로 만들지 않고 **진짜 review()를 돌려** 얻는다: 그래야 화면이
+ * 실제 규칙과 어긋나지 않는다. 반대는 돈을 살짝 모자라게, 거절은 체력을 하한 아래로 만들어 유도한다.
+ */
+function judgeWorld(now0: number, judge: 'pushback' | 'refuse'): TimetableWorld {
+  const mem = memory();
+  const home = placeById(mem.homePlaceId);
+  const today = dayKeyIn(now0, ownerTz);
+  const dayStart = dayStartIn(now0, ownerTz);
+  const now = dayStart + 8 * HOUR_MS + 50 * 60_000;           // 아침 끝자락 — 오전은 아직 안 시작
+  const blockStart = blockStartAt(dayStart, 'am'), blockEnd = blockEndAt(dayStart, 'am');
+  const anchor: Anchor = { placeId: home.id, t: dayStart + 7 * HOUR_MS, tz: ownerTz, status: INITIAL_STATUS };
+  const category: Category = judge === 'pushback' ? 'meal' : 'play';
+  const options = suggestOptions({ dateKey: today, blockId: 'am', category, memory: mem, from: home, usedPlaceIds: [] });
+  const target = options[0];
+
+  const base: ReviewCtx = { dayKey: today, status: INITIAL_STATUS, memory: mem, from: home, blockId: 'am', blockStart, blockEnd };
+  // 반대: 그 옵션 값보다 4,200원 모자라게 / 거절: 체력 하한 아래로
+  const status: Status = judge === 'pushback'
+    ? { ...INITIAL_STATUS, money: Math.max(1, optionCost(target, base).cost - 4_200) }
+    : { ...INITIAL_STATUS, fatigue: 96 };
+  const verdict = review(target, { ...base, status }, options);
+
+  const plans = emptyPlans();
+  plans.am = { blockId: 'am', category, options, chosenId: null, chosenBy: null, status: verdict?.kind === 'refuse' ? 'refused' : 'pushback', verdict: verdict ?? undefined };
+  const timeline = buildTimeline(anchor, { [today]: plans }, mem, {}, now + DAY_MS, {});
+  return { now, today, plans, timeline, anchor, status };
 }
 
 interface PreviewBase { spec: PreviewSpec; act?: ScheduledActivity; comic?: Comic; now0: number; world?: TimetableWorld }
@@ -281,12 +345,25 @@ function buildPreview(spec: PreviewSpec, now0: number): PreviewBase {
       const from = placeInTz(spec.tz, ['hotel', 'home']) ?? home;
       const journey = estimateJourney(from, place);
       const o = spec.tz === ownerTz ? { ...TITLE.walk, friendId: 'minsu' } : { ...TYPE_TITLE.cafe!, title: TYPE_TITLE.cafe!.title.replace('{p}', place.name), reason: '오늘은 여기가 끌렸음' };
-      const act = { ...fakeAct(place, o, journey, now0 - (journey.totalMin + 100) * 60_000, 100, spec.tz, from, spec.jetlag ? now0 + 20 * HOUR_MS : null), tz: spec.tz };
+      const act0 = { ...fakeAct(place, o, journey, now0 - (journey.totalMin + 100) * 60_000, 100, spec.tz, from, spec.jetlag ? now0 + 20 * HOUR_MS : null), tz: spec.tz };
+      // `&friction=` — 계획한 곳에서 발길을 돌린 하루를 그대로 만든다 (sim/friction.ts와 같은 모양)
+      const alt = spec.friction && diverts(spec.friction) ? pickAlternative(place, act0.key, spec.friction) : null;
+      const act = spec.friction
+        ? {
+          ...act0,
+          place: alt ?? act0.place,
+          outcome: {
+            kind: spec.friction, plannedPlaceId: place.id, plannedTitle: act0.option.title, divertedAt: act0.arriveAt,
+            line: narrate({ t: 'friction', kind: spec.friction, planned: place, actual: alt ?? undefined }, { name: memory().name, seed: act0.key }),
+          },
+        }
+        : act0;
       return { spec, now0, act, comic: makeComic(act, memory()), world };
     }
     case 'sleeping':
       return { spec, now0, world: spec.tz === ownerTz ? undefined : previewWorld(now0, spec.tz, true) };
     case 'timetable': {
+      if (spec.judge) return { spec, now0, world: judgeWorld(now0, spec.judge) };
       if (spec.plan !== 'none') return { spec, now0, world: planWorld(now0, spec.plan) };
       const now = spec.hour === null ? now0 : dayStartIn(now0, spec.tz) + spec.hour * HOUR_MS;
       if (spec.tz === ownerTz && spec.hour === null) return { spec, now0 };
@@ -304,6 +381,16 @@ function buildPreview(spec: PreviewSpec, now0: number): PreviewBase {
 /** The forced phase for `?preview=`, the faked day around it (`&tz=`; the timetable screen and sheet read it) and, for a
  *  `timetable` preview with its own moment, that moment. Ticks with the sim clock (moving/active progress) but never
  *  writes the store. */
+/** undefined 필드를 걷어낸다 (Partial 스프레드가 기존 값을 지우지 않게). */
+const strip = <T extends object>(o: T): Partial<T> =>
+  Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
+
+/** 스토어의 지금 상태로 만든 최소 world — `?preview=timetable&money=` 처럼 world가 없는 조합에 쓴다. */
+const storeWorld = (): TimetableWorld => {
+  const s = useWorld.getState();
+  return { now: s.now, today: s.today, plans: s.plans, timeline: s.timeline, anchor: s.anchor, status: s.status };
+};
+
 export function usePreview(): { phase: Phase | null; world: TimetableWorld | null; now: number | null } {
   const spec = useMemo(() => parsePreview(), []);
   const now = useWorld(s => s.now);
@@ -352,18 +439,50 @@ export function usePreview(): { phase: Phase | null; world: TimetableWorld | nul
       }
     }
   })();
-  return { phase, world, now: base.spec.kind === 'timetable' && world ? world.now : null };
+  // 상태 강제(`&money=`…): world가 없으면 스토어 값에서 하나 만들어 얹는다 — 화면은 world.status를 먼저 본다
+  const forced = base.spec.status;
+  const withStatus = forced
+    ? { ...(world ?? storeWorld()), status: { ...(world?.status ?? useWorld.getState().status ?? INITIAL_STATUS), ...strip(forced) } }
+    : world;
+  return { phase, world: withStatus, now: base.spec.kind === 'timetable' && world ? world.now : null };
 }
 
+/** How long the fake `?preview=summary&gap=1` owner was away — long enough that the band reads as a real absence. */
+const PREVIEW_GAP_MS = 11 * HOUR_MS + 8 * 60_000;
+
 /** Overlays forced by `?preview=summary|book` (fake content when the real book is empty). */
-export function usePreviewOverlay(): { summary: DaySummaryItem[] | null; book: Comic[] | null } {
+/** `&request=` — 쪽지 하나를 강제로 띄운다 (ADR-0001 §1). */
+function fakeRequest(kind: RequestKind, now: number): AgentRequest {
+  const common = { at: now, dueAt: now + 2 * HOUR_MS, told: false };
+  if (kind === 'worry') {
+    return { ...common, id: 'preview:worry', kind, line: '오늘 너 좀 조용하네. 뭐 때문인지 하나만 골라줘.', choices: WORRY_CHOICES };
+  }
+  if (kind === 'money') {
+    return { ...common, id: 'preview:money', kind, line: `이번 주 ${wonKo(12_400)} 남았어. 좀 아껴도 돼?`, choices: [{ id: 'save', label: '응, 아껴' }, { id: 'spend', label: '그냥 하고 싶은 거 해', isDefault: true }] };
+  }
+  return { ...common, id: 'preview:decide', kind, refId: 'evening', line: '저녁 블록 아직 비었는데, 네가 정할래?', choices: [{ id: 'mine', label: '내가 정할게' }, { id: 'yours', label: '네가 골라', isDefault: true }] };
+}
+
+/** `&call=` — 통화 하나를 강제로 띄운다. */
+function fakeCall(kind: 'in' | 'answered' | 'refused', now: number): CallEvent {
+  if (kind === 'refused') return { id: 'preview:out', at: now, dir: 'out', result: 'refused', block: 'quiet', text: lateText('quiet', 'preview:out') };
+  const lines = callLines('cafe', 'preview:in', undefined);
+  return kind === 'in'
+    ? { id: 'preview:in', at: now, dir: 'in', result: 'missed', lines }
+    : { id: 'preview:in', at: now, dir: 'in', result: 'answered', lines };
+}
+
+export function usePreviewOverlay(): { summary: DaySummaryItem[] | null; book: Comic[] | null; gap: { from: number; to: number } | null; request: AgentRequest | null; call: CallEvent | null; chat: boolean } {
   const spec = useMemo(() => parsePreview(), []);
   const realBook = useWorld(s => s.book);
   const now0 = useRef(useWorld.getState().now).current;
   return useMemo(() => {
-    if (!spec || (spec.kind !== 'summary' && spec.kind !== 'book')) return { summary: null, book: null };
+    const request = spec?.request ? fakeRequest(spec.request, now0) : null;
+    const call = spec?.call ? fakeCall(spec.call, now0) : null;
+    const chat = spec?.chat ?? false;
+    if (!spec || (spec.kind !== 'summary' && spec.kind !== 'book')) return { summary: null, book: null, gap: null, request, call, chat };
     const fake = previewComics(now0);
-    if (spec.kind === 'summary') return { summary: fake.items, book: null };
-    return { summary: null, book: realBook.length ? [...realBook].reverse() : fake.comics };
+    if (spec.kind === 'summary') return { summary: fake.items, book: null, gap: spec.gap ? { from: now0 - PREVIEW_GAP_MS, to: now0 } : null, request, call, chat };
+    return { summary: null, book: realBook.length ? [...realBook].reverse() : fake.comics, gap: null, request, call, chat };
   }, [spec, realBook, now0]);
 }

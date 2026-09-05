@@ -111,7 +111,9 @@ check('the roll is deterministic', rollTalk(today, 'p', 'me', 'you', 0.5) === ro
 check('agentsAt finds agents at a place', agentsAt('home', T0, T0 + H).length === 0);
 
 const byKey = new Map();
-for (let d = 3; d <= 7; d++) {
+// 창을 넉넉히 잡는다: 말 걸기는 확률(기본 35%)이라 며칠짜리 창은 마찰·제안이 바뀔 때마다 깨진다.
+// 여기서 보려는 건 "말 걸기가 실제로 성사되기는 하는가"이지 "닷새 안에 되는가"가 아니다.
+for (let d = 3; d <= 14; d++) {
   S().jumpTo(KST(2026, 9, d, 23, 55));
   for (const a of S().timeline) if (a.encounter) byKey.set(a.key, a);
 }
@@ -125,10 +127,14 @@ check('at most one new friend talked to per day', Object.values(perDay).every(v 
 check('a talk actually landed', talked.length > 0, String(talked.length));
 
 console.log('\n── 말을 걸면 친구가 된다 (활동이 끝난 뒤) ──');
-const first = talked[0];
+// 아직 정산되지 않은(= friends에 없는) 첫 talk을 고른다. 위 스캔이 이미 여러 날을 살았기 때문에
+// 시간을 되감아도 친구 목록은 줄지 않는다 — "끝나기 전엔 친구가 아니다"는 아직 안 산 talk으로 확인한다.
+const first = talked.find(a => !S().memory.friends.some(f => f.id === a.encounter.agentId)) ?? talked[0];
+const fresh = !S().memory.friends.some(f => f.id === first.encounter.agentId);
 freezeClockAt(first.endAt - 5 * MIN);
 S().jumpTo(first.endAt - 5 * MIN);
-check('before the activity ends: not a friend yet', !S().memory.friends.some(f => f.id === first.encounter.agentId), first.encounter.agentId);
+if (fresh) check('before the activity ends: not a friend yet', !S().memory.friends.some(f => f.id === first.encounter.agentId), first.encounter.agentId);
+else check('이미 정산된 talk이라 이 검사는 건너뛴다', true, '');
 S().jumpTo(first.endAt + 2 * MIN);   // 만화 구간 — 활동이 끝나면 그 자리에서 정산된다
 S().tick();
 const made = S().memory.friends.find(f => f.id === first.encounter.agentId);

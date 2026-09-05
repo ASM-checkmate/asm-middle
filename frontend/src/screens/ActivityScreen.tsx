@@ -3,6 +3,8 @@ import { cityNameKo } from '../sim/places';
 import { Character } from '../character';
 import { CompanionChip, JetlagChip, ProgressBar, type ChipFriend } from '../ui';
 import { Scene } from '../scenes';
+import { activityLog } from '../sim/actlog';
+import { hhmmIn } from '../sim/tz';
 import { fmtRemain, poseFor, progressLabel } from './util';
 
 type Active = Extract<Phase, { kind: 'active' }>;
@@ -12,6 +14,10 @@ type Active = Extract<Phase, { kind: 'active' }>;
  *  마주침(§4): 말을 걸었으면 상대가 옆에 서서 "안녕!", 못 걸었으면 배경에 실루엣만. */
 export function ActivityScreen({ phase }: { phase: Active }) {
   const { act, remainingMin, progress, companions, encounter } = phase;
+  // 결과가 아니라 과정을 본다 (ADR-0001): 타임스탬프 줄이 활동 중에 하나씩 쌓인다.
+  // `progress`로 지금 시각을 되짚어 로그를 만든다 — 화면은 스토어의 now를 따로 안 읽는다.
+  const nowMs = act.arriveAt + (act.endAt - act.arriveAt) * Math.min(1, Math.max(0, progress));
+  const log = activityLog(act, nowMs).slice(-4);
   const friend = companions[0];
   const met = encounter?.talked ? encounter.agent : null;
   const seen = encounter && !encounter.talked ? encounter.agent : null;
@@ -43,6 +49,17 @@ export function ActivityScreen({ phase }: { phase: Active }) {
       )}
       {met && (
         <CompanionChip className="act-metchip" friends={metChip} happy prefix={encounter?.again ? '또 만났네' : '새 친구'} />
+      )}
+      {/* 왼쪽 좁은 컬럼: 오래된 줄부터 흐려진다. 캐릭터를 가리지 않는다. */}
+      {!!log.length && (
+        <ol className="act-log" aria-label="지금까지">
+          {log.map((l, i) => (
+            <li key={`${l.at}:${l.text}`} className={l.fx ? 'is-fx' : ''} style={{ opacity: 0.35 + 0.65 * ((i + 1) / log.length) }}>
+              <b className="num">{hhmmIn(l.at, act.tz)}</b> {l.text}
+            </li>
+          ))}
+          <li className="act-log-now"><b className="num">{hhmmIn(nowMs, act.tz)}</b> ▸ 지금</li>
+        </ol>
       )}
       <div className="act-stat">
         <div>

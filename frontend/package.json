@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node scripts/sim-tz.test.mjs && node scripts/sim-friends.test.mjs"
+    "test": "node scripts/sim-tz.test.mjs && node scripts/sim-friends.test.mjs && node scripts/sim-status.test.mjs && node scripts/sim-review.test.mjs && node scripts/sim-friction.test.mjs && node scripts/sim-call.test.mjs && node scripts/sim-negotiate.test.mjs && node scripts/sim-chat.test.mjs"
   },
   "dependencies": {
     "maplibre-gl": "^6.7.0",

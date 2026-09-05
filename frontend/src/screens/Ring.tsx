@@ -24,6 +24,8 @@ export interface RingSeg {
   dark: boolean;
   state: 'sleep' | 'past' | 'current' | 'future';
   decided: boolean;
+  /** 계획과 실제가 어긋난 블록 — 웨지 바깥에 코랄 노치를 찍는다 (docs/adr/0001-agentness.md) */
+  diff?: boolean;
 }
 
 export interface RingProps {
@@ -91,6 +93,8 @@ export function Ring({ segs, selected, now, tz, center, onSelect }: RingProps) {
             {!filled && !isSel && <path d={path} fill="none" stroke="var(--ink)" strokeWidth="1.5" strokeDasharray="1 3.5" strokeLinecap="round" opacity=".3" />}
             <path d={path} fill="none" stroke={isSel ? 'var(--ink)' : '#fff'} strokeWidth={isSel ? 4 : 2} strokeLinejoin="round" />
             {s.state === 'current' && <path className="ring-cur" d={path} fill="none" stroke="var(--ink)" strokeWidth="4" strokeLinejoin="round" />}
+            {/* 어긋난 블록: 웨지 바깥 가장자리에 코랄 점 하나 — 한눈에 "여기서 뭔가 달라졌다" */}
+            {s.diff && (() => { const [dx, dy] = pt((b.startHour + b.endHour) / 2, R - 9); return <circle cx={dx} cy={dy} r="4.5" fill="var(--coral)" stroke="var(--ink)" strokeWidth="1.5" />; })()}
           </g>
         );
       })}

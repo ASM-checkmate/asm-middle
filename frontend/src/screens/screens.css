@@ -122,7 +122,172 @@
 .opt.is-on { border-color: var(--coral); background: var(--coral-3); box-shadow: 3px 3px 0 var(--coral); }
 .opt.is-on .opt-ic { background: var(--coral-2); }
 .opt-check { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--coral); display: grid; place-items: center; }
+/* ─── 대화 실 (ADR-0002) — 쪽지·통화·자유 대화가 한 줄로 섞이는 유일한 통로 ─────────── */
+.chat { background: var(--paper); }
+.chat-hd { align-items: center; gap: 10px; padding-right: 12px; }
+.chat-hd h2 { font-size: 20px; }
+.chat-hd h2 small { font-family: var(--display); font-size: 11px; letter-spacing: 0; color: var(--ink-2); }
+.chat-face { flex: none; }
+.chat-list {
+  flex: 1; min-height: 0; overflow-y: auto; list-style: none; margin: 0;
+  padding: 6px 16px 10px; display: grid; gap: 8px; align-content: start;
+}
+.chat-li { display: grid; gap: 8px; }
+/* 날짜 구분선 — 대화가 하루를 넘겼다는 표시. 이게 있어야 실이 "며칠치"로 읽힌다 */
+.chat-day { display: flex; align-items: center; gap: 8px; margin: 6px 0 2px; }
+.chat-day::before, .chat-day::after { content: ''; flex: 1; height: 0; border-top: 1.5px dashed var(--line); }
+.chat-day span { font-family: var(--display); font-size: 11px; color: var(--ink-3); }
+.chat-row { display: flex; align-items: flex-end; gap: 6px; flex-wrap: wrap; }
+.chat-row.is-me { flex-direction: row-reverse; }
+.chat-say {
+  max-width: 74%; padding: 8px 13px; border: var(--outline); border-radius: 18px 18px 18px 5px;
+  background: var(--card); box-shadow: var(--shadow-hard-sm);
+  font-family: var(--display); font-size: 15px; line-height: 1.35; color: var(--ink);
+  animation: bubble-pop .28s cubic-bezier(.34, 1.56, .64, 1) both; transform-origin: 0 100%;
+}
+.chat-row.is-me .chat-say { border-radius: 18px 18px 5px 18px; background: var(--sun); transform-origin: 100% 100%; }
+/* 부탁은 말풍선이되 코랄 밑줄이 있다 — 답할 것이 있다는 표시 */
+.chat-say.is-ask { border-bottom: 3px solid var(--coral); }
+.chat-say.is-alone { background: var(--paper-2); color: var(--ink-2); font-size: 14px; }
+.chat-t { font-size: 10px; color: var(--ink-3); padding-bottom: 3px; }
+.chat-chips { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 8px; }
+.chat-chip {
+  border: var(--outline); border-radius: 999px; background: var(--card); box-shadow: 2px 2px 0 var(--ink);
+  font-family: var(--display); font-size: 13px; line-height: 1; color: var(--ink); padding: 8px 12px; min-height: 34px;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.chat-chip:active { transform: translate(2px, 2px); box-shadow: none; }
+/* 통화 기록 — 카카오톡의 보이스톡 줄처럼, 말풍선이 아니라 납작한 기록 카드 */
+.chat-row.is-call { align-items: center; }
+.chat-call {
+  display: inline-flex; align-items: center; gap: 7px; max-width: 74%;
+  border: 2px dashed var(--line); border-radius: 14px; background: var(--card); padding: 7px 12px; min-height: 40px;
+}
+.chat-call b { font-family: var(--display); font-weight: 400; font-size: 14px; line-height: 1.2; }
+.chat-more { font-style: normal; font-size: 11px; color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px; }
+.chat-row.is-missed .chat-call { border-color: var(--coral); border-style: solid; }
+.chat-row.is-missed .chat-call b { color: var(--coral); }
+/* 받은 통화에서 오간 말 — 펼쳐야 보인다. 부재중에는 펼칠 것이 없다 (ADR-0001) */
+.chat-heard { flex-basis: 100%; list-style: none; margin: 0 0 0 14px; padding: 2px 0 0; display: grid; gap: 4px; }
+.chat-heard li {
+  padding: 2px 0 2px 10px; border-left: 2px dashed var(--line);
+  font-size: 12px; color: var(--ink-2); line-height: 1.4;
+}
+/* 못 받은 발신에 늦게 온 문자 — 통화 기록에 매달린 인용 줄 */
+.chat-late {
+  flex-basis: 100%; margin-left: 14px; padding: 2px 0 2px 10px; border-left: 2px dashed var(--line);
+  font-size: 12px; color: var(--ink-2); line-height: 1.4;
+}
+/* 늦게 온 문자는 **에이전트가 보낸 것**이라 내가 건 통화 밑에서도 왼쪽에 선다 */
+.chat-row.is-me .chat-heard { margin-left: 0; margin-right: 14px; }
+.chat-empty { text-align: center; padding: 48px 20px; color: var(--ink-2); font-family: var(--display); font-size: 15px; line-height: 1.6; }
+.chat-bar {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px calc(12px + var(--safe-bottom)); border-top: 2px solid var(--line); background: var(--card);
+}
+.chat-in {
+  flex: 1; min-width: 0; min-height: 44px; padding: 8px 14px;
+  border: var(--outline); border-radius: 999px; background: var(--paper);
+  font-family: var(--body); font-size: 15px; color: var(--ink);
+}
+.chat-in::placeholder { color: var(--ink-3); }
+.chat-bar .btn { flex: none; }
+
+/* 혼잣말 (ADR-0001 §1의 1단계) — 쪽지와 같은 자리에, 버튼 없이. 몇 초 떴다 사라진다. */
+.say {
+  position: absolute; left: 14px; right: 14px; bottom: calc(16px + var(--safe-bottom)); z-index: 45;
+  display: flex; align-items: center; gap: 8px; pointer-events: none;
+  padding: 10px 14px 10px 8px; border: var(--outline); border-radius: var(--r-card);
+  background: var(--card); box-shadow: var(--shadow-hard);
+  animation: req-in .4s cubic-bezier(.34, 1.56, .64, 1) both;
+}
+.say-me { flex: none; }
+.say-tx { flex: 1; min-width: 0; max-width: 100%; }
+
+/* 통화 (ADR-0001 §1) — 어떤 상태 위에도 뜨는 오버레이. 새 ScreenKind가 아니다. */
+.call {
+  position: absolute; inset: 0; z-index: 60; background: var(--night); color: var(--paper);
+  display: flex; flex-direction: column; align-items: center;
+  padding: calc(28px + var(--safe-top)) 20px calc(24px + var(--safe-bottom));
+  animation: call-in .32s ease both;
+}
+@keyframes call-in { from { opacity: 0; transform: scale(1.03); } to { opacity: 1; transform: none; } }
+.call-hd { text-align: center; display: grid; gap: 4px; flex: none; }
+.call-hd b { font-family: var(--display); font-weight: 400; font-size: 22px; }
+.call-hd span { font-family: var(--mono); font-size: 12px; color: var(--night-2); filter: brightness(2.2); }
+.call-me { margin-top: 18px; flex: none; }
+/* 울리는 동안 캐릭터 뒤로 코랄 링이 퍼진다 (map/marker의 링과 같은 어법) */
+.call-ring {
+  position: absolute; top: calc(160px + var(--safe-top)); left: 50%; width: 210px; height: 210px; margin-left: -105px;
+  border-radius: 50%; border: 3px solid var(--coral); opacity: 0; animation: call-ring 1.8s ease-out infinite;
+}
+@keyframes call-ring { 0% { transform: scale(.7); opacity: .55; } 100% { transform: scale(1.5); opacity: 0; } }
+.call:not(.is-refused) .call-me { animation: call-pulse 1.6s ease-in-out infinite; }
+@keyframes call-pulse { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.call-say { margin-top: 10px; max-width: 300px; animation: req-in .3s ease both; }
+.call-say.i1 { margin-left: 26px; }
+.call-say.i2 { margin-left: 52px; }
+.call-btns { margin-top: auto; display: flex; gap: 10px; width: 100%; }
+.call-btns > * { flex: 1; min-height: 54px; font-size: 17px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+/* 못 받은 발신: 캐릭터를 그리지 않는다. 신호가 끊기고, 문자가 늦게 도착한다. */
+.call-fail { margin-top: 22%; display: grid; gap: 18px; justify-items: center; text-align: center; }
+.call-dots { display: flex; gap: 8px; }
+.call-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--paper); opacity: .35; animation: call-dot 1.2s ease-in-out infinite; }
+.call-dots i:nth-child(2) { animation-delay: .18s; }
+.call-dots i:nth-child(3) { animation-delay: .36s; }
+@keyframes call-dot { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+.call-nope { font-family: var(--display); font-size: 15px; color: var(--night-2); filter: brightness(2.4); letter-spacing: .04em; }
+.call-text { display: grid; gap: 6px; justify-items: center; animation: req-in .4s ease both; }
+.call-text span { font-family: var(--mono); font-size: 11px; color: var(--night-2); filter: brightness(2.2); }
+.call-text p { font-size: 16px; line-height: 1.4; max-width: 280px; }
+
+/* 쪽지 (ADR-0001 §1) — 진행을 막지 않는 카드. 무시하면 에이전트가 혼자 정한다. */
+.req {
+  position: absolute; left: 14px; right: 14px; bottom: calc(16px + var(--safe-bottom)); z-index: 45;
+  display: grid; grid-template-columns: 58px 1fr; gap: 6px 8px; align-items: center;
+  grid-template-areas: "me say" "btn btn" "due due";
+  padding: 12px 14px 11px 8px; border: var(--outline); border-radius: var(--r-card);
+  background: var(--card); box-shadow: var(--shadow-hard);
+  animation: req-in .4s cubic-bezier(.34, 1.56, .64, 1) both;
+}
+@keyframes req-in { from { transform: translateY(28px); opacity: 0; } to { transform: none; opacity: 1; } }
+.req-me { grid-area: me; align-self: end; }
+.req-say { grid-area: say; max-width: 100%; }
+.req-btns { grid-area: btn; display: flex; gap: 8px; margin-top: 2px; flex-wrap: wrap; }
+.req-btns > * { flex: 1 1 44%; min-height: 42px; }
+/* 고민은 여덟 개라 두 칸씩 접힌다 — 폼이 아니라 대답의 목록으로 보이게 작게 */
+.req.is-worry .req-btns > * { flex: 1 1 30%; min-height: 38px; font-size: 13px; padding-left: 6px; padding-right: 6px; }
+.req-due { grid-area: due; font-size: 10px; color: var(--ink-3); letter-spacing: .02em; text-align: center; }
+
+/* 예고 — 에이전트가 확정하며 남기는 자기 예측 (ADR-0001) */
+.tt-forecast {
+  flex: none; margin-top: 6px; font-size: 12px; color: var(--ink-2); line-height: 1.35;
+  padding-left: 2px;
+}
+.tt-forecast b { font-family: var(--display); font-weight: 400; color: var(--coral); margin-right: 5px; }
+/* 어긋난 블록: 계획을 취소선으로 남긴다 */
+.done-was { font-size: 11px; color: var(--ink-3); text-decoration: line-through; display: block; margin-bottom: 1px; }
+
 .tt-cta { margin-top: 8px; flex: none; min-height: 46px; }
+/* 에이전트의 판단 (ADR-0001): 확정 버튼 자리를 말풍선 + 두 버튼이 대신 차지한다 */
+.tt-verdict {
+  flex: none; margin-top: 8px; padding: 10px 12px; border: var(--outline); border-radius: var(--r-card);
+  background: var(--paper-2); box-shadow: var(--shadow-hard-sm); display: grid; gap: 8px; justify-items: start;
+  animation: verdict-in .34s cubic-bezier(.34, 1.56, .64, 1) both;
+}
+.tt-verdict.is-refuse { background: color-mix(in srgb, var(--coral) 12%, var(--paper-2)); }
+.tt-verdict .bubble { max-width: 100%; }
+.tt-verdict-ev { align-self: start; }
+.tt-verdict-ev b { font-weight: 400; margin-left: 3px; }
+.tt-verdict-btns { display: flex; gap: 8px; width: 100%; }
+.tt-verdict-btns > * { flex: 1; min-height: 42px; }
+@keyframes verdict-in { from { transform: translateY(8px) scale(.97); opacity: 0; } to { transform: none; opacity: 1; } }
+/* 에이전트가 따지는 동안엔 링을 줄이고 그 자리를 판단에 준다 */
+.tt.is-judging .tt-row { grid-template-columns: 128px 1fr; }
+.tt.is-judging .ring { width: 128px; height: 128px; }
+
+/* 역제안으로 지목된 카드 */
+.opt.is-counter { border-color: var(--coral); box-shadow: 3px 3px 0 var(--coral); }
 .tt-cats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 6px; flex: none; }
 .tt-cats .chip { justify-content: center; min-height: 44px; padding: 8px 4px; font-size: 15px; white-space: nowrap; }
 .tt-hint { font-size: 12px; color: var(--ink-2); margin-top: 2px; flex: none; }
@@ -174,6 +339,22 @@
 .act-tag small { display: block; font-family: var(--mono); font-size: 11px; color: var(--ink-2); letter-spacing: .02em; }
 /* 😴 시차 적응 중 hangs off the tag's top-right corner, clear of the place name */
 .act-tag .jetlag--sticker { top: -21px; right: -20px; }
+/* 활동 로그 (ADR-0001 — 과정의 관찰): 왼쪽 좁은 컬럼에 타임스탬프 줄이 쌓인다.
+   캐릭터(중앙, 350px)와 상태 카드 사이의 빈 자리라 아무것도 가리지 않는다. */
+.act-log {
+  position: absolute; left: 16px; bottom: calc(132px + var(--safe-bottom)); z-index: 4;
+  width: 218px; display: grid; gap: 2px; list-style: none; pointer-events: none;
+  padding: 7px 10px; border-radius: 14px; border: 1.5px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  font-size: 11px; color: var(--ink-2); line-height: 1.3;
+}
+.act-log li { display: grid; grid-template-columns: 34px 1fr; gap: 4px; align-items: baseline; }
+.act-log b { font-family: var(--mono); font-size: 10px; letter-spacing: .02em; color: var(--ink-3); }
+.act-log li.is-fx { color: var(--coral); font-weight: 500; }
+.act-log li.is-fx b { color: var(--coral); }
+.act-log-now { color: var(--ink); font-family: var(--display); }
+.act-log-now b { color: var(--ink-2); }
+
 .act-stat {
   position: absolute; left: 16px; right: 16px; bottom: calc(22px + var(--safe-bottom)); z-index: 4;
   display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 12px;
@@ -205,8 +386,32 @@
 .cm-head { position: absolute; top: calc(70px + var(--safe-top)); left: 24px; right: 24px; z-index: 3; }
 .cm-head h3 { font-size: 24px; line-height: 1.2; }
 .cm-head p { font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+/* 계획-실제 차이 (ADR-0001): 만화 머리에 붙는 한 줄. 계획대로 간 날도 반드시 보여준다. */
+.cm-diff {
+  position: absolute; top: calc(126px + var(--safe-top)); left: 20px; right: 20px; z-index: 3;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.cm-diff-a, .cm-diff-b {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 46%;
+  padding: 3px 9px; border: 2px solid var(--ink); border-radius: 999px; font-size: 12px; line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cm-diff-a { background: var(--paper); color: var(--ink-3); border-style: dashed; border-color: var(--ink-3); text-decoration: line-through; }
+.cm-diff-b { background: var(--coral); color: #fff; }
+.cm-diff-b.is-ok { background: var(--mint); color: var(--ink); max-width: none; }
+.cm-diff-ar { font-family: var(--mono); font-size: 13px; color: var(--ink-2); }
+.cm-diff-ok { font-family: var(--display); font-size: 12px; color: var(--ink-2); }
+.cm-diff-say {
+  position: absolute; top: calc(158px + var(--safe-top)); left: 20px; right: 20px; z-index: 3;
+  font-size: 12px; color: var(--ink-2); line-height: 1.35;
+}
+/* 차이 줄이 붙으면 컷 격자가 그만큼 내려간다 */
+.cm.has-diff .cm-gridwrap { top: calc(186px + var(--safe-top)); }
+.cm.has-diff .cm-grid { gap: 10px; }
+
 .cm-gridwrap { position: absolute; top: 146px; left: 20px; right: 20px; z-index: 3; }
-.cm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* 격자를 살짝 깨뜨린다 — 디자인된 게 아니라 붙여 모은 것처럼 */
+.cm-grid { display: grid; grid-template-columns: 1.08fr .92fr; grid-template-rows: .94fr 1.06fr; gap: 12px; }
 .cm-p {
   aspect-ratio: 1 / 1.08; background: var(--card); border: 2.5px solid var(--ink); border-radius: 8px;
   position: relative; overflow: hidden; animation: cm-pop .45s cubic-bezier(.34, 1.56, .64, 1) both;
@@ -214,7 +419,18 @@
 .cm-p:nth-child(2) { animation-delay: .1s; } .cm-p:nth-child(3) { animation-delay: .2s; } .cm-p:nth-child(4) { animation-delay: .3s; }
 @keyframes cm-pop { from { transform: scale(.7) rotate(-3deg); opacity: 0; } to { transform: none; opacity: 1; } }
 .cm-floor { position: absolute; left: 0; right: 0; bottom: 0; height: 40%; background: rgba(42, 33, 24, .07); }
-.cm-k { position: absolute; top: 6px; left: 6px; z-index: 2; font-family: var(--mono); font-size: 10px; background: var(--ink); color: var(--paper); border-radius: 4px; padding: 1px 5px; }
+/* 컷 번호가 아니라 그 컷이 찍힌 시각 (캠코더 OSD처럼) — ADR-0001 만화 질감 */
+.cm-k { position: absolute; top: 6px; left: 6px; z-index: 3; font-family: var(--mono); font-size: 10px; background: var(--ink); color: var(--paper); border-radius: 4px; padding: 1px 5px; letter-spacing: .04em; }
+/* 컷 안의 피사체만 기울고 확대된다 (프레임과 캡션은 그대로) */
+.cm-shot { position: absolute; inset: 0; transform: rotate(var(--rot, 0deg)) scale(var(--cs, 1)) translate(var(--cx, 0), var(--cy, 0)); transform-origin: 50% 78%; }
+/* 인쇄 하프톤 — 에셋 없이 반복 그라디언트로 */
+.cm-p::after {
+  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: .06;
+  background-image: repeating-radial-gradient(circle at 0 0, var(--ink) 0 .6px, transparent .6px 2.4px);
+}
+/* 잘 안 찍힌 컷 — 크게 기울고 흐리다 */
+.cm-p.is-blur .cm-shot { filter: blur(1.6px); opacity: .82; }
+.cm-p.is-blur .cm-cap { font-style: italic; color: var(--ink-2); }
 .cm-cap { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 2; background: var(--card); border: 1.5px solid var(--ink); border-radius: 6px; font-size: 11px; padding: 3px 6px; line-height: 1.3; }
 .cm-c { position: absolute; bottom: 34px; left: 50%; margin-left: -59px; }
 .cm-c.is-left { left: 6px; margin-left: 0; }
@@ -273,6 +489,31 @@
 .sheet-hd p { font-size: 13px; color: var(--ink-2); }
 .sheet-list { flex: 1; min-height: 0; overflow-y: auto; display: grid; gap: 10px; margin: 14px 0; padding: 2px 4px 5px 1px; scrollbar-width: none; }
 .sheet-list::-webkit-scrollbar { display: none; }
+/* 공백 밴드: 자리를 비운 구간의 시각 자체가 증거라 시트 맨 위에 도장처럼 찍는다 */
+.sum-gap {
+  flex: none; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  margin-top: 12px; padding: 8px 12px;
+  border: 2px dashed var(--line); border-radius: 14px; background: var(--paper-2);
+}
+.sum-gap-r { font-size: 11px; color: var(--ink-2); letter-spacing: .04em; }
+.sum-gap-s { font-family: var(--display); font-size: 13px; color: var(--ink); }
+
+/* 놓친 전화 — 시각만 남는다. 무슨 얘기였는지는 영영 모른다. */
+.sum-missed {
+  flex: none; margin-top: 8px; padding: 8px 12px; list-style: none; display: grid; gap: 4px;
+  border: 2px dashed var(--ink-3); border-radius: 14px; background: var(--paper-2);
+  font-size: 12px; color: var(--ink-2); line-height: 1.35;
+}
+.sum-missed b { font-family: var(--mono); font-size: 10px; color: var(--ink-3); margin-right: 4px; }
+
+/* 답이 없어서 혼자 정한 것들 — 무시된 부탁은 사라지지 않고 이야기가 되어 돌아온다 */
+.sum-alone {
+  flex: none; margin-top: 8px; padding: 8px 12px; list-style: none; display: grid; gap: 4px;
+  border: 2px solid var(--coral); border-radius: 14px; background: color-mix(in srgb, var(--coral) 10%, var(--card));
+  font-size: 12px; color: var(--ink); line-height: 1.35;
+}
+.sum-alone b { font-family: var(--mono); font-size: 10px; color: var(--ink-2); margin-right: 4px; }
+
 .sum {
   display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; text-align: left; width: 100%;
   border: var(--outline); border-radius: 16px; padding: 10px 12px; background: var(--paper); box-shadow: var(--shadow-hard-sm);

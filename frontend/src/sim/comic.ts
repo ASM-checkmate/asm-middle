@@ -1,7 +1,8 @@
 import type { BlockId, Comic, ComicPanel, Memory, PlaceType, ScheduledActivity, TransportMode } from './types';
 import { splitDayKey } from './types';
 import { rng } from './rng';
-import { cityNameKo } from './places';
+import type { FrictionKind } from './friction';
+import { cityNameKo, placeById } from './places';
 import { agentById } from './agents';
 import { blockSlotIn } from './blocks';
 
@@ -240,6 +241,24 @@ const CITY_FLAVOR: Record<string, { twist: string[]; end: string[] }> = {
   },
 };
 
+// ── 마찰 (sim/friction.ts) ──────────────────────────────────────────────────
+/** 발길을 돌린 날의 1컷: 계획한 문 앞. {planned} = 원래 가려던 곳. ≤ 28자. */
+const FRICTION_ARRIVE: Record<FrictionKind, string[]> = {
+  closed: ['{planned} 앞. 셔터가 내려가 있다.', '문에 "오늘 휴무" 한 장.', '불 꺼진 창. 헛걸음이다.'],
+  full: ['{planned} 앞에 줄이 길다.', '자리가 하나도 없다. 돌아선다.', '대기 20팀. 그냥 나왔다.'],
+  weather: ['우산이 없다. 비가 굵어진다.', '갑자기 쏟아진다. 뛴다.', '하늘이 어둡다. 지붕을 찾는다.'],
+  detour: ['가는 길에 뭔가 눈에 들어왔다.', '원래 가려던 길에서 벗어났다.', '발이 다른 쪽으로 갔다.'],
+  'sold-out': ['{planned} 도착. 오늘은 뭘 먹지.', '문은 열려 있다. 다행.'],
+};
+/** 마찰이 있던 날의 3컷째 (twist 사슬의 맨 위 — 오늘 실제로 벌어진 가장 큰 일이니까). ≤ 28자. */
+const FRICTION_TWIST: Record<FrictionKind, string[]> = {
+  closed: ['헛걸음. 대신 {place}로 돌렸다.', '닫힌 문 앞에서 5분 서 있었다.', '"그럴 수도 있지." {place}로.'],
+  full: ['기다리느니 {place}가 낫다.', '자리 없어서 {place}로 왔다.', '줄 서다 포기. 여기로 왔다.'],
+  weather: ['비를 피해 {place}로 들어왔다.', '머리가 다 젖었다. 그래도 웃김.', '창밖은 비. 안은 따뜻하다.'],
+  detour: ['계획엔 없던 곳인데 더 좋다.', '{place}. 이게 오늘의 수확.', '딴 데로 샜는데 잘 샜다.'],
+  'sold-out': ['노리던 건 다 팔렸다. 아쉽.', '품절. 두 번째로 좋아하는 걸로.', '"내일 오세요." 알겠습니다…'],
+};
+
 // ── 마주침 (FRIENDS_SPEC §4) ────────────────────────────────────────────────
 /** The talk landed: panel 3 is the meeting itself and panel 4 keeps the new friend. ≤ 28 chars, no template but {other}. */
 const MEET_TWIST = [
@@ -255,6 +274,17 @@ const MEET_END = [
 const MISSED_TWIST = ['옆자리에 누가 있었는데 말은 못 걸었다.', '눈만 마주치고 각자 할 일 했다.', '말 걸까 하다가 그냥 뒀다.', '옆 사람도 혼자였다. 서로 조용히.'];
 /** 우연히 또 만남: already a friend, and there they were. */
 const AGAIN_TWIST = ['{other}랑 여기서 또 마주쳤다. 우연히.', '"또 봤네." {other}가 웃었다.', '약속도 안 했는데 {other}가 있었다.', '{other}랑 같은 곳에 온 날. 신기.'];
+
+/** 사용자가 말해 준 고민에 답하는 엔딩 (ADR-0001 고민 듣기). 답이 만화에 남아야 들은 값이 생긴다. ≤ 28자. */
+const WORRY_END: Record<string, string[]> = {
+  work: ['오늘은 너 대신 좀 쉬었다.', '일 생각은 잠깐 접어뒀다.'],
+  people: ['오늘은 아무도 안 만났다. 편했다.', '혼자 있는 시간이 필요했다.'],
+  body: ['무리 안 했다. 그게 오늘의 목표.', '몸이 좀 풀린 것 같다.'],
+  money: ['오늘은 돈 한 푼 안 썼다.', '공짜로도 충분히 좋았다.'],
+  sleep: ['일찍 들어가서 자야지.', '오늘은 눕는 게 우선이다.'],
+  stuck: ['답은 안 나왔지만 머리는 식었다.', '생각을 좀 미뤄뒀다.'],
+  bored: ['심심한 건 좀 나아졌다.', '오늘은 그래도 뭐라도 했다.'],
+};
 
 const MODE_KO: Record<TransportMode, string> = { walk: '걸어서', car: '차 타고', subway: '지하철 타고', train: '기차 타고', plane: '비행기 타고', boat: '배 타고' };
 const MAX = 28;
@@ -314,7 +344,13 @@ export function makeComic(act: ScheduledActivity, memory: Memory): Comic {
   const like = memory.likes.length ? r.pick(memory.likes) : '그런 거';
   const shortName = place.name;
 
+  /** 원래 가려던 곳의 이름 (지워진 장소면 계획 제목으로 대신한다). */
+  const plannedName = (() => {
+    if (!act.outcome) return shortName;
+    try { return placeById(act.outcome.plannedPlaceId).name; } catch { return act.outcome.plannedTitle; }
+  })();
   const fill = (s: string, placeLabel = shortName): string => s
+    .replace(/\{planned\}/g, plannedName)
     .replace(/\{place\}/g, placeLabel).replace(/\{area\}/g, place.area).replace(/\{city\}/g, city)
     .replace(/\{friend\}/g, friendName).replace(/\{mode\}/g, mode).replace(/\{act\}/g, act_)
     .replace(/\{like\}/g, like).replace(/\{name\}/g, memory.name).replace(/\{other\}/g, other);
@@ -332,21 +368,29 @@ export function makeComic(act: ScheduledActivity, memory: Memory): Comic {
 
   // Travel day: the arrive beat tells what happened on board when the long leg crossed a sleep / meal block of the origin zone.
   const onboard = travelDay ? onboardKind(act, legs.indexOf(mainLeg!)) : null;
-  const arriveSrc = travelDay ? (onboard ? ONBOARD_ARRIVE[travelDay][onboard] : TRAVEL_ARRIVE[travelDay]) : script.arrive;
+  // 어긋난 날의 1컷은 계획한 문 앞이다 (여행 도착 연출보다 우선 — 그날 실제로 벌어진 일이니까)
+  const fx = act.outcome;
+  const arriveSrc = fx ? FRICTION_ARRIVE[fx.kind]
+    : travelDay ? (onboard ? ONBOARD_ARRIVE[travelDay][onboard] : TRAVEL_ARRIVE[travelDay])
+    : script.arrive;
   const jetlag = act.jetlagUntil !== null && act.arriveAt < act.jetlagUntil;
   const flavor = abroad ? CITY_FLAVOR[place.city] : undefined;
   // 마주침이 있으면 3컷째가 만남 장면 (동행보다 우선 — 오늘 실제로 일어난 일이니까)
   const met = enc && enc.talked && !enc.again;
   const again = enc && enc.again;
   const missed = enc && !enc.talked && r.next() < 0.25;
-  const twistSrc = met ? MEET_TWIST
+  const twistSrc = fx ? FRICTION_TWIST[fx.kind]
+    : met ? MEET_TWIST
     : again ? AGAIN_TWIST
     : missed ? MISSED_TWIST
     : who ? script.twistFriend
     : jetlag && r.next() < 0.5 ? JETLAG_TWIST
     : abroad && r.next() < 0.6 ? (flavor && r.next() < 0.55 ? flavor.twist : FOREIGN_TWIST)
     : script.twist;
-  const endSrc = met ? MEET_END
+  // 고민을 들은 날은 엔딩이 그걸 언급한다 (하루 안, 마주침·마찰보다는 뒤)
+  const worry = memory.worry && act.endAt - memory.worry.at < 24 * 3600_000 ? WORRY_END[memory.worry.key] : undefined;
+  const endSrc = worry && !met ? worry
+    : met ? MEET_END
     : jetlag && r.next() < 0.35 ? JETLAG_END
     : abroad && r.next() < 0.5 ? (flavor && r.next() < 0.55 ? flavor.end : FOREIGN_END)
     : script.end;
@@ -354,13 +398,33 @@ export function makeComic(act: ScheduledActivity, memory: Memory): Comic {
   // Composition rule: panel 1 is always a solo arrival — the door prop owns the right edge of the arrive panel
   // (where the friend would stand), so a friend there gets hidden behind it. The friend walks in from panel 2,
   // and gets a little more screen time in the closing panel instead.
+  // ── 질감 (ADR-0001): 컷마다 시각·화각·크롭을 다르게 준다. 정중앙 전신 네 컷은 "그린 그림"으로 읽힌다. ──
+  const sr = rng(`shot:${act.key}`);
+  const span = Math.max(1, act.endAt - act.arriveAt);
+  const AT = [0.05, 0.35, 0.65, 0.95];
+  /** 1컷 와이드 → 2·4컷 보통 → 3컷(트위스트) 하드 푸시인. */
+  const SCALE = [0.82, 1.14, 1.72, 1.05];
+  /** 만화 여섯 개에 하나쯤 잘 안 찍힌 컷이 있다. */
+  const blurAt = sr.next() < 0.17 ? sr.int(0, 3) : -1;
+  const shot = (i: number) => ({
+    t: act.arriveAt + span * AT[i],
+    crop: {
+      scale: SCALE[i] * (0.94 + sr.next() * 0.12),
+      x: Math.round((sr.next() - 0.5) * (i === 2 ? 34 : 14)),
+      y: Math.round((sr.next() - 0.5) * (i === 2 ? 22 : 10)),
+      rot: Math.round((sr.next() - 0.5) * (i === blurAt ? 24 : 5) * 10) / 10,
+    },
+    blur: i === blurAt ? true : undefined,
+  });
+  const BLUR_CAPTION = '이건 잘 안 찍혔다';
   const panels: ComicPanel[] = [
-    { beat: 'arrive', caption: fit(r.pick(arriveSrc)), bg: bg[0], withFriend: false },
-    { beat: 'doing', caption: fit(r.pick(script.doing)), bg: bg[1], withFriend: !!friend },
+    { beat: 'arrive', caption: fit(r.pick(arriveSrc)), bg: bg[0], withFriend: false, ...shot(0) },
+    { beat: 'doing', caption: fit(r.pick(script.doing)), bg: bg[1], withFriend: !!friend, ...shot(1) },
     // 만남이 성사된 컷과 그 뒤에는 상대가 옆에 서 있다 (동행이 없어도)
-    { beat: 'twist', caption: fit(r.pick(twistSrc)), bg: bg[2], withFriend: !!who || !!met || !!again },
-    { beat: 'end', caption: fit(r.pick(endSrc)), bg: bg[3], withFriend: !!met || (!!friend && r.next() < 0.8) },
+    { beat: 'twist', caption: fit(r.pick(twistSrc)), bg: bg[2], withFriend: !!who || !!met || !!again, ...shot(2) },
+    { beat: 'end', caption: fit(r.pick(endSrc)), bg: bg[3], withFriend: !!met || (!!friend && r.next() < 0.8), ...shot(3) },
   ];
+  for (const p of panels) if (p.blur) p.caption = BLUR_CAPTION;
   const twistLine = panels[2].caption.replace(/[.!…]+$/, '');
   const title = place.type === 'home' ? '집에서 생긴 일' : abroad ? `${city} ${place.name}에서 생긴 일` : `${place.name}에서 생긴 일`;
   return {

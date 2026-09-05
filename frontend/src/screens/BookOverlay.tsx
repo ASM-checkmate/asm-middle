@@ -12,6 +12,7 @@ import { beatPose, bookIntent } from './util';
 export function BookOverlay({ onClose, comics }: { onClose: () => void; comics?: Comic[] }) {
   const book = useWorld(s => s.book);
   const memory = useWorld(s => s.memory);
+  const tz = useWorld(s => s.tz);
   const list = comics ?? [...book].reverse();
   const [openId, setOpenId] = useState<string | null>(() => {
     const id = bookIntent.comicId;
@@ -34,7 +35,7 @@ export function BookOverlay({ onClose, comics }: { onClose: () => void; comics?:
       </div>
       {cur ? (
         <div className="book-view">
-          <ComicPanels comic={cur} friendColor={memory.friends[0]?.color} />
+          <ComicPanels comic={cur} friendColor={memory.friends[0]?.color} tz={tz} />
           <p className="book-sum">{cur.summary}</p>
         </div>
       ) : list.length === 0 ? (

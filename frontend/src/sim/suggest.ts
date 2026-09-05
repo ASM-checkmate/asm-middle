@@ -41,6 +41,40 @@ const DAY: BlockId[] = ['morning', 'am', 'lunch', 'pm'];
 const BUSY: BlockId[] = ['am', 'pm', 'evening', 'night'];
 const OUT: BlockId[] = ['am', 'lunch', 'pm', 'evening'];
 
+// ─── 예고 (docs/adr/0001-agentness.md) ──────────────────────────────────────
+// 에이전트가 확정하며 남기는 자기 예측. 마찰이 나면 이 말이 틀리게 되고, 그게 diff의 힘이다.
+/** 장소 유형별 예고. {p} 장소 이름. */
+const FORECAST: Partial<Record<PlaceType, string[]>> = {
+  cafe: ['이 시간엔 창가 자리 비어 있을 듯', '점심 전이라 안 붐빌 거야', '오늘 원두 좋은 날일 것 같은데'],
+  restaurant: ['지금 가면 웨이팅 없을 듯', '재료 떨어지기 전에 가야 해', '이 시간이 제일 한가해'],
+  park: ['날씨만 괜찮으면 딱 좋을 텐데', '벤치 하나는 비어 있겠지', '해 지기 전엔 도착할 듯'],
+  river: ['바람 좀 불 것 같은데 괜찮아', '노을 시간에 딱 맞을 듯'],
+  library: ['조용한 자리 하나 있을 거야', '이 시간엔 사람 적어'],
+  gym: ['붐비기 전에 갔다 올게', '기구 비어 있을 시간이야'],
+  cinema: ['앞자리 말고 뒤쪽으로 잡을게', '광고 시간 빼면 딱 맞아'],
+  mall: ['한 바퀴만 돌고 나올 거야', '세일하는 데 있으면 오래 걸릴 수도'],
+  market: ['문 닫기 전에 갈 수 있어', '이 시간이 제일 활기차'],
+  museum: ['마감 전에 다 볼 수 있을 듯', '평일이라 한산할 거야'],
+  bar: ['한 잔만 하고 올게', '늦으면 자리 없을 수도'],
+  beach: ['물 들어오기 전에 도착할 듯', '바람 좀 불겠지만 괜찮아'],
+  arcade: ['동전 다 쓰기 전에 나올게'],
+  home: ['오늘은 그냥 뒹굴 거야'],
+  friend_home: ['빈손으로 가긴 좀 그런데'],
+};
+const FORECAST_DEFAULT = ['생각보다 금방 갔다 올 듯', '이 시간이면 괜찮을 거야', '가서 봐야 알겠지만 좋을 듯'];
+
+/**
+ * 에이전트의 자기 예측 한 줄. 장소 유형에서 뽑고, 없으면 무난한 문장으로.
+ *
+ * **제안 엔진의 난수를 쓰지 않는다.** 같은 스트림에서 뽑으면 예고를 추가한 것만으로 그 뒤의
+ * 장소 선택이 전부 밀려서, 이미 굳어 있던 하루가 달라진다. 그래서 장소·블록으로 따로 시드를 만든다.
+ *
+ * @param p 가려는 곳
+ * @param seed 그 제안의 안정적인 키 (날짜 + 블록 + 장소)
+ * @returns 24자 안팎의 한 줄
+ */
+const forecastFor = (p: Place, seed: string) => rng(`forecast:${seed}:${p.id}`).pick(FORECAST[p.type] ?? FORECAST_DEFAULT).replace('{p}', short(p));
+
 /** How far (km) a block should normally roam from where the character is. */
 const REACH: Record<BlockId, number> = { sleep: 1, morning: 2.2, am: 8, lunch: 3, pm: 30, evening: 7, night: 10 };
 
@@ -358,7 +392,7 @@ function travelOptions(ctx: SuggestCtx, r: R, softUsed: Set<string>): ActivityOp
   const usedEmoji = new Set<string>();
   const usedCity = new Set<string>();
   // TIMEZONE_SPEC: away from home the first travel option is always the way back (spans the rest of the day like a trip).
-  if (away) out.push({ id: `${ctx.blockId}-0-${home.id}`, title: '집으로 돌아가기', reason: '슬슬 집이 그리움', emoji: pickEmoji(['🏠'], usedEmoji), placeId: home.id, category: 'travel', spanBlocks: spanFor(ctx.blockId, home, ctx.from) });
+  if (away) out.push({ id: `${ctx.blockId}-0-${home.id}`, title: '집으로 돌아가기', reason: '슬슬 집이 그리움', emoji: pickEmoji(['🏠'], usedEmoji), placeId: home.id, category: 'travel', spanBlocks: spanFor(ctx.blockId, home, ctx.from), forecast: '해 지기 전엔 도착할 듯' });
   for (const kind of kinds) {
     const pool = buckets[kind].filter(p => !softUsed.has(p.id) && !usedCity.has(p.city));
     const fresh = pool.filter(p => !visitedRecently(ctx.memory, p.id));
@@ -373,6 +407,7 @@ function travelOptions(ctx: SuggestCtx, r: R, softUsed: Set<string>): ActivityOp
       id: `${ctx.blockId}-${out.length}-${p.id}`,
       title: stayDays ? `${title} (${stayDays}박)` : title,
       reason: fill(r.pick(TRIP_REASONS[kind]), ctx.memory, p, r, friend?.name),
+      forecast: forecastFor(p, `${ctx.dateKey}:${ctx.blockId}`),
       emoji: pickEmoji([p.emoji, TRIP_EMOJI[kind]], usedEmoji),
       placeId: p.id,
       category: 'travel',
@@ -386,7 +421,7 @@ function travelOptions(ctx: SuggestCtx, r: R, softUsed: Set<string>): ActivityOp
     const local = PLACES.filter(p => p.city === ctx.from.city && ['mountain', 'temple', 'island'].includes(p.type) && !softUsed.has(p.id));
     for (const p of r.shuffle(local)) {
       if (out.length >= 3) break;
-      out.push({ id: `${ctx.blockId}-${out.length}-${p.id}`, title: `${short(p)}까지 가보기`, reason: '멀리 안 가도 여행 기분', emoji: pickEmoji([p.emoji, '🧳'], usedEmoji), placeId: p.id, category: 'travel' });
+      out.push({ id: `${ctx.blockId}-${out.length}-${p.id}`, title: `${short(p)}까지 가보기`, reason: '멀리 안 가도 여행 기분', emoji: pickEmoji([p.emoji, '🧳'], usedEmoji), placeId: p.id, category: 'travel', forecast: forecastFor(p, `${ctx.dateKey}:${ctx.blockId}`) });
     }
   }
   return out;
@@ -456,6 +491,7 @@ export function suggestOptions(ctx: SuggestCtx): ActivityOption[] {
       placeId: p.id,
       category: ctx.category,
       friendId: friend?.id,
+      forecast: forecastFor(p, `${ctx.dateKey}:${ctx.blockId}`),
     });
     return true;
   };
@@ -473,7 +509,7 @@ export function suggestOptions(ctx: SuggestCtx): ActivityOption[] {
   const FALLBACK = away ? ['근처 한 바퀴 산책하기', '골목 천천히 걸어 보기', '벤치에 앉아 하늘 보기'] : ['집 앞 산책하고 오기', '동네 한 바퀴 천천히 걷기', '창문 열고 하늘 보기'];
   const base = away ? ctx.from : home;
   while (out.length < 3) {
-    out.push({ id: `${ctx.blockId}-${out.length}-${base.id}`, title: FALLBACK[out.length], reason: '별다른 계획 없는 날', emoji: pickEmoji(['🚶', '🌤️', base.emoji], usedEmoji), placeId: base.id, category: ctx.category });
+    out.push({ id: `${ctx.blockId}-${out.length}-${base.id}`, title: FALLBACK[out.length], reason: '별다른 계획 없는 날', emoji: pickEmoji(['🚶', '🌤️', base.emoji], usedEmoji), placeId: base.id, category: ctx.category, forecast: forecastFor(base, `${ctx.dateKey}:${ctx.blockId}`) });
   }
   return out;
 }

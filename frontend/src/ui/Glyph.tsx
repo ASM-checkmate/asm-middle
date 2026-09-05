@@ -1,5 +1,5 @@
 // Small inline SVG glyphs (the deck uses ink-outlined icons in chrome; emoji only inside option tiles/categories).
-export type GlyphName = 'book' | 'close' | 'back' | 'refresh' | 'check' | 'moon' | 'sparkle' | 'ring' | 'friends' | 'home';
+export type GlyphName = 'book' | 'close' | 'back' | 'refresh' | 'check' | 'moon' | 'sparkle' | 'ring' | 'friends' | 'home' | 'phone' | 'phone-off' | 'chat' | 'send';
 
 const INK = '#2A2118';
 const PAPER = '#FFF6E6';
@@ -25,6 +25,29 @@ export function Glyph({ name, size = 22, color = INK }: { name: GlyphName; size?
       return <svg {...common}><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>;
     case 'moon':
       return <svg {...common}><path d="M15.5 3.5a8.5 8.5 0 1 0 5 15.5 7 7 0 0 1-5-15.5z" fill="#FFC64D" /></svg>;
+    case 'phone':
+      return (
+        <svg {...common}>
+          <path d="M6.5 3.5h3l1.5 4-2 1.5a12 12 0 0 0 6 6l1.5-2 4 1.5v3c0 1.1-.9 2-2 2A16.5 16.5 0 0 1 4.5 5.5c0-1.1.9-2 2-2Z" fill={PAPER} />
+        </svg>
+      );
+    case 'phone-off':
+      return (
+        <svg {...common}>
+          <path d="M6.5 3.5h3l1.5 4-2 1.5a12 12 0 0 0 6 6l1.5-2 4 1.5v3c0 1.1-.9 2-2 2A16.5 16.5 0 0 1 4.5 5.5c0-1.1.9-2 2-2Z" fill={PAPER} />
+          <path d="M3 3l18 18" />
+        </svg>
+      );
+    case 'chat':
+      // 대화 실 (ADR-0002) — 말풍선 하나. 통화 기록도 이 안에 산다.
+      return (
+        <svg {...common}>
+          <path d="M4 6.5c0-1.1.9-2 2-2h12c1.1 0 2 .9 2 2v7c0 1.1-.9 2-2 2h-6.5L7 19.5V15.5H6c-1.1 0-2-.9-2-2z" fill={PAPER} />
+          <path d="M8.5 10h7" strokeWidth={1.8} />
+        </svg>
+      );
+    case 'send':
+      return <svg {...common}><path d="M4.5 12l15-7-5 7 5 7z" fill={PAPER} /></svg>;
     case 'friends':
       return (
         <svg {...common}>

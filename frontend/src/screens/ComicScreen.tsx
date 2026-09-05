@@ -1,10 +1,11 @@
 import { useWorld } from '../sim/store';
 import type { ActivityOption, Comic, ComicPanel, Phase } from '../sim/types';
 import { blockDef, categoryDef, nextBlockId } from '../sim/blocks';
-import { cityNameKo } from '../sim/places';
+import { cityNameKo, placeById } from '../sim/places';
 import { Character } from '../character';
 import { Bubble, Button, CompanionChip, JetlagChip, type ChipFriend } from '../ui';
 import { beatPose, bookIntent } from './util';
+import { hhmmIn } from '../sim/tz';
 
 type ComicPhase = Extract<Phase, { kind: 'comic' }>;
 
@@ -26,9 +27,14 @@ export function ComicScreen({ phase, onNext }: { phase: ComicPhase; onNext: () =
   const where = act.place.country === 'KR' ? act.place.area : `${act.place.area} · ${cityNameKo(act.place.city)}`;
 
   const hasWith = !!phase.companions.length || !!metChip.length;
+  // 계획-실제 차이 (ADR-0001): 어긋난 날은 두 칩으로, 계획대로 간 날도 반드시 보여준다.
+  // 일치를 안 보여주면 불일치가 의미를 잃는다.
+  const fx = act.outcome;
+  const planned = (() => { try { return fx ? placeById(fx.plannedPlaceId) : null; } catch { return null; } })();
+  const diverted = !!planned && planned.id !== act.place.id;
 
   return (
-    <div className={`cm ${hasWith ? 'has-with' : ''}`}>
+    <div className={`cm ${hasWith ? 'has-with' : ''} has-diff`}>
       <div className="cm-head">
         <h3>{comic.title}</h3>
         <p>{blockDef(act.blockIds[0]).label} 블록 · {cat.label} · {where}{phase.jetlag && <JetlagChip inline />}</p>
@@ -40,7 +46,23 @@ export function ComicScreen({ phase, onNext }: { phase: ComicPhase; onNext: () =
           </div>
         )}
       </div>
-      <div className="cm-gridwrap"><ComicPanels comic={comic} option={act.option} friendColor={friend?.color} /></div>
+      {/* 계획-실제 차이 (ADR-0001) — 어긋난 날은 두 칩, 계획대로 간 날도 반드시 한 칩 */}
+      <div className="cm-diff">
+        {diverted ? (
+          <>
+            <span className="cm-diff-a">{planned.emoji} {planned.name}</span>
+            <span className="cm-diff-ar" aria-hidden="true">→</span>
+            <span className="cm-diff-b">{act.place.emoji} {act.place.name}</span>
+          </>
+        ) : (
+          <>
+            <span className="cm-diff-b is-ok">{act.place.emoji} {act.place.name}</span>
+            <span className="cm-diff-ok">예상대로였어</span>
+          </>
+        )}
+      </div>
+      {fx && <div className="cm-diff-say">{fx.line}</div>}
+      <div className="cm-gridwrap"><ComicPanels comic={comic} option={act.option} friendColor={friend?.color} tz={phase.tz} /></div>
       <Character className="cm-me" pose="happy" size={170} />
       <Bubble className="cm-me-bubble">오늘 이야기 완성!</Bubble>
       <div className="cm-stamp num">STORY #{String(no).padStart(2, '0')}</div>
@@ -54,25 +76,34 @@ export function ComicScreen({ phase, onNext }: { phase: ComicPhase; onNext: () =
   );
 }
 
-/** The 2x2 grid (also used by the book viewer). Each panel: bg colour + poses + friend + caption strip. */
-export function ComicPanels({ comic, option, friendColor }: { comic: Comic; option?: ActivityOption; friendColor?: string }) {
+/**
+ * The 2x2 grid (also used by the book viewer). Each panel: bg colour + poses + friend + caption strip.
+ * 컷마다 화각·기울기·시각이 다르다 — 정중앙 전신 네 컷은 "그린 그림"으로 읽히기 때문이다 (ADR-0001).
+ */
+export function ComicPanels({ comic, option, friendColor, tz }: { comic: Comic; option?: ActivityOption; friendColor?: string; tz?: string }) {
   return (
     <div className="cm-grid">
-      {comic.panels.map((p, i) => <Panel key={i} p={p} i={i} option={option} friendColor={friendColor} />)}
+      {comic.panels.map((p, i) => <Panel key={i} p={p} i={i} option={option} friendColor={friendColor} tz={tz} />)}
     </div>
   );
 }
 
-function Panel({ p, i, option, friendColor }: { p: ComicPanel; i: number; option?: ActivityOption; friendColor?: string }) {
+function Panel({ p, i, option, friendColor, tz }: { p: ComicPanel; i: number; option?: ActivityOption; friendColor?: string; tz?: string }) {
   const pose = beatPose(p.beat, option);
   const left = p.withFriend || p.beat === 'arrive';
+  // 옛 만화(질감 이전에 저장된 것)에는 crop/t가 없다 — 그때는 원래대로 정중앙 전신으로 그린다
+  const c = p.crop ?? { scale: 1, x: 0, y: 0, rot: 0 };
+  const vars = { ['--rot' as string]: `${c.rot}deg`, ['--cs' as string]: String(c.scale), ['--cx' as string]: `${c.x}px`, ['--cy' as string]: `${c.y}px` };
   return (
-    <div className="cm-p" style={{ background: p.bg }}>
+    <div className={`cm-p ${p.blur ? 'is-blur' : ''}`} style={{ background: p.bg, ...vars }}>
       <div className="cm-floor" />
-      <span className="cm-k">{i + 1}</span>
-      <Prop beat={p.beat} withFriend={!!p.withFriend} />
-      <Character className={`cm-c ${left ? 'is-left' : ''}`} pose={pose} size={118} />
-      {p.withFriend && <Character className="cm-f" pose="wave" size={100} variant="friend" color={friendColor} />}
+      {/* 컷 번호 대신 그 컷이 찍힌 시각 — 이거 하나로 "삽화 → 기록"이 뒤집힌다 */}
+      <span className="cm-k num">{p.t && tz ? hhmmIn(p.t, tz) : i + 1}</span>
+      <div className="cm-shot">
+        <Prop beat={p.beat} withFriend={!!p.withFriend} />
+        <Character className={`cm-c ${left ? 'is-left' : ''}`} pose={pose} size={118} />
+        {p.withFriend && <Character className="cm-f" pose="wave" size={100} variant="friend" color={friendColor} />}
+      </div>
       <div className="cm-cap">{p.caption}</div>
     </div>
   );

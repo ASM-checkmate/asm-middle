@@ -2,6 +2,9 @@
 // Everything the simulation, map and screens share. Keep this file dependency-free.
 
 import type { Agent } from './agents';
+import type { Status } from './status';
+import type { Verdict } from './review';
+import type { Outcome } from './friction';
 
 export type BlockId = 'sleep' | 'morning' | 'am' | 'lunch' | 'pm' | 'evening' | 'night';
 
@@ -44,6 +47,9 @@ export interface Friend {
   metPlaceId?: string;
 }
 
+/** 사용자가 골라 준 오늘의 고민 (docs/adr/0001-agentness.md — 고민 듣기). 하루 뒤 감쇠한다. */
+export type WorryKey = 'work' | 'people' | 'body' | 'money' | 'sleep' | 'stuck' | 'bored' | 'none';
+
 export interface Memory {
   name: string;                 // 캐릭터 이름
   likes: string[];
@@ -52,6 +58,8 @@ export interface Memory {
   homePlaceId: string;
   friends: Friend[];
   visited: { placeId: string; at: number }[];
+  /** 에이전트가 물어서 들은 고민. 다음 블록의 범주를 이쪽으로 튼다. */
+  worry?: { key: WorryKey; at: number };
 }
 
 // ─── days & zones (TIMEZONE_SPEC) ───────────────────────────────────────────
@@ -63,8 +71,12 @@ export const splitDayKey = (key: DayKey): { dateKey: string; tz: string } => {
   return i < 0 ? { dateKey: key, tz: 'UTC' } : { dateKey: key.slice(0, i), tz: key.slice(i + 1) };
 };
 
-/** Where the timeline starts: the character's place, the moment, and the zone it lives in. */
-export interface Anchor { placeId: string; t: number; tz: string }
+/**
+ * Where the timeline starts: the character's place, the moment, the zone it lives in — and the accumulated
+ * status baked in at that moment. `status` is optional so the QA harness can still build bare anchors;
+ * `foldStatus` falls back to INITIAL_STATUS when it is missing (sim/status.ts).
+ */
+export interface Anchor { placeId: string; t: number; tz: string; status?: Status }
 
 export interface ActivityOption {
   id: string;
@@ -80,7 +92,18 @@ export interface ActivityOption {
   friendId?: string;
   /** the friend whose own plan pre-filled this block (FRIENDS_SPEC §2) — the option card shows "같이 가자고 해요" */
   proposedBy?: string;
+  /**
+   * 에이전트가 확정하며 남기는 자기 예측 ("12시쯤 가면 웨이팅 없을 듯"). 결과가 사용자의 계획이 아니라
+   * **에이전트 자신의 말**을 배반하게 만드는 장치다 (docs/adr/0001-agentness.md).
+   */
+  forecast?: string;
 }
+
+/**
+ * 에이전트가 이 블록에 대해 뭐라고 했는가 (`chosenBy`는 "누가 골랐나", 이쪽은 "에이전트가 받아들였나").
+ * `refused`/`pushback`이면 `chosenId`는 그대로 두고 `verdict`만 실린다 — 사용자의 선택이 확정되지 않았다는 뜻이다.
+ */
+export type PlanStatus = 'empty' | 'proposed' | 'confirmed' | 'pushback' | 'refused' | 'forced';
 
 export interface BlockPlan {
   blockId: BlockId;
@@ -89,6 +112,10 @@ export interface BlockPlan {
   chosenId: string | null;
   /** who decided: the owner, the agent at block start, or a friend who planned first (`chosenBy: 'friend'`) */
   chosenBy: 'user' | 'agent' | 'friend' | null;
+  /** 에이전트의 판단 결과 (docs/adr/0001-agentness.md) */
+  status: PlanStatus;
+  /** `pushback`/`refused`/`forced`일 때의 근거와 한 줄 */
+  verdict?: Verdict;
 }
 
 export interface Leg {
@@ -124,6 +151,8 @@ export interface ScheduledActivity {
   companions: string[];
   /** another agent was at the same place for ≥ 30 min; `talked` = the talk roll succeeded (FRIENDS_SPEC §4) */
   encounter?: Encounter;
+  /** 계획과 어긋난 기록 (sim/friction.ts). 없으면 계획대로 갔다는 뜻이다. */
+  outcome?: Outcome;
 }
 
 /** 마주침: someone else's agent shared this place. `talked` → a new friend when the activity ends; `again` → already a friend. */
@@ -134,6 +163,15 @@ export interface ComicPanel {
   beat: 'arrive' | 'doing' | 'twist' | 'end';
   withFriend?: boolean;
   bg: string;                // token colour for the panel ground
+  /**
+   * 그 컷이 찍힌 시각 (ms). 완성도 높은 삽화는 "누가 만든 결과물"로 읽히고,
+   * 시각이 박힌 컷은 **목격 자료**로 읽힌다 (docs/adr/0001-agentness.md).
+   */
+  t: number;
+  /** 크롭과 앵글 — 컷마다 화각이 달라야 "그린 그림"이 아니라 "찍힌 사진"이 된다 */
+  crop: { scale: number; x: number; y: number; rot: number };
+  /** 잘 안 찍힌 컷 (가끔 하나). 못 찍힌 사진만큼 증거처럼 읽히는 건 없다 */
+  blur?: boolean;
 }
 
 export interface Comic {

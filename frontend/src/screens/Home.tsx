@@ -14,6 +14,12 @@ import { SleepScreen } from './SleepScreen';
 import { SummarySheet } from './SummarySheet';
 import { BookOverlay } from './BookOverlay';
 import { FriendsOverlay } from './FriendsOverlay';
+import { RequestCard } from './RequestCard';
+import { CallOverlay } from './CallOverlay';
+import { ChatOverlay } from './ChatOverlay';
+import { SayBubble } from './SayBubble';
+import { pendingOf, untoldOf } from '../sim/requests';
+import { buildThread, unreadCount } from '../sim/chat';
 import { chromeLabel } from './util';
 import './screens.css';
 
@@ -57,6 +63,16 @@ export function Home() {
   const storeNow = useWorld(s => s.now);
   const memory = useWorld(s => s.memory);
   const summary = useWorld(s => s.summary);
+  const storeGap = useWorld(s => s.gap);
+  const requests = useWorld(s => s.requests);
+  const calls = useWorld(s => s.calls);
+  const storeCall = useWorld(s => s.activeCall);
+  const messages = useWorld(s => s.messages);
+  const chatOpen = useWorld(s => s.chatOpen);
+  const chatSeen = useWorld(s => s.chatSeen);
+  const setChatOpen = useWorld(s => s.setChatOpen);
+  const say = useWorld(s => s.say);
+  const dismissSay = useWorld(s => s.dismissSay);
   const schedule = useWorld(s => s.timeline);
   const bookOpen = useWorld(s => s.bookOpen);
   const scale = useWorld(s => s.clock.scale);
@@ -66,6 +82,7 @@ export function Home() {
   const friendsOpen = useWorld(s => s.friendsOpen) || (typeof location !== 'undefined' && new URLSearchParams(location.search).get('preview') === 'friends');
   const setFriendsOpen = useWorld(s => s.setFriendsOpen);
   const dismissSummary = useWorld(s => s.dismissSummary);
+  const markRequestTold = useWorld(s => s.markRequestTold);
 
   const { phase: preview, world: previewWorld, now: previewNow } = usePreview();
   const previewOverlay = usePreviewOverlay();
@@ -163,17 +180,33 @@ export function Home() {
 
   // ── overlays ──
   const summaryItems = previewOverlay.summary && !previewClosed.summary ? previewOverlay.summary : summary;
-  const closeSummary = () => { if (previewOverlay.summary) setPreviewClosed(s => ({ ...s, summary: true })); else dismissSummary(); };
+  const summaryGap = previewOverlay.summary && !previewClosed.summary ? previewOverlay.gap : storeGap;
+  const untold = untoldOf(requests);
+  const closeSummary = () => {
+    for (const r of untold) markRequestTold(r.id);
+    if (previewOverlay.summary) setPreviewClosed(s => ({ ...s, summary: true })); else dismissSummary();
+  };
   const showBook = bookOpen || (!!previewOverlay.book && !previewClosed.book);
+  const pendingReq = previewOverlay.request ?? pendingOf(requests, now)[0] ?? null;
+  const activeCall = previewOverlay.call ?? storeCall;
+  // 대화 실 (ADR-0002): 쪽지·통화·자유 대화가 한 줄로 섞인다. 배지는 아직 안 본 줄의 개수.
+  const showChat = chatOpen || previewOverlay.chat;
+  const unread = unreadCount(buildThread(messages, requests, calls, now), chatSeen);
   const closeBook = () => { setBookOpen(false); if (previewOverlay.book) setPreviewClosed(s => ({ ...s, book: true })); };
 
   return (
     <div className="home">
       {layers.map(l => <div key={l.key} className={l.cls}>{l.node}</div>)}
-      <TopChrome now={now} tz={phase.tz} label={chromeLabel(now, phase, homeCity)} tone={screen === 'sleep' ? 'paper' : 'ink'} onBook={() => setBookOpen(true)} onTimetable={() => setTtOpen(true)} hideTimetable={screen === 'timetable'} onFriends={() => setFriendsOpen(true)} scale={scale} />
+      <TopChrome now={now} tz={phase.tz} label={chromeLabel(now, phase, homeCity)} tone={screen === 'sleep' ? 'paper' : 'ink'} onBook={() => setBookOpen(true)} onTimetable={() => setTtOpen(true)} hideTimetable={screen === 'timetable'} onFriends={() => setFriendsOpen(true)} onChat={() => setChatOpen(true)} unread={unread} scale={scale} />
+      {showChat && <ChatOverlay tz={phase.tz} onClose={() => setChatOpen(false)} />}
+      {/* 혼잣말: 대가 없이 지나가는 1단계 (ADR-0001 §1). 시트가 떠 있으면 자리를 비켜 준다. */}
+      {say && !showChat && !activeCall && !summaryItems?.length && <SayBubble text={say.text} onDone={dismissSay} />}
+      {activeCall && <CallOverlay call={activeCall} tz={phase.tz} />}
       {friendsOpen && <FriendsOverlay onClose={() => setFriendsOpen(false)} />}
       {ttOpen && screen !== 'timetable' && <TimetableScreen phase={pseudoWaiting(phase, now)} asSheet onClose={() => setTtOpen(false)} world={previewWorld ?? undefined} />}
-      {summaryItems && summaryItems.length > 0 && <SummarySheet items={summaryItems} onClose={closeSummary} />}
+      {/* 쪽지: 시트가 떠 있지 않을 때만, 한 번에 하나 (ADR-0001 §1) */}
+      {pendingReq && !summaryItems?.length && !ttOpen && !showBook && !friendsOpen && <RequestCard req={pendingReq} tz={phase.tz} />}
+      {summaryItems && summaryItems.length > 0 && <SummarySheet items={summaryItems} gap={summaryGap} tz={phase.tz} untold={untold} missed={summaryGap ? calls.filter(c => c.dir === 'in' && c.result !== 'answered' && c.at >= summaryGap.from && c.at <= summaryGap.to) : []} onClose={closeSummary} />}
       {showBook && <BookOverlay onClose={closeBook} comics={previewOverlay.book ?? undefined} />}
     </div>
   );

@@ -6,6 +6,8 @@ import { estimateJourney, journeyKey } from './journey';
 import { placeById, tzOf } from './places';
 import { alongPath, cumulativeKm } from './geo';
 import { AGENTS, agentById, agentOfFriend, agentsAt, rollTalk, talkChance } from './agents';
+import { diverts, pickAlternative, rollFriction, type Outcome } from './friction';
+import { narrate } from './narrate';
 
 // ─── The timeline ────────────────────────────────────────────────────────────
 // One continuous stream of activities from the anchor (place · moment · zone) onwards, resolved block by block in
@@ -33,7 +35,7 @@ export type JourneyCache = Record<string, Journey>;
 
 export function emptyPlans(): Plans {
   const o = {} as Plans;
-  for (const id of BLOCK_ORDER) o[id] = { blockId: id, category: id === 'sleep' ? 'sleep' : null, options: [], chosenId: null, chosenBy: null };
+  for (const id of BLOCK_ORDER) o[id] = { blockId: id, category: id === 'sleep' ? 'sleep' : null, options: [], chosenId: null, chosenBy: null, status: 'empty' };
   return o;
 }
 
@@ -84,10 +86,30 @@ export function buildTimeline(anchor: Anchor, days: Days, memory: Memory, journe
     const opt = plan?.options.find(o => o.id === plan.chosenId);
     const place = opt ? placeOrNull(opt.placeId) : null;
     if (!opt || !place) { t = slot.end; continue; }
-    const journey = journeys[journeyKey(cursor.place.id, place.id)] ?? estimateJourney(cursor.place, place);
+    const planned = place;
+    const key = `${dayKey}:${slot.id}`;
+    const baseJourney = journeys[journeyKey(cursor.place.id, planned.id)] ?? estimateJourney(cursor.place, planned);
     const departAt = Math.max(slot.start, cursor.free);
+    const plannedArriveAt = departAt + baseJourney.totalMin * 60_000;
+
+    // ── 마찰: 계획한 곳에 닿는 순간 굴린다 (sim/friction.ts). 저장하지 않고 매번 같은 값을 굴린다. ──
+    const kind = rollFriction(key, planned, dayKey);
+    const alt = kind && diverts(kind) ? pickAlternative(planned, key, kind) : null;
+    // 우회는 여정에 구간 하나를 덧붙이는 것으로 끝난다 — 지도는 leg가 하나 더 있는 걸로만 본다
+    const detour = alt ? estimateJourney(planned, alt) : null;
+    const place2 = alt ?? planned;
+    const journey = detour
+      ? { legs: [...baseJourney.legs, ...detour.legs], totalMin: baseJourney.totalMin + detour.totalMin }
+      : baseJourney;
+    const outcome: Outcome | undefined = kind
+      ? {
+        kind, plannedPlaceId: planned.id, plannedTitle: opt.title, divertedAt: plannedArriveAt,
+        line: narrate({ t: 'friction', kind, planned, actual: alt ?? undefined }, { name: memory.name, seed: key }),
+      }
+      : undefined;
+
     const arriveAt = departAt + journey.totalMin * 60_000;
-    const destTz = tzOf(place);
+    const destTz = tzOf(place2);
     const blockIds = (opt.spanBlocks ?? [slot.id]).filter(b => b !== 'sleep');
     // same zone: stay through the last spanned block; new zone: through the end of the arrival block, local time
     const wrapEnd = destTz === tz ? blockEndAt(slot.dayStart, blockIds[blockIds.length - 1]) : blockSlotIn(arriveAt, destTz).end;
@@ -96,8 +118,8 @@ export function buildTimeline(anchor: Anchor, days: Days, memory: Memory, journe
     const zoneJump = Math.abs(offsetMinutes(destTz, arriveAt) - offsetMinutes(tz, departAt)) >= JETLAG_MIN_OFFSET;
     // a big jump starts a 24 h jet-lag window; activities inside that window inherit it so phases can show the chip
     const jetlagUntil = zoneJump ? arriveAt + JETLAG_MS : cursor.jetlagUntil !== null && cursor.jetlagUntil > arriveAt ? cursor.jetlagUntil : null;
-    acts.push({ key: `${dayKey}:${slot.id}`, dayKey, blockIds, option: opt, place, fromPlace: cursor.place, journey, departAt, arriveAt, endAt, comicUntil, originTz: tz, tz: destTz, jetlagUntil, companions: opt.friendId ? [opt.friendId] : [] });
-    cursor = { place, free: comicUntil, tz: destTz, jetlagUntil };
+    acts.push({ key, dayKey, blockIds, option: opt, place: place2, fromPlace: cursor.place, journey, departAt, arriveAt, endAt, comicUntil, originTz: tz, tz: destTz, jetlagUntil, companions: opt.friendId ? [opt.friendId] : [], outcome });
+    cursor = { place: place2, free: comicUntil, tz: destTz, jetlagUntil };
     t = blockSlotIn(comicUntil - 1, destTz).end;          // the rest of that block is waiting
   }
   addEncounters(acts, memory, encounters);

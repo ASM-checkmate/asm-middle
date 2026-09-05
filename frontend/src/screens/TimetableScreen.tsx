@@ -8,6 +8,7 @@ import { cityNameKo } from '../sim/places';
 import { primaryMode } from '../sim/journey';
 import { STAY_CHOICES, withStayDays } from '../sim/suggest';
 import { agentById } from '../sim/agents';
+import { wonKo } from '../sim/status';
 import type { TimetableWorld } from '../dev/preview';
 import { Character, type Pose } from '../character';
 import { Bubble, Button, Chip, CompanionChip, Glyph, JetlagChip, type ChipFriend } from '../ui';
@@ -44,6 +45,10 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
   const chooseOption = useWorld(s => s.chooseOption);
   const regenerateOptions = useWorld(s => s.regenerateOptions);
   const setBookOpen = useWorld(s => s.setBookOpen);
+  const pushAnyway = useWorld(s => s.pushAnyway);
+  const clearVerdict = useWorld(s => s.clearVerdict);
+  const storeStatus = useWorld(s => s.status);
+  const status = world?.status ?? storeStatus;
 
   const tz = phase.tz;
   const dayStart = dayStartOfKey(today);
@@ -81,13 +86,17 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
   const category = act?.option.category ?? plan.category;
   const catDef = category ? categoryDef(category) : null;
   const options = plan.options;
-  const pendingId = pending ?? plan.chosenId ?? options[0]?.id ?? null;
+  const verdict = editable ? plan.verdict : undefined;
+  const pendingId = pending ?? verdict?.optionId ?? plan.chosenId ?? options[0]?.id ?? null;
+  /** 판정이 서 있는 동안에는 판단의 대상과 역제안만 남긴다 — 나머지는 지금 고를 수 있는 게 아니다 */
+  const shownOptions = verdict ? options.filter(o => o.id === verdict.optionId || o.id === verdict.counterOptionId) : options;
   /** user-confirmed (an agent pre-pick still shows the '이걸로 정할래' action, deck-style) */
   const confirmed = !!plan.chosenId && plan.chosenBy === 'user' && pendingId === plan.chosenId;
   const ownAct = kind === 'own' ? cover : undefined;
   /** 정해둠 = the owner's own decisions and the friend proposals left standing — never the agent's block-start picks. */
   const decidedCount = BLOCK_ORDER.filter(id => id !== 'sleep' && (plans[id].chosenBy === 'user' || plans[id].chosenBy === 'friend')).length;
-  const decidedLabel = decidedCount ? `${decidedCount}개 정해둠` : '아직 비어 있어요';
+  // 상태는 게이지로 상주하지 않는다 (SPEC 메인 화면). 카드 안의 조용한 한 줄이 전부다.
+  const statusLabel = `${decidedCount ? `${decidedCount}개 · ` : ''}${wonKo(status.money)} · 🔋${Math.round(100 - status.fatigue)}%`;
   /** A friend (or an agent we have not befriended yet) as the chip needs them — id, name, colour. */
   const chipFriend = (id?: string): ChipFriend | null => {
     if (!id) return null;
@@ -125,6 +134,7 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
       dark: paint.dark,
       state: stateOf(bd.id),
       decided: !!a,
+      diff: !!a?.outcome && a.outcome.plannedPlaceId !== a.place.id && now >= a.outcome.divertedAt,
     };
   });
 
@@ -233,15 +243,15 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
             다른 제안 보기 <Glyph name="refresh" size={13} color="#6B5B4B" />
           </button>
         </div>
-        {options.length ? (
+        {shownOptions.length ? (
           <div className="tt-list">
-            {options.map(o => {
+            {shownOptions.map(o => {
               const on = o.id === pendingId;
               const f = chipFriend(o.friendId);
               // 친구 제안 카드는 라벨을 하나 더 단다; 다른 걸 고르면 동행이 취소되므로 (chosenBy ≠ 'friend') 라벨도 사라진다
               const asked = o.proposedBy && proposal?.id === o.id ? chipFriend(o.proposedBy) : null;
               return (
-                <button key={o.id} type="button" className={`opt ${on ? 'is-on' : ''}`} onClick={() => { setPending(o.id); setStay(null); }} aria-pressed={on}>
+                <button key={o.id} type="button" className={`opt ${on ? 'is-on' : ''} ${verdict?.counterOptionId === o.id ? 'is-counter' : ''}`} onClick={() => { setPending(o.id); setStay(null); }} aria-pressed={on}>
                   <div className="opt-ic">{o.emoji}</div>
                   <div className="opt-tx">
                     <b>{titleOf(o)}</b>
@@ -257,6 +267,10 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
         ) : (
           <div className="tt-empty">제안을 준비하는 중… <button type="button" className="tt-link" onClick={() => category && setCategory(sel, category)}>다시 받기</button></div>
         )}
+        {/* 예고 (ADR-0001): 확정하면 에이전트가 자기 예측을 남긴다. 결과가 이 말을 배반할 수 있어야 한다. */}
+        {confirmed && pendingOpt?.forecast && !verdict && (
+          <div className="tt-forecast"><b>예고</b> {pendingOpt.forecast}</div>
+        )}
         {showStay && (
           <div className="tt-stay" role="group" aria-label="며칠 머물까">
             <span className="tt-stay-k">며칠 있을까?</span>
@@ -269,10 +283,30 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
             </div>
           </div>
         )}
-        <Button className="tt-cta" tone={staySettled ? 'done' : 'ink'} disabled={!pendingId}
-          onClick={() => pendingId && chooseOption(sel, pendingId, 'user', showStay ? stayValue ?? undefined : undefined)}>
-          {staySettled ? (ownAct ? `정했어 · ${hhmmIn(ownAct.departAt, tz)} 출발` : '이걸로 정했어') : '이걸로 정할래'}
-        </Button>
+        {/* 에이전트의 판단 (ADR-0001): 반대는 밀어붙일 수 있고, 거절은 못 한다 */}
+        {verdict ? (
+          <div className={`tt-verdict is-${verdict.kind}`} role="status">
+            <Bubble className="tt-verdict-say">{verdict.line}</Bubble>
+            {verdict.evidence && (
+              <Chip tone="coral" className="tt-verdict-ev">{verdict.evidence.label} <b className="num">{verdict.evidence.value}</b></Chip>
+            )}
+            <div className="tt-verdict-btns">
+              <Button tone="paper" small onClick={() => { clearVerdict(sel); setPending(verdict.counterOptionId ?? null); }}>
+                {verdict.counterOptionId ? '그래, 네 맘대로' : '알겠어, 딴 거 고를게'}
+              </Button>
+              {verdict.kind === 'pushback' && (
+                <Button tone="coral" small onClick={() => pushAnyway(sel)}>
+                  그래도 가 · 기분 −{Math.abs(verdict.cost?.mood ?? 0)}
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <Button className="tt-cta" tone={staySettled ? 'done' : 'ink'} disabled={!pendingId}
+            onClick={() => pendingId && chooseOption(sel, pendingId, 'user', showStay ? stayValue ?? undefined : undefined)}>
+            {staySettled ? (ownAct ? `정했어 · ${hhmmIn(ownAct.departAt, tz)} 출발` : '이걸로 정했어') : '이걸로 정할래'}
+          </Button>
+        )}
       </>
     );
   } else {
@@ -283,6 +317,8 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
       return `${hhmmIn(a.departAt, tz)} 출발 · ${hhmmIn(a.endAt, tz)} 끝`;
     };
     const tag = (a: ScheduledActivity) => a.comicUntil <= now ? '했어요' : now < a.arriveAt ? '이동 중' : kind === 'transit' ? '도착했어요' : span ? '여행 중' : '진행 중';
+    // 발길을 돌린 뒤에만 어긋남을 드러낸다 — 아직 도착 전인 블록의 제목이 새면 안 된다
+    const shownDiverted = !!shown?.outcome && shown.outcome.plannedPlaceId !== shown.place.id && now >= shown.outcome.divertedAt;
     body = st === 'sleep' ? (
       <div className="done">
         <div className="opt-ic">😴</div>
@@ -292,9 +328,14 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
     ) : shown ? (
       <>
         <div className="done">
-          <div className="opt-ic">{shown.option.emoji}</div>
-          <div className="opt-tx"><b>{shown.option.title}</b><span>{shown.option.reason}</span></div>
-          <Chip className="done-tag" tone={shown.comicUntil <= now ? 'mint' : 'sun'}>{tag(shown)}</Chip>
+          <div className="opt-ic">{shown.place.emoji}</div>
+          <div className="opt-tx">
+            {/* 어긋난 블록은 계획을 취소선으로 남기고 실제로 간 곳을 아래에 쓴다 (ADR-0001) */}
+            {shownDiverted && <span className="done-was">{shown.outcome!.plannedTitle}</span>}
+            <b>{shownDiverted ? `${shown.place.name}에서 ${shortTitle(shown.option.title)}` : shown.option.title}</b>
+            <span>{shown.outcome && now >= shown.outcome.divertedAt ? shown.outcome.line : shown.option.reason}</span>
+          </div>
+          <Chip className="done-tag" tone={shownDiverted ? 'coral' : shown.comicUntil <= now ? 'mint' : 'sun'}>{shownDiverted ? '바뀜' : tag(shown)}</Chip>
         </div>
         <div className="tt-head" style={{ marginTop: 6 }}>
           <span>{when(shown)}</span>
@@ -308,12 +349,12 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
 
   if (asSheet) {
     return (
-      <div className="tt tt-sheet" role="dialog" aria-label="생활계획표">
+      <div className={`tt tt-sheet ${verdict ? 'is-judging' : ''}`} role="dialog" aria-label="생활계획표">
         <button type="button" className="tt-backdrop" aria-label="닫기" onClick={onClose} />
         <div className="tt-panel">
           {phase.jetlag && <JetlagChip sticker className="tt-sheet-jetlag" />}
           <div className="tt-grip" aria-hidden="true" />
-          <div className="tt-ttl"><span className="tt-ttl-tx">{title}</span><small className="num">{decidedLabel}</small>
+          <div className="tt-ttl"><span className="tt-ttl-tx">{title}</span><small className="num">{statusLabel}</small>
             <button type="button" className="tt-close" aria-label="닫기" onClick={onClose}><Glyph name="close" size={18} /></button>
           </div>
           <div className="tt-row">
@@ -332,7 +373,7 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
   }
 
   return (
-    <div className="tt">
+    <div className={`tt ${verdict ? 'is-judging' : ''}`}>
       {away ? (
         <div className="tt-scene"><Scene type={phase.at.type} hush /></div>
       ) : (
@@ -359,7 +400,7 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
       </Bubble>
       <Character className="tt-chara" pose={pose} size={290} />
       <div className="tt-panel">
-        <div className="tt-ttl"><span className="tt-ttl-tx">{title}</span><small className="num">{decidedLabel}</small></div>
+        <div className="tt-ttl"><span className="tt-ttl-tx">{title}</span><small className="num">{statusLabel}</small></div>
         <div className="tt-row">
           <Ring segs={segs} selected={sel} now={now} tz={tz} center={b.label} onSelect={selectBlock} />
           <div className="tt-info">

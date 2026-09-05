@@ -1,6 +1,7 @@
 import type { ActivityOption, BlockId, DayKey, Phase, PlaceType, TransportMode } from '../sim/types';
 import { splitDayKey } from '../sim/types';
 import { blockDef, weekdayKoIn } from '../sim/blocks';
+import { DAY_MS, dayStartIn, hhmmIn } from '../sim/tz';
 import { cityNameKo } from '../sim/places';
 import type { Pose } from '../character';
 
@@ -128,3 +129,50 @@ export const beatPose = (beat: 'arrive' | 'doing' | 'twist' | 'end', opt?: Activ
 
 /** Tiny cross-screen intent: which comic the book should open on. */
 export const bookIntent: { comicId: string | null } = { comicId: null };
+
+// ─── 공백 (SPEC 자율 생활과 개입) ────────────────────────────────────────────
+/** "그저께" 보다 멀면 그냥 날짜로 부른다. */
+const DAY_WORD = ['오늘', '어제', '그저께'];
+
+/** 캐릭터의 현지 자정 기준으로 `t`가 며칠 전인지 (0 = 오늘). */
+const daysBack = (t: number, now: number, tz: string) =>
+  Math.round((dayStartIn(now, tz) - dayStartIn(t, tz)) / DAY_MS);
+
+/** "어제 21:04" — 오늘·어제·그저께는 말로, 그보다 오래면 "9월 3일 21:04". */
+const stampOf = (t: number, now: number, tz: string) => {
+  const n = daysBack(t, now, tz);
+  if (n >= 0 && n < DAY_WORD.length) return `${DAY_WORD[n]} ${hhmmIn(t, tz)}`;
+  const d = new Date(t);
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 ${hhmmIn(t, tz)}`;
+};
+
+/** 대화 실의 날짜 구분선 — "오늘" · "어제" · "9월 3일 수요일". */
+export const dayStamp = (t: number, now: number, tz: string) => {
+  const n = daysBack(t, now, tz);
+  if (n >= 0 && n < DAY_WORD.length) return DAY_WORD[n];
+  const d = new Date(t);
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 ${weekdayKoIn(t, tz)}`;
+};
+
+/** "11시간 8분" / "42분" — 공백의 길이. */
+const spanOf = (ms: number) => {
+  const m = Math.max(1, Math.round(ms / 60_000));
+  const h = Math.floor(m / 60);
+  return h > 0 ? `${h}시간${m % 60 ? ` ${m % 60}분` : ''}` : `${m}분`;
+};
+
+/**
+ * 사용자가 자리를 비운 구간을 캐릭터의 현지 시각으로 읽는다. 타임스탬프 자체가
+ * "내가 없을 때도 세계가 돌아갔다"는 증거라 catch-up 시트 맨 위에 찍는다.
+ * @param from 마지막으로 봤던 순간 (sim ms)
+ * @param to   지금 (sim ms)
+ * @param tz   캐릭터가 사는 시간대
+ * @returns    범위 문구와 길이 문구. 둘 다 이미 사람이 읽는 형태다.
+ */
+export const gapLabel = (from: number, to: number, tz: string) => {
+  const sameDay = daysBack(from, to, tz) === 0;   // 같은 날이면 "오늘"을 두 번 쓰지 않는다
+  return {
+    range: `${stampOf(from, to, tz)} ~ ${sameDay ? hhmmIn(to, tz) : stampOf(to, to, tz)}`,
+    span: spanOf(to - from),
+  };
+};

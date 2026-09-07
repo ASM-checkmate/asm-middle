@@ -42,6 +42,13 @@ export interface Place {
   ownerFriendId?: string;
 }
 
+/**
+ * 백엔드 모델이 미리 지어 둔 하루 계획 (ADR-0010): 블록마다 범주와 카드 3장. 블록이 시작할 때 `decide()`가 규칙 카드
+ * 대신 이걸 쓴다 — 같은 review 문을 지난다. 저장돼야 새로고침해도 같은 하루다.
+ */
+export type LlmDayPlan = Partial<Record<BlockId, { category: Category; options: ActivityOption[]; at: number }>>;
+export type LlmPlans = Record<DayKey, LlmDayPlan>;
+
 /** A city's transport hubs used to build multi-leg journeys. */
 export interface CityHubs { station?: string; airport?: string; port?: string }
 

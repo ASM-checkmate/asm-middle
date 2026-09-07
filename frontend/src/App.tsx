@@ -35,13 +35,15 @@ class Boundary extends Component<{ children: ReactNode; fallback: ReactNode }, {
 
 export default function App() {
   const tick = useWorld(s => s.tick);
+  const planDay = useWorld(s => s.planDay);
   useEffect(() => {
     tick();
+    void planDay();   // 오늘의 빈 블록을 모델이 미리 짓는다 (ADR-0010). tier가 off면 아무것도 안 한다
     const id = setInterval(tick, 1000);
     const onVis = () => { if (document.visibilityState === 'visible') tick(); };
     document.addEventListener('visibilitychange', onVis);
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis); };
-  }, [tick]);
+  }, [tick, planDay]);
 
   if (LAB === 'character') {
     return (

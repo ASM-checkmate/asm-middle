@@ -1,12 +1,12 @@
 import { create } from 'zustand';
-import type { ActivityOption, Anchor, BlockId, BlockPlan, Category, Friend, Comic, DayKey, DaySummaryItem, Journey, Memory, Phase, ScheduledActivity, ShotWin, UserShot } from './types';
+import type { ActivityOption, Anchor, BlockId, BlockPlan, Category, Friend, Comic, DayKey, DaySummaryItem, Journey, LlmDayPlan, LlmPlans, Memory, Phase, ScheduledActivity, ShotWin, UserShot } from './types';
 import { splitDayKey } from './types';
 import type { WorryKey } from './types';
 import { BLOCK_ORDER, CATEGORIES, blockEndAt, blockSlotIn, blockStartAt } from './blocks';
 import { DAY_MS, HOUR_MS, compareDayKeys, dayEndOfKey, dayKeyIn, dayStartIn, dayStartOfKey, isValidTz, ownerTz } from './tz';
 import { loadClock, saveClock, simNow, withScale, jumpedTo, resetClock, type ClockState } from './clock';
-import { PLACES, cityKeyOfName, cityNameKo, placeById, registerCity, tzOf } from './places';
-import { suggestOptions, withStayDays } from './suggest';
+import { PLACES, cityKeyOfName, cityNameKo, hasPlace, placeById, registerCity, tzOf } from './places';
+import { optionsFromCards, suggestOptions, withStayDays } from './suggest';
 import { AGENTS, agentActivityAt, agentById, agentOfFriend, companionCtx, friendOf, type Agent } from './agents';
 import { makeComic } from './comic';
 import { shotsFor, trimShots } from './shots';
@@ -19,7 +19,7 @@ import { WORRY_CHOICES, expire, nextRequest, trimRequests, type AgentRequest } f
 import { callLines, lateText, pickupRule, trimCalls, trimDueCalls, worryLines, type CallEvent, type DueCall } from './call';
 import { narrate } from './narrate';
 import { MAX_LEN, WORRY_CALL_MS, ASK_CALL_MS, openBatch, reactToWorry, replyToAll, tripFollowUp, trimMessages, type ChatMsg } from './chat';
-import { fetchSketchRead, fetchTripPlan, getTier, requestOf, scheduleReply, setTier, sketchRequestOf, type LlmTier, type ReplyResponse, type SketchReadResponse } from './llm';
+import { fetchPlan, fetchSketchRead, fetchTripPlan, getTier, planRequestOf, requestOf, scheduleReply, setTier, sketchRequestOf, type LlmTier, type PlanBlockRequest, type PlanCategory, type ReplyResponse, type SketchReadResponse } from './llm';
 
 /** Seed memory: the first launch starts from 모모; onboarding (`updateMemory`) overwrites name/likes/traits. */
 export const DEFAULT_MEMORY: Memory = {
@@ -41,9 +41,9 @@ export type MemoryPatch = Partial<Pick<Memory, 'name' | 'likes' | 'dislikes' | '
 /** "다른 제안 보기" counter per day and block. */
 export type Regen = Record<DayKey, Partial<Record<BlockId, number>>>;
 /** The pure inputs of the timeline — the bundle the helpers below pass around. */
-export interface World { days: Days; anchor: Anchor; memory: Memory; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[] }
+export interface World { days: Days; anchor: Anchor; memory: Memory; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; llmPlans: LlmPlans }
 /** v5 그대로 — `shots`(ADR-0004)는 optional 필드라 옛 저장본은 빈 배열로 읽는다 (버전을 올리지 않는다). */
-interface Persisted { v: 5; days: Days; anchor: Anchor; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[] }
+interface Persisted { v: 5; days: Days; anchor: Anchor; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; /** ADR-0010 — 옛 저장본엔 없다 */ llmPlans?: LlmPlans }
 
 const WORLD_KEY = 'theworld.world.v5';   // + 대화 실 (ADR-0002). 옛 판은 한 번만 읽어 올린다
 const WORLD_KEY_V4 = 'theworld.world.v4';  // legacy: days + anchor(+status), 대화 실 없음 (ADR-0001)
@@ -158,11 +158,28 @@ const validShots = (raw: unknown): UserShot[] => {
       && (c.pitch === undefined || Number.isFinite(c.pitch)) && (c.light === undefined || Number.isFinite(c.light)) && (c.dof === undefined || Number.isFinite(c.dof)) && (c.focus === undefined || c.focus === 'near' || c.focus === 'far');
   });
 };
-const persistedOf = (w: World): Persisted => ({ v: 5, days: w.days, anchor: w.anchor, journeys: w.journeys, regen: w.regen, encounters: w.encounters, requests: w.requests, calls: w.calls, messages: w.messages, dueCalls: w.dueCalls, shots: w.shots });
+const persistedOf = (w: World): Persisted => ({ v: 5, days: w.days, anchor: w.anchor, journeys: w.journeys, regen: w.regen, encounters: w.encounters, requests: w.requests, calls: w.calls, messages: w.messages, dueCalls: w.dueCalls, shots: w.shots, llmPlans: w.llmPlans });
 const horizonFor = (t: number) => t + HORIZON_MS;
 const build = (w: World, t: number) => buildTimeline(w.anchor, w.days, w.memory, w.journeys, horizonFor(t), w.encounters);
 
 /** Places already chosen (or proposed) in the other blocks today, so suggestions vary across the day. */
+/** 저장된 하루 계획을 검증한다 — 장소가 사라졌으면(찾아 온 도시를 잊음) 그 블록은 버린다. */
+const validLlmPlans = (v: unknown): LlmPlans => {
+  const out: LlmPlans = {};
+  if (!v || typeof v !== 'object') return out;
+  for (const [dayKey, day] of Object.entries(v as Record<string, unknown>)) {
+    if (!day || typeof day !== 'object') continue;
+    const clean: LlmDayPlan = {};
+    for (const [id, b] of Object.entries(day as Record<string, { category?: unknown; options?: unknown; at?: unknown }>)) {
+      if (!BLOCK_ORDER.includes(id as BlockId) || !b || !CATEGORIES.some(c => c.id === b.category) || !Array.isArray(b.options)) continue;
+      const options = (b.options as ActivityOption[]).filter(o => o && typeof o.id === 'string' && typeof o.placeId === 'string' && hasPlace(o.placeId));
+      if (options.length) clean[id as BlockId] = { category: b.category as Category, options, at: typeof b.at === 'number' ? b.at : 0 };
+    }
+    if (Object.keys(clean).length) out[dayKey] = clean;
+  }
+  return out;
+};
+
 const usedPlaceIds = (plans: Plans, except: BlockId) => {
   const ids = new Set<string>();
   for (const id of BLOCK_ORDER) {
@@ -301,12 +318,14 @@ export function decide(dayKey: DayKey, w: World, horizon: number, now: number): 
       // r.next()는 빠듯할 때만 소비한다 — 넉넉한 날의 시드 순서(범주 뽑기)는 그대로다
       const tight = status.money < TIGHT_MONEY;
       const earn = tight && !p.category && !MEAL_BLOCKS.has(id) && !hotel && r.next() < 0.7;
+      // 모델이 미리 지어 둔 계획 (ADR-0010) — 빈 블록에서만, 그리고 밥·숙소·돈·고민 같은 규칙이 먼저다. 없으면 시드로
+      const llm = !p.category && !p.options.length ? w.llmPlans[dayKey]?.[id] : undefined;
       if (!p.category) p.category = MEAL_BLOCKS.has(id)
         ? 'meal'                                                           // 아침·점심·저녁은 밥 시간 (식당/브런치/카페는 취향대로 제안됨)
         : hotel ? 'rest'
           : earn ? 'work'
-            : worry ?? r.pick(CATEGORIES.filter(c => c.id !== 'travel' && c.id !== 'meal')).id;
-      if (!p.options.length) p.options = suggestOptions(ctx(p.category));
+            : worry ?? llm?.category ?? r.pick(CATEGORIES.filter(c => c.id !== 'travel' && c.id !== 'meal')).id;
+      if (!p.options.length) p.options = llm && llm.category === p.category && llm.options.every(o => hasPlace(o.placeId)) ? llm.options : suggestOptions(ctx(p.category));
       if (p.category === 'meal') p.options = rankMealOptions(p.options, w.memory);
       if (hotel && p.category === 'rest') p.options = [...p.options.filter(o => o.placeId === hotel.id), ...p.options.filter(o => o.placeId !== hotel.id)];
       // 에이전트의 자기 선택도 사용자의 확정과 **같은 문**을 지난다 (sim/review.ts):
@@ -390,7 +409,7 @@ function prune(w: World, now: number, onAct: (a: ScheduledActivity) => void): Wo
   const old = Object.keys(w.days).filter(k => dayStartOfKey(k) < cutoff).sort(compareDayKeys);
   if (!old.length && w.anchor.t >= cutoff) return w;
   let { anchor } = w;
-  const days = { ...w.days }, regen = { ...w.regen };
+  const days = { ...w.days }, regen = { ...w.regen }, llmPlans = { ...w.llmPlans };
   for (const k of old) {
     const dayEnd = dayEndOfKey(k);
     const acts = buildTimeline(anchor, days, w.memory, w.journeys, dayEnd, w.encounters);
@@ -401,10 +420,10 @@ function prune(w: World, now: number, onAct: (a: ScheduledActivity) => void): Wo
     anchor = last
       ? { placeId: last.place.id, tz: last.tz, t: Math.max(dayEnd, blockSlotIn(last.comicUntil - 1, last.tz).end), status }
       : { ...anchor, t: Math.max(anchor.t, dayEnd), status };
-    delete days[k]; delete regen[k];
+    delete days[k]; delete regen[k]; delete llmPlans[k];
   }
   if (anchor.t < cutoff) anchor = { ...anchor, t: cutoff };   // nothing is planned in between (those days are gone)
-  return { ...w, anchor, days, regen };
+  return { ...w, anchor, days, regen, llmPlans };
 }
 
 /**
@@ -465,6 +484,10 @@ export interface WorldState {
   llmTier: LlmTier;
   /** 지금 웹에서 찾고 있는 여행지 (ADR-0009). 없으면 null. 한 번에 하나만. */
   tripBusy: string | null;
+  /** 모델이 미리 지어 둔 하루 계획 (ADR-0010). `days`와 같은 키. */
+  llmPlans: LlmPlans;
+  /** 하루 계획을 백엔드에 묻는 중 */
+  planBusy: boolean;
   /** 대화 실을 마지막으로 본 시각 — 안 읽은 줄 배지가 이걸 쓴다 */
   chatSeen: number;
   /** 혼잣말 한 줄 (ADR-0001 §1의 1단계). 대가 없이 지나가고, 잠깐 떴다 사라진다. */
@@ -524,6 +547,16 @@ export interface WorldState {
    * @param batch 그 말이 속한 묶음 id — 후속 줄 id(`${batch}:trip`)와 시드에 쓴다
    */
   planTrip: (city: string, batch: string) => Promise<void>;
+  /**
+   * 오늘의 빈 블록들을 백엔드 모델에게 미리 짓게 한다 (ADR-0010). 결과는 `llmPlans[today]`에 저장되고, 블록이 시작할 때
+   * `decide()`가 규칙 카드 대신 쓴다. tier가 off거나 이미 묻는 중이거나 빈 블록이 없으면 아무것도 안 한다.
+   */
+  planDay: () => Promise<void>;
+  /**
+   * 물어본 카드가 도착했다. 그 블록이 아직 같은 범주로 비어 있으면(사용자가 안 바꿨고 시작 안 했으면) 채운다.
+   * 모델 카드가 없으면(실패·늦음) 규칙 카드로 채운다.
+   */
+  applyPlanCards: (dayKey: DayKey, id: BlockId, category: Category, cards: ActivityOption[]) => void;
   /** 혼잣말을 지운다 (뜬 지 몇 초 뒤 화면이 부른다). */
   dismissSay: () => void;
 
@@ -570,7 +603,7 @@ export interface WorldState {
 const comicCache = new Map<string, Comic>();
 const summaryOf = (acts: ScheduledActivity[], comicOf: (a: ScheduledActivity) => Comic): DaySummaryItem[] =>
   [...acts].sort((a, b) => a.endAt - b.endAt).slice(-SUMMARY_CAP).map(a => ({ blockId: a.blockIds[0], act: a, comic: comicOf(a) }));
-const worldOf = (s: WorldState): World => ({ days: s.days, anchor: s.anchor, memory: s.memory, journeys: s.journeys, regen: s.regen, encounters: s.encounters, requests: s.requests, calls: s.calls, messages: s.messages, dueCalls: s.dueCalls, shots: s.shots });
+const worldOf = (s: WorldState): World => ({ days: s.days, anchor: s.anchor, memory: s.memory, journeys: s.journeys, regen: s.regen, encounters: s.encounters, requests: s.requests, calls: s.calls, messages: s.messages, dueCalls: s.dueCalls, shots: s.shots, llmPlans: s.llmPlans });
 /** Where the character is right before block `id` of today (the previous activity's place, else the anchor's). */
 const placeBefore = (s: WorldState, id: BlockId) => currentPlaceAt(blockStartAt(dayStartOfKey(s.today), id) - 1, s.timeline, s.anchor);
 
@@ -603,7 +636,7 @@ export const useWorld = create<WorldState>((set, get) => {
     .map(r => (r.kind === 'worry' && !r.answered && !r.decidedAlone ? { ...r, choices: WORRY_CHOICES } : r));
   const messages0 = (Array.isArray(persisted?.messages) ? persisted.messages : []).filter(m => !m.id.startsWith('nego:'));
   const dueCalls0 = (Array.isArray(persisted?.dueCalls) ? persisted.dueCalls : []).map(d => (d.worry !== undefined && !isWorryKey(d.worry) ? { ...d, worry: undefined } : d));
-  let w: World = { days: validDays(persisted?.days), anchor: validAnchor(persisted?.anchor, now, memory), memory, journeys: persisted?.journeys ?? {}, regen: persisted?.regen ?? {}, encounters, requests: requests0, calls: Array.isArray(persisted?.calls) ? persisted.calls : [], messages: messages0, dueCalls: dueCalls0, shots };
+  let w: World = { days: validDays(persisted?.days), anchor: validAnchor(persisted?.anchor, now, memory), memory, journeys: persisted?.journeys ?? {}, regen: persisted?.regen ?? {}, encounters, requests: requests0, calls: Array.isArray(persisted?.calls) ? persisted.calls : [], messages: messages0, dueCalls: dueCalls0, shots, llmPlans: validLlmPlans(persisted?.llmPlans) };
   const gapActs: ScheduledActivity[] = [];
   const remember = (a: ScheduledActivity) => { settleLocal(a); if (a.endAt > lastSeen && a.endAt <= now) gapActs.push(a); };
   w = prune(w, now, remember);
@@ -674,8 +707,11 @@ export const useWorld = create<WorldState>((set, get) => {
       const today = currentDayKey(t, build(w, t), w.anchor.tz);
       if (book !== s.book) save(BOOK_KEY, book);
       if (memory !== s.memory) save(MEMORY_KEY, memory);
-      set({ days: w.days, anchor: w.anchor, regen: w.regen, book, memory, encounters, shots, today, selectedBlock: null });
+      set({ days: w.days, anchor: w.anchor, regen: w.regen, llmPlans: w.llmPlans, book, memory, encounters, shots, today, selectedBlock: null });
       persist();
+      recompute(t);
+      void get().planDay();   // 새 하루 — 모델이 빈 블록들을 미리 짓는다 (ADR-0010)
+      return;
     }
     recompute(t);
   };
@@ -781,9 +817,24 @@ export const useWorld = create<WorldState>((set, get) => {
     return out;
   };
 
+  /** 블록 하나·범주 하나의 카드를 백엔드에 묻는다 (ADR-0010). 늦거나 실패하면 규칙 카드로 채운다 — 같은 자리를 두 번 채우지 않는다. */
+  const CARDS_WAIT_MS = 15_000;
+  const askCards = (id: BlockId, category: PlanCategory, previous?: string[]) => {
+    const s = get();
+    if (s.llmTier === 'off') return;
+    const dayKey = s.today;
+    const from = placeBefore(s, id);
+    const req = planRequestOf([{ id, category, from: from.name, avoid: usedPlaceIds(s.plans, id), ...(previous?.length ? { previous } : {}) }], { memory: s.memory, status: s.status, now: s.now, tz: s.tz, dateKey: splitDayKey(dayKey).dateKey }, s.llmTier, from.city);
+    void fetchPlan(req, CARDS_WAIT_MS).then(r => {
+      const b = r?.blocks.find(x => x.id === id);
+      const cards = b && b.category === category ? optionsFromCards(b.options, category, splitDayKey(dayKey).dateKey, id) : [];
+      get().applyPlanCards(dayKey, id, category, cards);
+    });
+  };
+
   const st: WorldState = {
     clock, now, anchor: w.anchor, days: w.days, today, tz: initialPhase.tz, memory, agents: AGENTS, encounters, status: initialStatus, requests: w.requests, calls: w.calls, activeCall: null, onboarded,
-    messages: w.messages, dueCalls: w.dueCalls, chatOpen: false, chatSeen: load<number>(CHAT_SEEN_KEY, now), llmTier: getTier(), tripBusy: null, say: null,
+    messages: w.messages, dueCalls: w.dueCalls, chatOpen: false, chatSeen: load<number>(CHAT_SEEN_KEY, now), llmTier: getTier(), tripBusy: null, llmPlans: w.llmPlans, planBusy: false, say: null,
     shots: w.shots, sketchOpen: null, cameraOpen: false,
     plans: w.days[today], journeys: w.journeys, regen: w.regen, book,
     timeline: first.timeline,
@@ -816,9 +867,12 @@ export const useWorld = create<WorldState>((set, get) => {
     },
     setCategory: (id, c) => {
       const s = get();
-      const options = suggestOptions({ dateKey: s.today, blockId: id, category: c, memory: s.memory, from: placeBefore(s, id), regenSalt: s.regen[s.today]?.[id], usedPlaceIds: usedPlaceIds(s.plans, id), companions: companionCtx(s.memory, id, s.today, dayStartOfKey(s.today)) });
+      // 모델이 켜져 있고 모델이 지을 수 있는 범주면 카드를 비워 두고 묻는다 ("제안을 준비하는 중…"). 아니면 지금처럼 규칙 카드
+      const ask = s.llmTier !== 'off' && c !== 'travel' && c !== 'sleep';
+      const options = ask ? [] : suggestOptions({ dateKey: s.today, blockId: id, category: c, memory: s.memory, from: placeBefore(s, id), regenSalt: s.regen[s.today]?.[id], usedPlaceIds: usedPlaceIds(s.plans, id), companions: companionCtx(s.memory, id, s.today, dayStartOfKey(s.today)) });
       // 주인이 다른 걸로 바꾸면 동행은 취소된다 (친구는 혼자 간다) — the block becomes the owner's again. 그림도 지운다 (카드 경로로 복귀)
       setPlans({ ...s.plans, [id]: { ...s.plans[id], category: c, options, chosenId: null, chosenBy: null, status: 'proposed', verdict: undefined, sketch: undefined, sketchRead: undefined, sketchVerdict: undefined } });
+      if (ask) askCards(id, c as PlanCategory);
     },
     chooseOption: (id, optionId, by = 'user', stayDays) => {
       const s = get();
@@ -862,9 +916,12 @@ export const useWorld = create<WorldState>((set, get) => {
       const p = s.plans[id];
       if (!p.category) return;
       const salt = (s.regen[s.today]?.[id] ?? 0) + 1;
-      const options = suggestOptions({ dateKey: s.today, blockId: id, category: p.category, memory: s.memory, from: placeBefore(s, id), regenSalt: salt, usedPlaceIds: usedPlaceIds(s.plans, id), companions: companionCtx(s.memory, id, s.today, dayStartOfKey(s.today)) });
+      const ask = s.llmTier !== 'off' && p.category !== 'travel' && p.category !== 'sleep';
+      const options = ask ? [] : suggestOptions({ dateKey: s.today, blockId: id, category: p.category, memory: s.memory, from: placeBefore(s, id), regenSalt: salt, usedPlaceIds: usedPlaceIds(s.plans, id), companions: companionCtx(s.memory, id, s.today, dayStartOfKey(s.today)) });
       set({ regen: { ...s.regen, [s.today]: { ...s.regen[s.today], [id]: salt } } });
       setPlans({ ...s.plans, [id]: { ...p, options, chosenId: null, chosenBy: null, status: 'proposed', verdict: undefined, sketch: undefined, sketchRead: undefined, sketchVerdict: undefined } });
+      // "다른 제안 보기": 방금 보여 준 제목들을 넘겨 다른 걸 받는다
+      if (ask) askCards(id, p.category as PlanCategory, p.options.map(o => o.title));
     },
     sketchBlock: (id, dataUrl) => {
       const s = get();
@@ -1009,7 +1066,61 @@ export const useWorld = create<WorldState>((set, get) => {
         scheduleReply(batch, req, budget, r => get().applyLlmReply(batch, seq, r));
       }
     },
-    setLlmTier: (t) => { setTier(t); set({ llmTier: t }); },
+    setLlmTier: (t) => { setTier(t); set({ llmTier: t }); if (t !== 'off') void get().planDay(); },
+    applyPlanCards: (dayKey, id, category, cards) => {
+      const s = get();
+      const plans = s.days[dayKey];
+      const p = plans?.[id];
+      // 그 사이 범주를 바꿨거나, 카드가 이미 있거나(규칙이 채웠거나 시작했거나), 그림으로 넘겼으면 버린다
+      if (!p || p.category !== category || p.options.length || p.status !== 'proposed') return;
+      const options = cards.length
+        ? cards
+        : suggestOptions({ dateKey: splitDayKey(dayKey).dateKey, blockId: id, category, memory: s.memory, from: dayKey === s.today ? placeBefore(s, id) : placeById(s.anchor.placeId), regenSalt: s.regen[dayKey]?.[id], usedPlaceIds: usedPlaceIds(plans, id), companions: companionCtx(s.memory, id, dayKey, dayStartOfKey(dayKey)) });
+      const next = { ...plans, [id]: { ...p, options } };
+      const days = { ...s.days, [dayKey]: next };
+      set(dayKey === s.today ? { days, plans: next } : { days });
+      persist();
+      if (dayKey === s.today) recompute(simNow(get().clock));
+    },
+    planDay: async () => {
+      const s = get();
+      if (s.llmTier === 'off' || s.planBusy) return;
+      const dayKey = s.today;
+      const dayStart = dayStartOfKey(dayKey);
+      const homeCity = placeById(s.memory.homePlaceId).city;
+      const have = s.llmPlans[dayKey] ?? {};
+      // 아직 안 시작했고, 사용자·친구가 안 정했고, 모델도 아직 안 지은 블록만
+      const todo = BLOCK_ORDER.filter(id => id !== 'sleep' && blockStartAt(dayStart, id) > s.now && !have[id])
+        .filter(id => { const p = s.plans[id]; return p.category === null && !p.options.length && p.chosenBy === null && p.status === 'empty'; });
+      if (!todo.length) return;
+      // 블록이 시작하는 도시별로 한 번씩 묻는다 (카탈로그가 도시 것이라). 밥 시간은 식사, 여행지의 밤은 숙소 — decide()와 같은 규칙
+      const groups = new Map<string, PlanBlockRequest[]>();
+      for (const id of todo) {
+        const from = placeBefore(s, id);
+        const category: PlanCategory | null = MEAL_BLOCKS.has(id) ? 'meal' : id === 'night' && from.city !== homeCity ? 'rest' : null;
+        const list = groups.get(from.city) ?? [];
+        list.push({ id, category, from: from.name, avoid: usedPlaceIds(s.plans, id) });
+        groups.set(from.city, list);
+      }
+      set({ planBusy: true });
+      try {
+        for (const [city, blocks] of groups) {
+          const r = await fetchPlan(planRequestOf(blocks, { memory: s.memory, status: s.status, now: s.now, tz: s.tz, dateKey: splitDayKey(dayKey).dateKey }, s.llmTier, city), 120_000);
+          if (!r) continue;
+          const cur = get();
+          const day: LlmDayPlan = { ...(cur.llmPlans[dayKey] ?? {}) };
+          for (const b of r.blocks) {
+            const options = optionsFromCards(b.options, b.category, splitDayKey(dayKey).dateKey, b.id);
+            if (options.length) day[b.id] = { category: b.category, options, at: cur.now };
+          }
+          set({ llmPlans: { ...cur.llmPlans, [dayKey]: day } });
+        }
+      } finally {
+        set({ planBusy: false });
+      }
+      persist();
+      recompute(simNow(get().clock));
+    },
     applyLlmReply: (batch, seq, r) => {
       const s = get();
       const now = simNow(s.clock);
@@ -1108,9 +1219,12 @@ export const useWorld = create<WorldState>((set, get) => {
       };
       const t = simNow(s.clock);
       const plans = releaseAgentPicks(s, t);
-      set({ memory, onboarded: true, plans, days: { ...s.days, [s.today]: plans } });
+      // 취향이 바뀌었으니 모델이 지어 둔 계획도 버리고 다시 짓는다
+      const { [s.today]: _old, ...rest } = s.llmPlans;
+      set({ memory, onboarded: true, plans, days: { ...s.days, [s.today]: plans }, llmPlans: rest });
       save(MEMORY_KEY, memory); save(ONBOARD_KEY, true);
       persist(); recompute(t);
+      void get().planDay();
     },
     setScale: (scale) => { const c = withScale(get().clock, scale); saveClock(c); set({ clock: c }); const t = simNow(c); lastTick = t; sync(t); },
     jumpTo: (t) => { const c = jumpedTo(get().clock, t); saveClock(c); set({ clock: c }); lastTick = t; sync(t); },

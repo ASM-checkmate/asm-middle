@@ -51,6 +51,10 @@ export function DevPanel() {
   const tripBusy = useWorld(s => s.tripBusy);
   const wish = useWorld(s => s.memory.wish);
   const planTrip = useWorld(s => s.planTrip);
+  const planBusy = useWorld(s => s.planBusy);
+  const planDay = useWorld(s => s.planDay);
+  const today = useWorld(s => s.today);
+  const planned = useWorld(s => Object.keys(s.llmPlans[s.today] ?? {}).join(' '));
   const [open, setOpen] = useState(false);
   const [tripCity, setTripCity] = useState('');
   // 등록된 도시는 스토어 밖(places.ts)에 있어 구독이 안 된다 — tripBusy·wish가 바뀔 때 같이 다시 그려진다
@@ -96,6 +100,11 @@ export function DevPanel() {
           <div className="dev-row">
             <span className="dev-k">llm</span>
             {LLM_TIERS.map(t => <button key={t} type="button" className={`dev-b ${t === llmTier ? 'is-on' : ''}`} onClick={() => setLlmTier(t)}>{t}</button>)}
+          </div>
+          <div className="dev-row">
+            <span className="dev-k">plan</span>
+            <button type="button" className="dev-b" disabled={planBusy || llmTier === 'off'} onClick={() => void planDay()}>{planBusy ? '짓는 중…' : 'plan day'}</button>
+            <span className="dev-status" title={today}>{planned || '—'}</span>
           </div>
           <div className="dev-row">
             <span className="dev-k">trip</span>

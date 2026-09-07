@@ -1,14 +1,16 @@
 // ─── QA preview: `?preview=…` forces a phase WITHOUT touching the store ─────
-//   timetable[&tz=][&hour=][&jetlag=1][&proposal=1][&travel=1][&money=][&fatigue=][&mood=][&judge=pushback|refuse]   sleeping[&tz=]
-//   active:{placeType}[&tz=][&jetlag=1][&encounter=talked|seen]
-//   comic[&tz=][&jetlag=1][&friction=…]   summary[&gap=1]   book
-//   *[&request=decide|money|worry][&call=in|answered|refused][&chat=1]   moving:{walk|car|subway|train|plane|boat}[&p=0.35][&onboard=sleep|meal]
+//   timetable[&tz=][&hour=][&jetlag=1][&proposal=1][&travel=1][&sketch=1][&money=][&fatigue=][&mood=][&judge=pushback|refuse]   sleeping[&tz=]
+//   active:{placeType}[&tz=][&jetlag=1][&encounter=talked|seen][&sketch=1][&camera=1][&p=0.35]
+//   comic[&tz=][&jetlag=1][&friction=…][&shots=0,2][&sketch=1]   summary[&gap=1]   book
+//   *[&request=money|worry][&call=in|answered|refused][&chat=1]   moving:{walk|car|subway|train|plane|boat}[&p=0.35][&onboard=sleep|meal]
 // `tz` puts the character in a city of that zone (America/New_York → 뉴욕); `timetable&tz=` also fakes the whole day
 // around it (yesterday's flight from home landing this morning, the agent's picks for the rest), so the flight-covered
 // blocks, the local date title and the jet-lag chip can be screenshotted without living the trip.
+// `active…&camera=1`은 카메라 오버레이를 연 채로 시작한다 (Home이 usePreview().camera를 읽어 마운트, 샷은 오버레이의 로컬 state에만 —
+// 스토어는 안 쓴다). `&p=`는 활동 진행률(0..0.98, 기본 .35): 카메라의 "지금" 창(shots.ts winAt)이 이걸 따른다.
 import { useMemo, useRef } from 'react';
 import { decide, useWorld, type World } from '../sim/store';
-import type { ActivityOption, Anchor, BlockId, Category, Comic, DayKey, DaySummaryItem, Journey, Leg, Onboard, Phase, Place, PlaceType, ScheduledActivity, TransportMode } from '../sim/types';
+import type { ActivityOption, Anchor, BlockId, Category, Comic, DayKey, DaySummaryItem, Journey, Leg, Onboard, Phase, Place, PlaceType, ScheduledActivity, ShotWin, TransportMode, UserShot } from '../sim/types';
 import { PLACES, placeById, tzOf } from '../sim/places';
 import { estimateJourney, MODE_LABEL, primaryMode } from '../sim/journey';
 import { geodesicPath, haversineKm } from '../sim/geo';
@@ -18,6 +20,7 @@ import { buildTimeline, companionsOf, encounterOf, currentPlaceAt, emptyPlans, m
 import { suggestOptions } from '../sim/suggest';
 import { AGENTS, agentById } from '../sim/agents';
 import { makeComic } from '../sim/comic';
+import { shotsFor, winStarts } from '../sim/shots';
 import { INITIAL_STATUS, wonKo, type Status } from '../sim/status';
 import { WORRY_CHOICES, type AgentRequest, type RequestKind } from '../sim/requests';
 import { callLines, lateText, type CallEvent } from '../sim/call';
@@ -36,15 +39,19 @@ export type CallPreview = 'in' | 'answered' | 'refused' | null;
 type PreviewKind =
   | { kind: 'timetable'; tz: string; hour: number | null; jetlag: boolean; plan: PlanPreview; judge: JudgePreview }
   | { kind: 'sleeping'; tz: string }
-  | { kind: 'active'; placeType: PlaceType; tz: string; jetlag: boolean; encounter: EncounterPreview }
-  | { kind: 'comic'; tz: string; jetlag: boolean; friction: FrictionKind | null }
+  /** `&sketch=1` — 아침에 그림으로 정한 활동 (로그 첫 줄) · `&camera=1` — 카메라 오버레이를 연 채로 (화면 배선은 Home: usePreview().camera)
+   *  · `&p=` — 활동 진행률 (0..0.98, 기본 .35): 도착 시각을 그만큼 앞당겨 카메라의 "지금" 창을 고른다 */
+  | { kind: 'active'; placeType: PlaceType; tz: string; jetlag: boolean; encounter: EncounterPreview; sketch: boolean; camera: boolean; p: number }
+  /** `&shots=0,2` — 그 창들은 사용자가 찍은 컷 · `&sketch=1` — 헤더에 아침 그림 */
+  | { kind: 'comic'; tz: string; jetlag: boolean; friction: FrictionKind | null; shots: ShotWin[]; sketch: boolean }
   | { kind: 'summary'; gap: boolean }
   | { kind: 'book' }
   | { kind: 'moving'; mode: TransportMode; p: number; onboard: Onboard };
 
 /** What the timetable screen reads besides the phase — swapped in wholesale for `?preview=timetable&tz=…` / `&hour=`. */
-/** `&proposal=1` — a friend already planned the next block; `&travel=1` — a travel option is selected (stay chips). */
-export type PlanPreview = 'none' | 'proposal' | 'travel';
+/** `&proposal=1` — a friend already planned the next block; `&travel=1` — a travel option is selected (stay chips);
+ *  `&sketch=1` — 오전 블록을 그림으로 정해 둔 상태 (ADR-0004: 그림 카드·링 ✎·말풍선). */
+export type PlanPreview = 'none' | 'proposal' | 'travel' | 'sketch';
 /** `&judge=` — 확정 직후 에이전트가 반대/거절한 상태를 그대로 그린다 (ADR-0001). */
 export type JudgePreview = 'pushback' | 'refuse' | null;
 /** `&encounter=talked|seen` — the other agent said hello, or was only ever a silhouette. */
@@ -80,25 +87,29 @@ export function parsePreview(search: string = typeof location !== 'undefined' ? 
   const call: CallPreview = cv === 'in' || cv === 'answered' || cv === 'refused' ? cv : null;
   const chat = q.get('chat') === '1';
   const rq = q.get('request');
-  const request: RequestKind | null = rq === 'decide' || rq === 'money' || rq === 'worry' ? rq : null;
+  const request: RequestKind | null = rq === 'money' || rq === 'worry' ? rq : null;
   const onboardRaw = q.get('onboard');
   const onboard: Onboard = onboardRaw === 'sleep' || onboardRaw === 'meal' ? onboardRaw : null;
+  const sketch = q.get('sketch') === '1';
   switch (kind) {
     case 'timetable': {
       const j = q.get('judge');
-      return { kind: 'timetable', tz, hour, jetlag, plan: q.get('proposal') === '1' ? 'proposal' : q.get('travel') === '1' ? 'travel' : 'none', judge: j === 'pushback' || j === 'refuse' ? j : null, status: so, request, call, chat };
+      const plan: PlanPreview = q.get('proposal') === '1' ? 'proposal' : q.get('travel') === '1' ? 'travel' : sketch ? 'sketch' : 'none';
+      return { kind: 'timetable', tz, hour, jetlag, plan, judge: j === 'pushback' || j === 'refuse' ? j : null, status: so, request, call, chat };
     }
     case 'sleeping': return { kind: 'sleeping', tz, status: so, request, call, chat };
     case 'comic': {
       const f = q.get('friction');
       const ok: FrictionKind[] = ['closed', 'full', 'weather', 'detour', 'sold-out'];
-      return { kind: 'comic', tz, jetlag, friction: ok.includes(f as FrictionKind) ? (f as FrictionKind) : null, status: so, request, call, chat };
+      // `&shots=0,2` — 창 번호 목록 (0..3), 나머지는 버린다
+      const shots = [...new Set((q.get('shots') ?? '').split(',').filter(Boolean).map(Number).filter((n): n is ShotWin => n === 0 || n === 1 || n === 2 || n === 3))];
+      return { kind: 'comic', tz, jetlag, friction: ok.includes(f as FrictionKind) ? (f as FrictionKind) : null, shots, sketch, status: so, request, call, chat };
     }
     case 'summary': return { kind: 'summary', gap: q.get('gap') === '1', status: so, request, call, chat };
     case 'book': return { kind: 'book', status: so, request, call, chat };
     case 'active': {
       const e = q.get('encounter');
-      return { kind: 'active', placeType: (arg || 'park') as PlaceType, tz, jetlag, encounter: e === 'talked' || e === 'seen' ? e : null, status: so, request, call, chat };
+      return { kind: 'active', placeType: (arg || 'park') as PlaceType, tz, jetlag, encounter: e === 'talked' || e === 'seen' ? e : null, sketch, camera: q.get('camera') === '1', p, status: so, request, call, chat };
     }
     case 'moving': return { kind: 'moving', mode: MODES.includes(arg as TransportMode) ? (arg as TransportMode) : 'walk', p, onboard, status: so, request, call, chat };
     default: return null;
@@ -138,6 +149,22 @@ const TITLE: Record<TransportMode, OptionText> = {
 };
 /** The long ride used for `&onboard=`: a plane goes all the way to New York so the clocks really drift apart. */
 const NY_TRIP: OptionText = { title: '센트럴파크까지 훌쩍 (3박)', reason: '뉴욕 가보고 싶었음', emoji: '✈️', category: 'travel' };
+
+/** `&sketch=1` 의 그림 — 96×96 PNG, 코랄 붓으로 그린 컵 낙서 (SketchOverlay가 만드는 것과 같은 꼴: PNG dataURL, 긴 변 ≤ 240px). */
+export const SAMPLE_SKETCH = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAIAAABt+uBvAAADU0lEQVR42u2bv2tVMRTH8+e5uejiJm4WoQ4KCiou0koVQYTqUhepoEM7VBwcRKwIXRSKLioWcWonF93it4hS78279yUv35Pk8YUzvOFwX/K5+Z4fN4nzvw5kA+aEQIAEaG4B7b0/NJ5/w4Awz+UFf/bYoeHH6LRj/ZsHtPR3tv/mnNe/bUAbq//N9o8NLIpY/7YBfXwTmO3AhGP9mwfUEcuoZGL92wYUFAsMyySLf9uAJokFFLL4Nw9oOSSWpYVs/m0DQkyNEkusvwDNOyBJTEFaaV6FoloNAZLE1IupF1OaV6GoVsMK0IBYYv3nUGKjYon1bx5QO1s9ReugFjYLtfUsQNUBggo+7dRiWSXpcobeeixfUHeU+rgSRuUBTap3K7Eci0iAJDEF6bqD9NE0f/Fkd6CbD4jpHA/v/B0GUF2aP2rXz3RH/GiFWMXh4Z2/wwCqrqRvne+O+P5VIiA8vC+ua6f9vcv+yV3/8qn/sO33P9cEqD9iIOMB6r+PoF044W+e8w9v+K01v/M8VoCuuTU/pGhCCM8KKBg1eYD6OYFQBGQF9GI9MJSf+xQ6eOyMpcDXd+aA3m4FxnHwhQIIj50R0OsNc0C7r5JfVLThsf3/QhhGMEZIRmAeBfT4jjmg4KBBjQFo9GUgwSPNI9kj5SPxI/13nFcWzQEFlz10xwAUK2esl47z4nFzQMHAicjNABSbEBBxkuTv6KkXuZ8BKLakCMp/ijjt6MUbqR1LKEqhqfg47ejlP6kdS2hrEJXj47QrP26zN5EUp135lW+m5WdrCZ9lXeHYaZYNvu2mfbd2hbOvWT2xeiWtZXWF6zebinR7M7x8pqjynXUHYN/T/PjuL50K+K/fLnF4waYdC76GSd/2AaLvDGQAVwCQTTsWFHKUQXRljr/YtGPBVDC9IWCXPB9k0I71i4koQ8ovCcigHeuXo9MbysXCJ8wM2rHgjhhnw95V0UaSdsRybNgTABm0Y0EVc87lEQBNOlOQ0cw+y1EAzZiD04z0YZcCaPYqLsFIWwMUQME+gG2kzSUKoCIHF2nXFTgn7Y0P5TGvsHIAWR5cJF8EYt7VMLifwL8IpMssAiRAAiRAAiRAAiRAMgESIAESIAESIAESIJkACZAAWdlv0Tu1GhVwrTUAAAAASUVORK5CYII=';
+
+/** `&shots=` 의 가짜 사용자 컷 — 창마다 다른 프레이밍(% 단위·시야각·기울기), 촬영 시각은 그 창의 앞쪽. */
+function fakeShots(act: ScheduledActivity, wins: ShotWin[]): UserShot[] {
+  const starts = winStarts(act);
+  const span = Math.max(1, act.endAt - act.arriveAt);
+  const CROP = [
+    { scale: 1.15, x: -8, y: 4, rot: -5 },
+    { scale: 1.6, x: 6, y: -6, rot: 3 },
+    { scale: 2.0, x: 0, y: 8, rot: -2 },
+    { scale: 1.3, x: -4, y: 0, rot: 9 },
+  ];
+  return wins.map(w => ({ actKey: act.key, win: w, at: starts[w] + span * 0.06, crop: { ...CROP[w] } }));
+}
 
 const TYPE_TITLE: Partial<Record<PlaceType, { title: string; emoji: string; category: Category }>> = {
   cafe: { title: '{p}에서 그림 그리기', emoji: '☕', category: 'play' },
@@ -238,7 +265,7 @@ function previewWorld(now0: number, tz: string, landedYesterday = false): Timeta
   const plans = emptyPlans();
   plans.morning = { blockId: 'morning', category: 'travel', options: [option], chosenId: option.id, chosenBy: 'user', status: 'confirmed' };
   const anchor: Anchor = { placeId: home.id, t: departAt, tz: ownerTz };
-  const world: World = { days: { [depDay]: plans }, anchor, memory: memory(), journeys: {}, regen: {}, encounters: {}, requests: [], calls: [], negotiations: {}, messages: [], dueCalls: [] };
+  const world: World = { days: { [depDay]: plans }, anchor, memory: memory(), journeys: {}, regen: {}, encounters: {}, requests: [], calls: [], messages: [], dueCalls: [], shots: [] };
   const first = decide(today, world, now0 + 36 * HOUR_MS, now0);
   const trip = first.timeline.find(a => a.option.id === option.id);
   const now = trip && !landedYesterday ? Math.max(now0, trip.comicUntil + 2 * 60_000) : now0;
@@ -248,11 +275,12 @@ function previewWorld(now0: number, tz: string, landedYesterday = false): Timeta
 }
 
 /**
- * `?preview=timetable&proposal=1|&travel=1` — today at 08:50 (the 오전 block still ahead), built by hand so the two
- * companion states can be screenshotted without waiting for an agent's day: a friend's own plan pre-filling 오전
- * (`chosenBy: 'friend'`, the card wears "민수가 같이 가자고 해요"), or a travel option selected so the 체류 칩 show.
+ * `?preview=timetable&proposal=1|&travel=1|&sketch=1` — today at 08:50 (the 오전 block still ahead), built by hand so the
+ * three states can be screenshotted without waiting for an agent's day: a friend's own plan pre-filling 오전
+ * (`chosenBy: 'friend'`, the card wears "민수가 같이 가자고 해요"), a travel option selected so the 체류 칩 show, or the
+ * block handed over as a drawing (`status: 'sketched'`, ADR-0004 — options kept, nothing chosen, no verdict).
  */
-function planWorld(now0: number, kind: 'proposal' | 'travel'): TimetableWorld {
+function planWorld(now0: number, kind: 'proposal' | 'travel' | 'sketch'): TimetableWorld {
   const mem = memory();
   const home = placeById(mem.homePlaceId);
   const today = dayKeyIn(now0, ownerTz);
@@ -271,6 +299,8 @@ function planWorld(now0: number, kind: 'proposal' | 'travel'): TimetableWorld {
     };
     const rest = suggestOptions(ctx('play')).filter(o => o.placeId !== place.id).slice(0, 2);
     plans.am = { blockId: 'am', category: 'play', options: [companion, ...rest], chosenId: companion.id, chosenBy: 'friend', status: 'confirmed' };
+  } else if (kind === 'sketch') {
+    plans.am = { blockId: 'am', category: 'play', options: suggestOptions(ctx('play')), chosenId: null, chosenBy: null, status: 'sketched', sketch: SAMPLE_SKETCH };
   } else {
     const options = suggestOptions(ctx('travel'));
     const chosen = options.find(o => (o.stayDays ?? 0) > 0) ?? options[0];
@@ -311,6 +341,9 @@ function judgeWorld(now0: number, judge: 'pushback' | 'refuse'): TimetableWorld 
   return { now, today, plans, timeline, anchor, status };
 }
 
+/** active 프리뷰의 활동 길이(분) — `&p=`는 이 길이에 대한 비율이다 */
+const ACTIVE_MIN = 100;
+
 interface PreviewBase { spec: PreviewSpec; act?: ScheduledActivity; comic?: Comic; now0: number; world?: TimetableWorld }
 
 function buildPreview(spec: PreviewSpec, now0: number): PreviewBase {
@@ -332,12 +365,14 @@ function buildPreview(spec: PreviewSpec, now0: number): PreviewBase {
       const o = { title: tt.title.replace('{p}', place.name), reason: '오늘은 여기가 끌렸음', emoji: tt.emoji, category: tt.category, friendId: place.type === 'friend_home' ? 'minsu' : undefined };
       const from = placeInTz(spec.tz, ['hotel', 'home']) ?? home;
       const journey = estimateJourney(from, place);
-      const departAt = now0 - (journey.totalMin + 35) * 60_000;
-      const act = fakeAct(place, o, journey, departAt, 100, spec.tz, from, spec.jetlag ? now0 + 20 * HOUR_MS : null);
+      // `&p=` — 활동(ACTIVE_MIN분) 중 지금까지 지난 비율만큼 도착을 앞당긴다 (기본 .35 = 35분 전 도착)
+      const departAt = now0 - (journey.totalMin + spec.p * ACTIVE_MIN) * 60_000;
+      const act = fakeAct(place, o, journey, departAt, ACTIVE_MIN, spec.tz, from, spec.jetlag ? now0 + 20 * HOUR_MS : null);
       // 마주침 미리보기: 말을 건 상대(새 친구)거나, 스쳐 지나간 실루엣 하나
       const other = AGENTS.find(a => !memory().friends.some(f => f.id === a.id));
       const encounter = spec.encounter && other ? { agentId: other.id, talked: spec.encounter === 'talked' } : undefined;
-      return { spec, now0, act: { ...act, tz: spec.tz, encounter }, world };
+      // `&sketch=1` — 아침에 그림으로 넘긴 활동: 로그 첫 줄 "그림은 못 알아봐서…"
+      return { spec, now0, act: { ...act, tz: spec.tz, encounter, ...(spec.sketch ? { sketch: SAMPLE_SKETCH } : {}) }, world };
     }
     case 'comic': {
       const world = spec.tz === ownerTz ? undefined : previewWorld(now0, spec.tz, true);
@@ -348,7 +383,7 @@ function buildPreview(spec: PreviewSpec, now0: number): PreviewBase {
       const act0 = { ...fakeAct(place, o, journey, now0 - (journey.totalMin + 100) * 60_000, 100, spec.tz, from, spec.jetlag ? now0 + 20 * HOUR_MS : null), tz: spec.tz };
       // `&friction=` — 계획한 곳에서 발길을 돌린 하루를 그대로 만든다 (sim/friction.ts와 같은 모양)
       const alt = spec.friction && diverts(spec.friction) ? pickAlternative(place, act0.key, spec.friction) : null;
-      const act = spec.friction
+      const act1 = spec.friction
         ? {
           ...act0,
           place: alt ?? act0.place,
@@ -358,7 +393,9 @@ function buildPreview(spec: PreviewSpec, now0: number): PreviewBase {
           },
         }
         : act0;
-      return { spec, now0, act, comic: makeComic(act, memory()), world };
+      // `&sketch=1` — 헤더의 아침 그림 · `&shots=` — 그 창들은 사용자가 찍은 컷으로 (나머지는 에이전트 열화 컷)
+      const act = spec.sketch ? { ...act1, sketch: SAMPLE_SKETCH } : act1;
+      return { spec, now0, act, comic: makeComic(act, memory(), shotsFor(fakeShots(act, spec.shots), act.key)), world };
     }
     case 'sleeping':
       return { spec, now0, world: spec.tz === ownerTz ? undefined : previewWorld(now0, spec.tz, true) };
@@ -378,8 +415,9 @@ function buildPreview(spec: PreviewSpec, now0: number): PreviewBase {
   }
 }
 
-/** The forced phase for `?preview=`, the faked day around it (`&tz=`; the timetable screen and sheet read it) and, for a
- *  `timetable` preview with its own moment, that moment. Ticks with the sim clock (moving/active progress) but never
+/** The forced phase for `?preview=`, the faked day around it (`&tz=`; the timetable screen and sheet read it), for a
+ *  `timetable` preview with its own moment, that moment, and for `active…&camera=1` the flag Home turns into an open
+ *  CameraOverlay (preview 모드 — 샷은 오버레이 로컬). Ticks with the sim clock (moving/active progress) but never
  *  writes the store. */
 /** undefined 필드를 걷어낸다 (Partial 스프레드가 기존 값을 지우지 않게). */
 const strip = <T extends object>(o: T): Partial<T> =>
@@ -391,12 +429,12 @@ const storeWorld = (): TimetableWorld => {
   return { now: s.now, today: s.today, plans: s.plans, timeline: s.timeline, anchor: s.anchor, status: s.status };
 };
 
-export function usePreview(): { phase: Phase | null; world: TimetableWorld | null; now: number | null } {
+export function usePreview(): { phase: Phase | null; world: TimetableWorld | null; now: number | null; camera: boolean } {
   const spec = useMemo(() => parsePreview(), []);
   const now = useWorld(s => s.now);
   const now0 = useRef(now).current;
   const base = useMemo(() => (spec ? buildPreview(spec, now0) : null), [spec, now0]);
-  if (!base) return { phase: null, world: null, now: null };
+  if (!base) return { phase: null, world: null, now: null, camera: false };
   const world = base.world ?? null;
   const phase = ((): Phase => {
     switch (base.spec.kind) {
@@ -444,7 +482,7 @@ export function usePreview(): { phase: Phase | null; world: TimetableWorld | nul
   const withStatus = forced
     ? { ...(world ?? storeWorld()), status: { ...(world?.status ?? useWorld.getState().status ?? INITIAL_STATUS), ...strip(forced) } }
     : world;
-  return { phase, world: withStatus, now: base.spec.kind === 'timetable' && world ? world.now : null };
+  return { phase, world: withStatus, now: base.spec.kind === 'timetable' && world ? world.now : null, camera: base.spec.kind === 'active' && base.spec.camera };
 }
 
 /** How long the fake `?preview=summary&gap=1` owner was away — long enough that the band reads as a real absence. */
@@ -457,10 +495,7 @@ function fakeRequest(kind: RequestKind, now: number): AgentRequest {
   if (kind === 'worry') {
     return { ...common, id: 'preview:worry', kind, line: '오늘 너 좀 조용하네. 뭐 때문인지 하나만 골라줘.', choices: WORRY_CHOICES };
   }
-  if (kind === 'money') {
-    return { ...common, id: 'preview:money', kind, line: `이번 주 ${wonKo(12_400)} 남았어. 좀 아껴도 돼?`, choices: [{ id: 'save', label: '응, 아껴' }, { id: 'spend', label: '그냥 하고 싶은 거 해', isDefault: true }] };
-  }
-  return { ...common, id: 'preview:decide', kind, refId: 'evening', line: '저녁 블록 아직 비었는데, 네가 정할래?', choices: [{ id: 'mine', label: '내가 정할게' }, { id: 'yours', label: '네가 골라', isDefault: true }] };
+  return { ...common, id: 'preview:money', kind, line: `이번 주 ${wonKo(12_400)} 남았어. 좀 아껴도 돼?`, choices: [{ id: 'save', label: '응, 아껴' }, { id: 'spend', label: '그냥 하고 싶은 거 해', isDefault: true }] };
 }
 
 /** `&call=` — 통화 하나를 강제로 띄운다. */

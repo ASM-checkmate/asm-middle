@@ -84,11 +84,11 @@ S().endCall();
 check('끊으면 화면에서 사라진다', S().activeCall === null, '');
 check('기록은 남아 있다', S().calls.length >= 1, String(S().calls.length));
 
-// 수신을 거절하면 lines가 지워진다 — 안 받았으면 못 듣는다
+// 수신을 안 받으면 lines가 지워진다 — 안 받았으면 못 듣는다. 안 받기를 눌러도 12초가 지나도 똑같이 부재중이다 (ADR-0004)
 useWorld.setState({ activeCall: { id: 'in:x', at: T0, dir: 'in', result: 'missed', lines: ['비밀'] }, calls: [{ id: 'in:x', at: T0, dir: 'in', result: 'missed', lines: ['비밀'] }] });
 S().answerCall(false);
 const rec = S().calls.find(c => c.id === 'in:x');
-check('안 받으면 내용이 사라진다', rec.result === 'declined' && rec.lines === undefined, JSON.stringify(rec));
+check('안 받으면 내용이 사라지고 부재중으로 남는다', rec.result === 'missed' && rec.lines === undefined, JSON.stringify(rec));
 check('화면도 닫힌다', S().activeCall === null, '');
 
 useWorld.setState({ activeCall: { id: 'in:y', at: T0, dir: 'in', result: 'missed', lines: ['들린다'] }, calls: [{ id: 'in:y', at: T0, dir: 'in', result: 'missed', lines: ['들린다'] }] });

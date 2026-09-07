@@ -1,4 +1,4 @@
-import type { BlockId, Comic, ComicPanel, Memory, PlaceType, ScheduledActivity, TransportMode } from './types';
+import type { BlockId, Comic, ComicPanel, Memory, PanelFlaw, PlaceType, ScheduledActivity, ShotWin, TransportMode, UserShot, WorryKey } from './types';
 import { splitDayKey } from './types';
 import { rng } from './rng';
 import type { FrictionKind } from './friction';
@@ -275,15 +275,16 @@ const MISSED_TWIST = ['옆자리에 누가 있었는데 말은 못 걸었다.', 
 /** 우연히 또 만남: already a friend, and there they were. */
 const AGAIN_TWIST = ['{other}랑 여기서 또 마주쳤다. 우연히.', '"또 봤네." {other}가 웃었다.', '약속도 안 했는데 {other}가 있었다.', '{other}랑 같은 곳에 온 날. 신기.'];
 
-/** 사용자가 말해 준 고민에 답하는 엔딩 (ADR-0001 고민 듣기). 답이 만화에 남아야 들은 값이 생긴다. ≤ 28자. */
-const WORRY_END: Record<string, string[]> = {
+/** 사용자가 말해 준 고민에 답하는 엔딩 (ADR-0001 고민 듣기). 답이 만화에 남아야 들은 값이 생긴다. ≤ 28자. `none`은 고민이 아니라 비워 둔다. */
+const WORRY_END: Record<WorryKey, string[]> = {
   work: ['오늘은 너 대신 좀 쉬었다.', '일 생각은 잠깐 접어뒀다.'],
   people: ['오늘은 아무도 안 만났다. 편했다.', '혼자 있는 시간이 필요했다.'],
   body: ['무리 안 했다. 그게 오늘의 목표.', '몸이 좀 풀린 것 같다.'],
   money: ['오늘은 돈 한 푼 안 썼다.', '공짜로도 충분히 좋았다.'],
-  sleep: ['일찍 들어가서 자야지.', '오늘은 눕는 게 우선이다.'],
-  stuck: ['답은 안 나왔지만 머리는 식었다.', '생각을 좀 미뤄뒀다.'],
+  focus: ['머리 비우니까 좀 낫다.', '딴생각 안 하고 이것만 했다.'],
+  blue: ['이유 없이 안 좋은 날도 있지.', '그냥 그런 날. 그래도 나왔다.'],
   bored: ['심심한 건 좀 나아졌다.', '오늘은 그래도 뭐라도 했다.'],
+  none: [],
 };
 
 const MODE_KO: Record<TransportMode, string> = { walk: '걸어서', car: '차 타고', subway: '지하철 타고', train: '기차 타고', plane: '비행기 타고', boat: '배 타고' };
@@ -324,7 +325,28 @@ function activityStem(title: string, placeName: string, area: string, city: stri
   return s;
 }
 
-export function makeComic(act: ScheduledActivity, memory: Memory): Comic {
+/**
+ * 에이전트가 대충 찍은 컷의 열화 (ADR-0004 오너 결정 14: 거의 항상 하나 이상). 후보별 독립 확률이고,
+ * 90 % 굴림이 성공했는데 하나도 안 뽑혔으면 임의로 하나를 강제한다. 시드는 `fill:${act.key}` — 기존
+ * `comic:`/`shot:` 시드의 next() 호출 순서를 건드리면 저장된 만화·comic-preview 검사 재현이 전부 바뀐다.
+ */
+const FLAW_CHANCE: [PanelFlaw, number][] = [['dark', 0.45], ['blur', 0.40], ['overzoom', 0.35], ['cut', 0.35], ['tilt', 0.45]];
+const FLAW_KEEP = 0.9;
+/** 열화 값: overzoom ×1.75, cut ±40~60px, tilt ±14~22° — dark/blur는 플래그만 (CSS가 그린다). */
+const OVERZOOM = 1.75;
+const CUT_PX: [number, number] = [40, 60];
+const TILT_DEG: [number, number] = [14, 22];
+
+/**
+ * 4컷 만화. 창 i(활동 시간 4등분, sim/shots.ts)에 사용자 샷이 있으면 그 컷은 **사용자가 찍은 그대로**
+ * (by user, crop % 단위, 촬영 시각, 열화 없음), 없으면 에이전트가 채운 열화 컷(by agent).
+ * 옛 호출(shots 생략)은 전부 에이전트 컷이다. 한 줄에 작은따옴표 둘 + 한글을 두지 말 것 — comic-preview의 28자 스캔에 걸린다.
+ *
+ * @param act 끝난 활동
+ * @param memory 캐릭터 메모리 (이름·친구·취향·고민)
+ * @param shots 창별 사용자 샷 (`shotsFor(shots, act.key)`)
+ */
+export function makeComic(act: ScheduledActivity, memory: Memory, shots: Partial<Record<ShotWin, UserShot>> = {}): Comic {
   const r = rng(`comic:${act.key}`);
   const place = act.place;
   const friend = memory.friends.find(f => act.companions.includes(f.id)) ?? memory.friends.find(f => f.id === act.option.friendId);
@@ -388,7 +410,7 @@ export function makeComic(act: ScheduledActivity, memory: Memory): Comic {
     : abroad && r.next() < 0.6 ? (flavor && r.next() < 0.55 ? flavor.twist : FOREIGN_TWIST)
     : script.twist;
   // 고민을 들은 날은 엔딩이 그걸 언급한다 (하루 안, 마주침·마찰보다는 뒤)
-  const worry = memory.worry && act.endAt - memory.worry.at < 24 * 3600_000 ? WORRY_END[memory.worry.key] : undefined;
+  const worry = memory.worry && act.endAt - memory.worry.at < 24 * 3600_000 && WORRY_END[memory.worry.key].length ? WORRY_END[memory.worry.key] : undefined;
   const endSrc = worry && !met ? worry
     : met ? MEET_END
     : jetlag && r.next() < 0.35 ? JETLAG_END
@@ -424,6 +446,36 @@ export function makeComic(act: ScheduledActivity, memory: Memory): Comic {
     { beat: 'twist', caption: fit(r.pick(twistSrc)), bg: bg[2], withFriend: !!who || !!met || !!again, ...shot(2) },
     { beat: 'end', caption: fit(r.pick(endSrc)), bg: bg[3], withFriend: !!met || (!!friend && r.next() < 0.8), ...shot(3) },
   ];
+  // ── 누가 찍었나 (ADR-0004): 사용자 컷은 그대로, 에이전트 컷은 새 시드로 열화 — 위 r/sr 소비는 이미 끝났다 ──
+  const fr = rng(`fill:${act.key}`);
+  const sign = () => (fr.next() < 0.5 ? -1 : 1);
+  const between = ([lo, hi]: [number, number]) => lo + fr.next() * (hi - lo);
+  let userCount = 0;
+  panels.forEach((p, i) => {
+    const mine = shots[i as ShotWin];
+    // 열화 굴림(종류와 크기 모두)은 사용자 샷 유무와 무관하게 컷마다 같은 순서로 소비한다 — 그래야 같은 활동이면 같은 열화가 나온다
+    // (사용자 컷에서 굴림을 건너뛰면 뒤 컷의 next()가 밀려 종류·크기가 전부 어긋난다). 10 %는 제대로 찍힌 컷, 나머지는 후보별
+    // 독립 굴림 — 하나도 안 걸리면 하나를 강제한다
+    const flawed = fr.next() < FLAW_KEEP;
+    let flaws: PanelFlaw[] = FLAW_CHANCE.filter(([, chance]) => fr.next() < chance).map(([kind]) => kind);
+    if (!flawed) flaws = [];
+    else if (!flaws.length) flaws = [fr.pick(FLAW_CHANCE)[0]];
+    // 크기 굴림도 사용자 컷 분기 **앞에서** 뽑는다 (버리더라도 소비는 한다). 호출 순서(부호 → 크기)는 전과 같아 샷 없는 만화의 값은 그대로다
+    const cut = flaws.includes('cut') ? { dx: sign() * Math.round(between(CUT_PX)), dy: sign() * Math.round(between(CUT_PX)) } : null;
+    const tilt = flaws.includes('tilt') ? Math.round(sign() * between(TILT_DEG) * 10) / 10 : null;
+    if (mine) {
+      // 사용자가 찍은 그대로: crop % 단위, 촬영 시각, 흐림·열화 없음 — 캡션은 그대로 둔다 (BLUR_CAPTION 치환 대상이 아니다)
+      userCount++;
+      p.by = 'user'; p.unit = 'pct'; p.t = mine.at; p.crop = { ...mine.crop }; p.blur = undefined;
+      return;
+    }
+    p.by = 'agent'; p.unit = 'px';
+    if (!flaws.length) return;
+    p.flaws = flaws;
+    if (flaws.includes('overzoom')) p.crop.scale = Math.round(p.crop.scale * OVERZOOM * 100) / 100;
+    if (cut) { p.crop.x += cut.dx; p.crop.y += cut.dy; }
+    if (tilt !== null) p.crop.rot = tilt;
+  });
   for (const p of panels) if (p.blur) p.caption = BLUR_CAPTION;
   const twistLine = panels[2].caption.replace(/[.!…]+$/, '');
   const title = place.type === 'home' ? '집에서 생긴 일' : abroad ? `${city} ${place.name}에서 생긴 일` : `${place.name}에서 생긴 일`;
@@ -431,5 +483,7 @@ export function makeComic(act: ScheduledActivity, memory: Memory): Comic {
     id: `c:${act.key}`, blockId: act.blockIds[0], dateKey: splitDayKey(act.dayKey).dateKey, title,
     placeName: place.name, placeType: type, createdAt: act.endAt, panels,
     summary: `${place.type === 'home' ? '집' : place.name}에서 ${act_}, ${twistLine}.`,
+    shots: { user: userCount, agent: panels.length - userCount },
+    ...(act.sketch ? { sketch: act.sketch } : {}),
   };
 }

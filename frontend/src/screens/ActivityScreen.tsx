@@ -1,11 +1,14 @@
 import type { Phase } from '../sim/types';
+import { useWorld } from '../sim/store';
 import { cityNameKo } from '../sim/places';
+import { shotsFor } from '../sim/shots';
 import { Character } from '../character';
-import { CompanionChip, JetlagChip, ProgressBar, type ChipFriend } from '../ui';
+import { Button, CompanionChip, JetlagChip, ProgressBar, type ChipFriend } from '../ui';
 import { Scene } from '../scenes';
 import { activityLog } from '../sim/actlog';
 import { hhmmIn } from '../sim/tz';
 import { fmtRemain, poseFor, progressLabel } from './util';
+import './camera.css';
 
 type Active = Extract<Phase, { kind: 'active' }>;
 
@@ -18,6 +21,10 @@ export function ActivityScreen({ phase }: { phase: Active }) {
   // `progress`로 지금 시각을 되짚어 로그를 만든다 — 화면은 스토어의 now를 따로 안 읽는다.
   const nowMs = act.arriveAt + (act.endAt - act.arriveAt) * Math.min(1, Math.max(0, progress));
   const log = activityLog(act, nowMs).slice(-4);
+  // 사진 (ADR-0004): 활동 중에만 찍을 수 있다 — 만화는 endAt에 한 번 만들어져 앨범에 굳는다. 오버레이는 Home이 띄운다.
+  const setCameraOpen = useWorld(s => s.setCameraOpen);
+  const shots = useWorld(s => s.shots);
+  const shotCount = Object.keys(shotsFor(shots, act.key)).length;
   const friend = companions[0];
   const met = encounter?.talked ? encounter.agent : null;
   const seen = encounter && !encounter.talked ? encounter.agent : null;
@@ -64,7 +71,10 @@ export function ActivityScreen({ phase }: { phase: Active }) {
       <div className="act-stat">
         <div>
           <b>{progressLabel(act.option, act.place)}</b>
-          <span className="lock">끝날 때까지 지켜봐요</span>
+          {/* lock 문구 자리: 지켜보기만 하던 활동 중에 유일하게 손댈 수 있는 것 — 사진 */}
+          <Button tone="coral" small className="act-shoot" onClick={() => setCameraOpen(true)} ariaLabel={`사진 찍기 (${shotCount}/4)`}>
+            📷 사진 찍기 <i className={`act-shoot-n ${shotCount >= 4 ? 'is-full' : ''}`}>{shotCount}/4</i>
+          </Button>
         </div>
         <div className="act-t num">{fmtRemain(remainingMin)}<small>남음</small></div>
         <ProgressBar className="act-bar" value={progress} color="var(--mint)" />

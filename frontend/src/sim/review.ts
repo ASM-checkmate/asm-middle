@@ -1,4 +1,4 @@
-import type { ActivityOption, BlockId, Category, DayKey, Memory, Place, ScheduledActivity } from './types';
+import type { ActivityOption, BlockId, Category, DayKey, Memory, Place } from './types';
 import { narrate } from './narrate';
 import { affinityOf, costOf, type Status, type StatusDelta } from './status';
 import { estimateJourney } from './journey';
@@ -17,7 +17,6 @@ export type RefusalReason =
   | 'not-in-the-mood'   // 기분이 가라앉았다
   | 'not-close-enough'  // 아직 그 친구 집에 갈 만큼 친하지 않다
   | 'too-far'           // 블록 안에 왕복이 안 들어간다
-  | 'clashes'           // 협상으로 확정된 약속이 그 시간을 덮는다 (협상 PR에서 켜진다)
   | 'dislike';          // 명시적으로 싫어하는 것
 
 /** 근거로 화면에 붙는 숫자. "남은 돈 5,400원" 처럼 판단 옆에만 나타난다. */
@@ -72,8 +71,6 @@ export interface ReviewCtx {
   blockId: BlockId;
   blockStart: number;
   blockEnd: number;
-  /** 이미 확정된 활동들 — 그 시간을 덮는 약속이 있으면 거절한다 */
-  timeline?: ScheduledActivity[];
 }
 
 const mentions = (list: string[], text: string) => list.some(k => k && text.includes(k));
@@ -90,7 +87,7 @@ export function optionCost(o: ActivityOption, ctx: ReviewCtx): { cost: number; p
 /**
  * 에이전트가 이 계획을 받아들일지 판단한다. 순수 함수 — 같은 상태·같은 옵션이면 언제나 같은 답이다.
  *
- * 하한 네 가지(돈 0 · 체력 0 · 확정된 약속 · 명시된 dislikes)에서만 `refuse`가 나오고,
+ * 하한 세 가지(돈 0 · 체력 0 · 명시된 dislikes)에서만 `refuse`가 나오고,
  * 나머지는 전부 `pushback`이라 사용자가 밀어붙일 수 있다 (SPEC 계획 수립과 확정).
  *
  * @param o 확정하려는 활동 옵션
@@ -122,8 +119,7 @@ export function review(o: ActivityOption, ctx: ReviewCtx, alternatives: Activity
   if (status.fatigue >= LIMITS.tiredHard && !RESTFUL.has(o.category) && place.type !== 'home') {
     return verdict('refuse', 'too-tired', { label: '체력', value: `${Math.round(100 - status.fatigue)}%` });
   }
-  // 'clashes'는 **협상으로 확정된 약속**에만 쓴다. 친구 제안(FRIENDS_SPEC §2)은 주인이 언제든 바꿀 수 있으므로
-  // 여기서 막지 않는다. 협상이 들어오면 그 약속을 표시하는 필드를 보고 이 자리에서 거절하게 된다.
+  // 친구 제안(FRIENDS_SPEC §2)은 주인이 언제든 바꿀 수 있으므로 여기서 막지 않는다.
 
   // ── 반대: 밀어붙일 수 있다 ────────────────────────────────────────────────
   if (cost > status.money) return verdict('pushback', 'no-money', { label: '남은 돈', value: `${status.money.toLocaleString('ko-KR')}원` });

@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import type { BlockId, Category } from '../sim/types';
 import { BLOCKS } from '../sim/blocks';
 import { localParts } from '../sim/tz';
@@ -26,6 +27,10 @@ export interface RingSeg {
   decided: boolean;
   /** 계획과 실제가 어긋난 블록 — 웨지 바깥에 코랄 노치를 찍는다 (docs/adr/0001-agentness.md) */
   diff?: boolean;
+  /** 그림으로 정한 블록 (ADR-0004): 시작 전엔 타임라인에 활동이 없어 `decided`가 false지만, 범주 색으로 채우고 그림을 얹는다 */
+  sketch?: boolean;
+  /** 그 그림(dataURL) — 있으면 웨지 위에 동그란 썸네일로, 없으면 '✎' */
+  sketchSrc?: string;
 }
 
 export interface RingProps {
@@ -49,8 +54,11 @@ const wedge = (h0: number, h1: number) => {
 };
 
 /** The circular 7-block 생활계획표 (190px). Arc length = hours. Sleep = night with "z z", past = desaturated + check,
- *  current = pulsing outline, undecided future = paper-2 with a dotted ink edge and "?", selected = 4px ink stroke + lifted. */
+ *  current = pulsing outline, undecided future = paper-2 with a dotted ink edge and "?", sketched = category colour with "✎",
+ *  selected = 4px ink stroke + lifted. */
 export function Ring({ segs, selected, now, tz, center, onSelect }: RingProps) {
+  /** clipPath id 접두 — 링이 두 번 그려질 때(시트·고스트) id가 겹치지 않게 */
+  const clipBase = `rs-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const lp = localParts(now, tz);
   const nowH = lp.hour + lp.minute / 60;
   const [nx, ny] = pt(nowH, R);
@@ -61,13 +69,13 @@ export function Ring({ segs, selected, now, tz, center, onSelect }: RingProps) {
     const [lx, ly] = pt(mid, 62);
     const isSel = s.id === selected;
     const pop = isSel ? 4 : 0;
-    const filled = s.decided || s.state === 'sleep';
+    const filled = s.decided || !!s.sketch || s.state === 'sleep';
     const faded = s.state === 'past' && s.id !== 'sleep';
     return {
       b, lx, ly, isSel, filled, faded,
       // selected: 4px outward pop + 2px lift
       offset: `translate(${f(pop * Math.cos(ang(mid)))}px, ${f(pop * Math.sin(ang(mid)) - (isSel ? 2 : 0))}px)`,
-      text: s.state === 'sleep' ? 'z z' : s.decided ? s.label : '?',
+      text: s.state === 'sleep' ? 'z z' : s.decided ? s.label : s.sketch ? '✎' : '?',
       textFill: faded ? 'var(--ink-2)' : filled ? (s.dark ? 'var(--paper)' : 'var(--ink)') : 'var(--ink-2)',
     };
   };
@@ -86,7 +94,7 @@ export function Ring({ segs, selected, now, tz, center, onSelect }: RingProps) {
             onClick={() => onSelect(s.id)}
             role="option"
             aria-selected={isSel}
-            aria-label={`${b.label} ${text}`}
+            aria-label={`${b.label} ${s.sketch && !s.decided ? '그림으로 정함' : text}`}
           >
             <path d={path} fill={filled ? s.fill : 'var(--paper-2)'} stroke="none" />
             {faded && <path d={path} fill="var(--paper)" opacity=".45" stroke="none" />}
@@ -104,7 +112,16 @@ export function Ring({ segs, selected, now, tz, center, onSelect }: RingProps) {
           const { lx, ly, faded, offset, text, textFill } = geo(s);
           return (
             <g key={s.id} className="ring-lbl" style={{ transform: offset }}>
-              <text x={f(lx)} y={f(ly + 4)} fontSize={s.decided ? 12 : 13} fill={textFill}>{text}</text>
+              {s.sketch && !s.decided && s.sketchSrc ? (
+                // 아침에 그린 그림이 그 자리에 — 웨지 띠(안 34 · 밖 90) 한가운데(62)에 지름 30
+                <>
+                  <clipPath id={`${clipBase}-${s.id}`}><circle cx={f(lx)} cy={f(ly)} r="13.5" /></clipPath>
+                  <circle cx={f(lx)} cy={f(ly)} r="15.5" fill="#fff" stroke="var(--ink)" strokeWidth="2" />
+                  <image href={s.sketchSrc} x={f(lx - 13.5)} y={f(ly - 13.5)} width="27" height="27" clipPath={`url(#${clipBase}-${s.id})`} preserveAspectRatio="xMidYMid slice" />
+                </>
+              ) : (
+                <text x={f(lx)} y={f(ly + 4)} fontSize={s.decided ? 12 : s.sketch ? 18 : 13} fill={textFill}>{text}</text>
+              )}
               {faded && <path d={`M${f(lx - 5)} ${f(ly + 12)}l3 3 6-7`} fill="none" stroke="var(--ink)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />}
             </g>
           );

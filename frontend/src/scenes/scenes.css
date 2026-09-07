@@ -102,3 +102,8 @@
 @keyframes sc-duck { from { transform: translate(0, 0) rotate(-3deg); } to { transform: translate(6px, -3px) rotate(3deg); } }
 .an-scan { animation: sc-scan 3.2s ease-in-out infinite alternate; }
 @keyframes sc-scan { from { transform: translateX(0); } to { transform: translateX(26px); } }
+
+/* 정지 무대 (ADR-0004): 카메라 뷰파인더·필름 썸네일·만화의 사용자 컷 안에 깔린 Scene은 소품 루프를 멈춘다.
+   4컷 + 앨범 썸네일까지 수십 개의 SVG 애니메이션이 동시에 돌면 무겁다. `.an-*.d1`(0,2,0)보다 약하니 !important. */
+.scene--still * { animation: none !important; }
+.scene--still [class*="an-"] { will-change: auto; }

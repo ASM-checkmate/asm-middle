@@ -4,6 +4,7 @@ import './ts-hooks.mjs';
 import { readFileSync } from 'node:fs';
 
 const { makeComic } = await import('../src/sim/comic.ts');
+const { shotsFor, winStarts } = await import('../src/sim/shots.ts');
 const { placeById, PLACES, tzOf } = await import('../src/sim/places.ts');
 const { estimateJourney } = await import('../src/sim/journey.ts');
 const { blockSlotIn } = await import('../src/sim/blocks.ts');
@@ -35,19 +36,21 @@ function act(fromId, placeId, departAt, blockId, title, category = 'play', extra
     key: `${dayKey}:${blockId}`, dayKey, blockIds: [blockId], option, place, fromPlace, journey,
     departAt, arriveAt, endAt, comicUntil: endAt + 8 * MIN, originTz, tz,
     jetlagUntil: extra.jetlagUntil !== undefined ? extra.jetlagUntil : jump >= 180 ? arriveAt + 24 * H : null,
+    companions: option.friendId ? [option.friendId] : [],   // timeline.ts와 같은 규칙 (FRIENDS_SPEC 동행)
   };
 }
 /** Later activities inside the 24 h window inherit the jet-lag window (engine deviation 3). */
 const inherit = (prev) => ({ jetlagUntil: prev.jetlagUntil !== null && prev.arriveAt < prev.jetlagUntil ? prev.jetlagUntil : null });
 
-function show(label, a) {
-  const c = makeComic(a, memory);
+function show(label, a, shots = {}) {
+  const c = makeComic(a, memory, shots);
   const legs = a.journey.legs.map(l => l.mode).join('>') || 'stay';
   console.log(`\n▶ ${label}  [${a.place.type} · ${legs} · ${a.originTz} → ${a.tz}${a.jetlagUntil && a.arriveAt < a.jetlagUntil ? ' · 😴 jetlag' : ''}]`);
   console.log(`  ${c.title}`);
   for (const p of c.panels) {
     const n = len(p.caption);
-    console.log(`  ${p.beat.padEnd(6)} ${String(n).padStart(2)}  ${p.caption}${p.withFriend ? '  (+친구)' : ''}`);
+    const who = p.by === 'user' ? '  📷 내가' : p.flaws?.length ? `  (${p.flaws.join(',')})` : '';
+    console.log(`  ${p.beat.padEnd(6)} ${String(n).padStart(2)}  ${p.caption}${p.withFriend ? '  (+친구)' : ''}${who}`);
     if (n > MAX) fails.push(`${label}/${p.beat} caption ${n} > ${MAX}: ${p.caption}`);
     if (p.caption.endsWith('…')) console.log(`         ↑ trimmed`);
   }
@@ -66,7 +69,8 @@ const ny0 = act('home', 'central-park', KST(2026, 9, 3, 9, 0), 'am', '뉴욕으�
   console.log(`(flight crosses origin-zone blocks: ${ids.join(' → ')})`);
 }
 const c0 = show('01 비행 · 센트럴파크', ny0);
-check('flight comic uses an on-board opener (기내식/잠)', /기내|잤|자니|잠|담요|졸/.test(c0.panels[0].caption), c0.panels[0].caption);
+// the 17 % blur roll (`shot:` seed, at most one panel) can land on the arrive panel and replace its caption — that is the rule, not a regression
+check('flight comic uses an on-board opener (기내식/잠) unless that panel is the blurred one', /기내|잤|자니|잠|담요|졸/.test(c0.panels[0].caption) || c0.panels[0].blur === true, c0.panels[0].caption);
 const t1 = ny0.comicUntil + 20 * MIN;
 const nyActs = [
   ['02 카페', 'central-park', 'stumptown-nomad', 'pm', '스텀프타운 커피에서 커피 한 잔'],
@@ -130,6 +134,29 @@ check('boat journey goes by boat', boat.journey.legs.some(l => l.mode === 'boat'
 const train = act('home', 'paradise-busan', KST(2026, 9, 13, 11, 30), 'am', 'KTX 타고 부산 파라다이스 호텔 부산 (1박)', 'travel');
 const trainComic = show('기차 · 점심 (도시락) · 호텔', train);
 check('domestic hotel comic uses the hotel script', /체크인|로비|캐리어|침대|엘리베이터|창밖|짐/.test(trainComic.panels[0].caption) || /침대|커튼|냉장고|욕조|슬리퍼|티백|지도|이불/.test(trainComic.panels[1].caption), trainComic.panels.map(p => p.caption).join(' | '));
+
+// ── 사용자 컷 (ADR-0004): 창 0·2는 내가 찍은 그대로, 나머지는 에이전트가 채운 열화 컷 ──
+console.log('\n══ 사진 ══');
+{
+  const a = act('home', 'layered-yeonnam', KST(2026, 9, 14, 9, 0), 'am', '카페 레이어드 연남에서 그림 그리기');
+  const starts = winStarts(a);
+  const mine = [
+    { actKey: a.key, win: 0, at: starts[0] + 3 * MIN, crop: { scale: 1.2, x: -10, y: 6, rot: -4 } },
+    { actKey: a.key, win: 2, at: starts[2] + 5 * MIN, crop: { scale: 1.8, x: 4, y: -8, rot: 7 } },
+  ];
+  const plain = show('사진 없음 · 카페', a);
+  const withMine = show('내가 0·2 · 카페', a, shotsFor(mine, a.key));
+  check('user panels keep the shot as taken (by user, pct, crop, time, no blur/flaws)',
+    [0, 2].every(i => { const p = withMine.panels[i], s = mine.find(x => x.win === i); return p.by === 'user' && p.unit === 'pct' && p.t === s.at && ['scale', 'x', 'y', 'rot'].every(k => p.crop[k] === s.crop[k]) && !p.blur && !p.flaws; }),
+    JSON.stringify([withMine.panels[0], withMine.panels[2]]));
+  check('agent panels are px and the same with or without user shots', [1, 3].every(i => withMine.panels[i].by === 'agent' && withMine.panels[i].unit === 'px' && JSON.stringify(withMine.panels[i]) === JSON.stringify(plain.panels[i])));
+  check('captions do not change when shots are added (seed order intact)', withMine.panels.every((p, i) => p.caption === plain.panels[i].caption));
+  check('header counts: 내가 2장, 토리가 2장', withMine.shots.user === 2 && withMine.shots.agent === 2, JSON.stringify(withMine.shots));
+  check('no shots → all agent', plain.shots.user === 0 && plain.panels.every(p => p.by === 'agent'), JSON.stringify(plain.shots));
+  const many = Array.from({ length: 60 }, (_, i) => makeComic(act('home', 'layered-yeonnam', KST(2026, 9, 1 + (i % 28), 9, 0), 'pm', '카페에서 그림 그리기'), memory).panels).flat();
+  const flawed = many.filter(p => p.flaws?.length).length;
+  check(`agent panels are almost always flawed (${flawed}/${many.length} ≥ 80%)`, flawed / many.length >= 0.8);
+}
 
 // ── every template line in comic.ts fits a panel once filled with typical values ──
 console.log('\n══ 대사 길이 검사 ══');

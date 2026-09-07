@@ -71,7 +71,8 @@ export function ChatOverlay({ tz, onClose }: { tz: string; onClose: () => void }
           placeholder="하고 싶은 말"
           aria-label="보낼 말"
           onChange={e => setDraft(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+          // 한글 IME: 조합 중 Enter는 마지막 글자를 확정하는 키다 — 그때 보내면 "뭐하냐" 뒤에 "냐"가 한 번 더 나간다
+          onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) submit(); }}
         />
         <Button round ariaLabel="보내기" tone="coral" disabled={!draft.trim()} onClick={submit}><Glyph name="send" size={20} color="#fff" /></Button>
       </div>
@@ -157,7 +158,6 @@ function Call({ call, tz, open, onToggle }: { call: CallEvent; tz: string; open:
   const answered = call.result === 'answered';
   const label = answered
     ? `${mine ? '내가 건 통화' : '통화'} · ${call.durSec ? fmtDur(call.durSec) : '통화 중'}`
-    : call.result === 'declined' ? '내가 안 받음'
     : call.result === 'refused' ? '안 받아서 못 함'
     : '부재중전화';
   const lines = answered ? call.lines : undefined;   // 부재중에는 펼칠 내용이 없다

@@ -1,4 +1,4 @@
-import type { ActivityOption, BlockId, DayKey, Phase, PlaceType, TransportMode } from '../sim/types';
+import type { ActivityOption, BlockId, Comic, DayKey, Friend, Phase, PhaseEncounter, PlaceType, TransportMode } from '../sim/types';
 import { splitDayKey } from '../sim/types';
 import { blockDef, weekdayKoIn } from '../sim/blocks';
 import { DAY_MS, dayStartIn, hhmmIn } from '../sim/tz';
@@ -130,6 +130,17 @@ export const beatPose = (beat: 'arrive' | 'doing' | 'twist' | 'end', opt?: Activ
 /** Tiny cross-screen intent: which comic the book should open on. */
 export const bookIntent: { comicId: string | null } = { comicId: null };
 
+/** 말은 못 걸었지만 그 자리에 있던 사람의 실루엣 색 — ActivityScreen .act-ghost, 카메라(CameraOverlay), 만화의 사용자 컷이 같은 색을 쓴다 (--ink-3) */
+export const GHOST = '#A08C76';
+/** 사용자 컷의 무대 인물 — 카메라(CameraOverlay ShotStage)가 찍을 때 서 있던 그대로: 동행 색, 말 튼 상대 색, 못 걸어본 사람의 실루엣.
+ *  만화(Comic)에는 없는 정보라 ComicScreen은 phase에서, BookOverlay는 타임라인의 활동에서 되찾아 ComicPanels에 넘긴다. */
+export interface ShotCast { friendColor?: string; metColor?: string; seenColor?: string }
+export const castOf = (companions: Friend[], encounter?: PhaseEncounter): ShotCast => ({
+  friendColor: companions[0]?.color,
+  metColor: encounter?.talked ? encounter.agent.color : undefined,
+  seenColor: encounter && !encounter.talked ? GHOST : undefined,
+});
+
 // ─── 공백 (SPEC 자율 생활과 개입) ────────────────────────────────────────────
 /** "그저께" 보다 멀면 그냥 날짜로 부른다. */
 const DAY_WORD = ['오늘', '어제', '그저께'];
@@ -176,3 +187,12 @@ export const gapLabel = (from: number, to: number, tz: string) => {
     span: spanOf(to - from),
   };
 };
+
+/** 컷 작성자 수 (ADR-0004) — comic.shots가 없으면 컷의 by로 센다. by도 없는 옛 만화는 CONTRACT(`Comic.shots` "없으면 전부 에이전트")대로
+ *  user 0으로 봐서 헤더 줄이 "안 찍길래 내가 대충 찍었어"가 된다 (컷의 "{name}가 찍음" 스티커만 by가 있을 때 붙는다).
+ *  ComicScreen(헤더 "내가 N장, {name}가 M장")과 BookOverlay 상세가 같이 쓴다. */
+export function shotCount(comic: Comic): { user: number; agent: number } {
+  if (comic.shots) return comic.shots;
+  const user = comic.panels.filter(p => p.by === 'user').length;
+  return { user, agent: comic.panels.length - user };
+}

@@ -16,7 +16,7 @@ export interface Status {
   fatigue: number;
   /** 기분 0–100 (50 = 평온). 취향 일치·동행이 올리고 dislikes는 내린다. */
   mood: number;
-  /** friendId → 친밀도 0–100. 같이 보낸 시간과 조율 결과로 움직인다. */
+  /** friendId → 친밀도 0–100. 같이 보낸 시간으로 움직인다. */
   affinity: Record<string, number>;
   /** 마지막으로 용돈이 들어온 달 (`2026-09`) — 재생해도 두 번 들어오지 않게 한다. */
   paidMonth: string;

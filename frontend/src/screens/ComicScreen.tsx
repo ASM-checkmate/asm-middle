@@ -1,16 +1,17 @@
 import { useWorld } from '../sim/store';
-import type { ActivityOption, Comic, ComicPanel, Phase } from '../sim/types';
+import type { ActivityOption, BlockId, Comic, ComicPanel, Phase, PlaceType } from '../sim/types';
 import { blockDef, categoryDef, nextBlockId } from '../sim/blocks';
 import { cityNameKo, placeById } from '../sim/places';
 import { Character } from '../character';
 import { Bubble, Button, CompanionChip, JetlagChip, type ChipFriend } from '../ui';
-import { beatPose, bookIntent } from './util';
+import { beatPose, bookIntent, castOf, poseFor, shotCount, type ShotCast } from './util';
+import { ShotStage } from './CameraOverlay';
 import { hhmmIn } from '../sim/tz';
 
 type ComicPhase = Extract<Phase, { kind: 'comic' }>;
 
 /** State 4 — 2x2 panels on paper-2, then two buttons: open in book (secondary; the comic is already saved) / next block (coral primary). */
-export function ComicScreen({ phase, onNext }: { phase: ComicPhase; onNext: () => void }) {
+export function ComicScreen({ phase, onNext }: { phase: ComicPhase; onNext: (block: BlockId | null) => void }) {
   const plans = useWorld(s => s.plans);
   const memory = useWorld(s => s.memory);
   const book = useWorld(s => s.book);
@@ -32,78 +33,130 @@ export function ComicScreen({ phase, onNext }: { phase: ComicPhase; onNext: () =
   const fx = act.outcome;
   const planned = (() => { try { return fx ? placeById(fx.plannedPlaceId) : null; } catch { return null; } })();
   const diverted = !!planned && planned.id !== act.place.id;
+  // 누가 찍었나 (ADR-0004): 헤더 한 줄은 만화 엔진이 아니라 여기서 조립한다 (CONTRACT — comic.ts의 28자 스캔을 피한다). 옛 만화는 전부 에이전트
+  const shots = shotCount(comic);
+  const sketch = comic.sketch ?? act.sketch;
 
   return (
-    <div className={`cm ${hasWith ? 'has-with' : ''} has-diff`}>
-      <div className="cm-head">
-        <h3>{comic.title}</h3>
-        <p>{blockDef(act.blockIds[0]).label} 블록 · {cat.label} · {where}{phase.jetlag && <JetlagChip inline />}</p>
-        {/* 동행과 마주침은 부제에 얼굴로 (제목·캡션엔 이름을 넣지 않는다) */}
-        {(!!phase.companions.length || !!metChip.length) && (
-          <div className="cm-with">
-            {!!phase.companions.length && <CompanionChip friends={phase.companions} small />}
-            {!!metChip.length && <CompanionChip friends={metChip} small happy prefix={enc?.again ? '또 만났네' : '새 친구'} />}
-          </div>
-        )}
+    <div className={`cm ${hasWith ? 'has-with' : ''} has-diff ${fx ? 'has-say' : ''} ${sketch ? 'has-sketch' : ''}`}>
+      {/* 머리·차이·누가 찍었나·격자를 한 열로 흘린다 — 줄이 붙고 빠져도 격자가 알아서 자리를 잡는다 */}
+      <div className="cm-top">
+        <div className="cm-head">
+          {/* 아침에 그린 그림 (ADR-0004) — 머리 오른쪽에 폴라로이드처럼 */}
+          {sketch && <SketchNote src={sketch} />}
+          <h3>{comic.title}</h3>
+          <p>{blockDef(act.blockIds[0]).label} 블록 · {cat.label} · {where}{phase.jetlag && <JetlagChip inline />}</p>
+          {/* 동행과 마주침은 부제에 얼굴로 (제목·캡션엔 이름을 넣지 않는다) */}
+          {(!!phase.companions.length || !!metChip.length) && (
+            <div className="cm-with">
+              {!!phase.companions.length && <CompanionChip friends={phase.companions} small />}
+              {!!metChip.length && <CompanionChip friends={metChip} small happy prefix={enc?.again ? '또 만났네' : '새 친구'} />}
+            </div>
+          )}
+        </div>
+        {/* 계획-실제 차이 (ADR-0001) — 어긋난 날은 두 칩, 계획대로 간 날도 반드시 한 칩 */}
+        <div className="cm-diff">
+          {diverted ? (
+            <>
+              <span className="cm-diff-a">{planned.emoji} {planned.name}</span>
+              <span className="cm-diff-ar" aria-hidden="true">→</span>
+              <span className="cm-diff-b">{act.place.emoji} {act.place.name}</span>
+            </>
+          ) : (
+            <>
+              <span className="cm-diff-b is-ok">{act.place.emoji} {act.place.name}</span>
+              <span className="cm-diff-ok">예상대로였어</span>
+            </>
+          )}
+        </div>
+        {fx && <div className="cm-diff-say">{fx.line}</div>}
+        {/* "내가 N장, 모모가 M장" / "안 찍길래 내가 대충 찍었어" — 계획대로였을 때도, 옛 만화에도 붙는다 (ADR-0004) */}
+        <ShotsLine shots={shots} name={memory.name} />
+        {/* 사용자 컷은 카메라가 찍을 때의 인물 구성(동행·마주침) 그대로 — 만화엔 없으니 phase에서 넘긴다 */}
+        <div className="cm-gridwrap"><ComicPanels comic={comic} option={act.option} friendColor={friend?.color} tz={phase.tz} cast={castOf(phase.companions, enc)} /></div>
       </div>
-      {/* 계획-실제 차이 (ADR-0001) — 어긋난 날은 두 칩, 계획대로 간 날도 반드시 한 칩 */}
-      <div className="cm-diff">
-        {diverted ? (
-          <>
-            <span className="cm-diff-a">{planned.emoji} {planned.name}</span>
-            <span className="cm-diff-ar" aria-hidden="true">→</span>
-            <span className="cm-diff-b">{act.place.emoji} {act.place.name}</span>
-          </>
-        ) : (
-          <>
-            <span className="cm-diff-b is-ok">{act.place.emoji} {act.place.name}</span>
-            <span className="cm-diff-ok">예상대로였어</span>
-          </>
-        )}
-      </div>
-      {fx && <div className="cm-diff-say">{fx.line}</div>}
-      <div className="cm-gridwrap"><ComicPanels comic={comic} option={act.option} friendColor={friend?.color} tz={phase.tz} /></div>
       <Character className="cm-me" pose="happy" size={170} />
-      <Bubble className="cm-me-bubble">오늘 이야기 완성!</Bubble>
+      <Bubble className="cm-me-bubble">{shots.user > 0 ? '같이 만든 이야기!' : '오늘 이야기 완성!'}</Bubble>
       <div className="cm-stamp num">STORY #{String(no).padStart(2, '0')}</div>
       <div className="cm-foot">
         <Button onClick={() => { bookIntent.comicId = comic.id; setBookOpen(true); }}>book에서 보기</Button>
-        <Button tone="coral" onClick={onNext}>
-          {nextDecided ? '이동 보러 가기' : nb && nb !== 'sleep' ? `${blockDef(nb).label} 정하러 가기` : '다음 블록 정하러 가기'}
+        {/* 다음 이동까지는 보통 십수 분 남아 있다 — "이동 보러 가기"는 빈말이 된다. 시간표 시트를 열어 다음 일정을 보여준다. */}
+        <Button tone="coral" onClick={() => onNext(nb && nb !== 'sleep' ? nb : null)}>
+          {nextDecided ? '다음 일정 보기' : nb && nb !== 'sleep' ? `${blockDef(nb).label} 정하러 가기` : '시간표 보기'}
         </Button>
       </div>
     </div>
   );
 }
 
-/**
- * The 2x2 grid (also used by the book viewer). Each panel: bg colour + poses + friend + caption strip.
- * 컷마다 화각·기울기·시각이 다르다 — 정중앙 전신 네 컷은 "그린 그림"으로 읽히기 때문이다 (ADR-0001).
- */
-export function ComicPanels({ comic, option, friendColor, tz }: { comic: Comic; option?: ActivityOption; friendColor?: string; tz?: string }) {
+/** 헤더 한 줄 (CONTRACT ComicScreen): user>0 → "내가 N장, {name}가 M장", 아니면 "안 찍길래 내가 대충 찍었어". book 상세도 같은 줄을 쓴다. */
+export function ShotsLine({ shots, name, className = '' }: { shots: { user: number; agent: number }; name: string; className?: string }) {
   return (
-    <div className="cm-grid">
-      {comic.panels.map((p, i) => <Panel key={i} p={p} i={i} option={option} friendColor={friendColor} tz={tz} />)}
+    <div className={`cm-shots ${className}`}>
+      <span aria-hidden="true">📷</span>
+      {shots.user > 0
+        ? <span>내가 <b className="is-me num">{shots.user}장</b>, {name}가 <b className="num">{shots.agent}장</b></span>
+        : <span>안 찍길래 내가 대충 찍었어</span>}
     </div>
   );
 }
 
-function Panel({ p, i, option, friendColor, tz }: { p: ComicPanel; i: number; option?: ActivityOption; friendColor?: string; tz?: string }) {
-  const pose = beatPose(p.beat, option);
+/** 아침에 그린 그림 — 폴라로이드 한 장 + "아침에 그린 것" (ADR-0004). */
+export function SketchNote({ src, className = '' }: { src: string; className?: string }) {
+  return (
+    <figure className={`cm-sketch ${className}`}>
+      <img src={src} alt="아침에 그린 그림" draggable={false} />
+      <figcaption>아침에 그린 것</figcaption>
+    </figure>
+  );
+}
+
+/**
+ * The 2x2 grid (also used by the book viewer). Each panel: bg colour + poses + friend + caption strip.
+ * 컷마다 화각·기울기·시각이 다르다 — 정중앙 전신 네 컷은 "그린 그림"으로 읽히기 때문이다 (ADR-0001).
+ * @param cast 사용자 컷의 인물 구성 (util.castOf — 없으면 컷의 withFriend로 동행만 그린다: 지평선 밖 옛 만화)
+ */
+export function ComicPanels({ comic, option, friendColor, tz, cast }: { comic: Comic; option?: ActivityOption; friendColor?: string; tz?: string; cast?: ShotCast }) {
+  // 에이전트 컷의 스티커 이름은 memory.name (Friend/Agent 이름이 아니다 — CONTRACT 문구 규칙)
+  const agentName = useWorld(s => s.memory.name);
+  return (
+    <div className="cm-grid">
+      {comic.panels.map((p, i) => <Panel key={i} p={p} i={i} option={option} friendColor={friendColor} tz={tz} placeType={comic.placeType} agentName={agentName} cast={cast} />)}
+    </div>
+  );
+}
+
+function Panel({ p, i, option, friendColor, tz, placeType, agentName, cast }: { p: ComicPanel; i: number; option?: ActivityOption; friendColor?: string; tz?: string; placeType: PlaceType; agentName: string; cast?: ShotCast }) {
+  const mine = p.by === 'user';
+  // 사용자 컷은 카메라 뷰파인더에 보이던 포즈(poseFor) 그대로 — 옵션을 못 찾는 옛 만화(book)에서만 비트 포즈로 대신한다
+  const pose = mine ? (option ? poseFor(option) : beatPose(p.beat)) : beatPose(p.beat, option);
   const left = p.withFriend || p.beat === 'arrive';
   // 옛 만화(질감 이전에 저장된 것)에는 crop/t가 없다 — 그때는 원래대로 정중앙 전신으로 그린다
   const c = p.crop ?? { scale: 1, x: 0, y: 0, rot: 0 };
-  const vars = { ['--rot' as string]: `${c.rot}deg`, ['--cs' as string]: String(c.scale), ['--cx' as string]: `${c.x}px`, ['--cy' as string]: `${c.y}px` };
+  // 에이전트 컷의 --cx/--cy는 px (사용자 컷은 ShotStage가 %로 직접 받는다 — CONTRACT ComicPanel.unit)
+  const vars = mine ? {} : { ['--rot' as string]: `${c.rot}deg`, ['--cs' as string]: String(c.scale), ['--cx' as string]: `${c.x}${p.unit === 'pct' ? '%' : 'px'}`, ['--cy' as string]: `${c.y}${p.unit === 'pct' ? '%' : 'px'}` };
+  // 에이전트가 대충 찍은 흔적 (ADR-0004 오너 결정 14): is-dark/is-blur는 CSS가, overzoom/cut/tilt는 crop에 이미 반영돼 있다
+  const flaws = p.flaws ?? [];
+  const cls = ['cm-p', mine ? 'is-user' : '', p.withFriend ? 'has-f' : '', p.blur ? 'is-blur is-miss' : '', flaws.length ? 'has-flaw' : '', ...flaws.map(f => `is-${f}`)]
+    .filter(Boolean).join(' ');
   return (
-    <div className={`cm-p ${p.blur ? 'is-blur' : ''}`} style={{ background: p.bg, ...vars }}>
-      <div className="cm-floor" />
+    <div className={cls} style={{ background: p.bg, ...vars }}>
+      {!mine && <div className="cm-floor" />}
       {/* 컷 번호 대신 그 컷이 찍힌 시각 — 이거 하나로 "삽화 → 기록"이 뒤집힌다 */}
       <span className="cm-k num">{p.t && tz ? hhmmIn(p.t, tz) : i + 1}</span>
-      <div className="cm-shot">
-        <Prop beat={p.beat} withFriend={!!p.withFriend} />
-        <Character className={`cm-c ${left ? 'is-left' : ''}`} pose={pose} size={118} />
-        {p.withFriend && <Character className="cm-f" pose="wave" size={100} variant="friend" color={friendColor} />}
-      </div>
+      {/* 누가 찍었나 스티커 — 옛 만화(by 없음)에는 붙이지 않는다 (헤더 줄은 전부 에이전트로 센다: util.shotCount) */}
+      {p.by && <span className="cm-by">{mine ? '내가 찍음' : `${agentName}가 찍음`}</span>}
+      {mine ? (
+        /* 카메라 뷰파인더와 **같은 컴포넌트**(ShotStage): 정지 무대 + 캐릭터(발이 78 % 높이) + 동행/마주침/실루엣, 크롭은 % —
+           컷 비율(1/1.08)도 같아 "찍은 그대로"다. 인물 구성을 모르면(cast 없음) 컷의 withFriend로 동행만 */
+        <ShotStage type={placeType} pose={pose} crop={c} friendColor={cast ? cast.friendColor : p.withFriend ? friendColor : undefined} metColor={cast?.metColor} seenColor={cast?.seenColor} still className="cm-usr" />
+      ) : (
+        <div className="cm-shot">
+          <Prop beat={p.beat} withFriend={!!p.withFriend} />
+          <Character className={`cm-c ${left ? 'is-left' : ''}`} pose={pose} size={118} />
+          {p.withFriend && <Character className="cm-f" pose="wave" size={100} variant="friend" color={friendColor} />}
+        </div>
+      )}
       <div className="cm-cap">{p.caption}</div>
     </div>
   );

@@ -285,6 +285,10 @@
 /* 에이전트가 따지는 동안엔 링을 줄이고 그 자리를 판단에 준다 */
 .tt.is-judging .tt-row { grid-template-columns: 128px 1fr; }
 .tt.is-judging .ring { width: 128px; height: 128px; }
+/* 카드 3장 아래 "✎ 카드 대신 그려서 알려줄래"(sketch.css .tt-sk-entry, 40px + 4px)가 붙는 동안엔 링을 150px로 줄여 그 줄의 자리를 번다 —
+   패널(top 344, 가용 474px)에 제목 26 + 링 190 + 머리 22 + 카드 165 + CTA 54 = 465px로 꽉 차 있어 그대로 두면 세 번째 카드가 잘린다 */
+.tt.has-sk-entry .tt-row { grid-template-columns: 146px 1fr; }
+.tt.has-sk-entry .ring { width: 146px; height: 146px; }
 
 /* 역제안으로 지목된 카드 */
 .opt.is-counter { border-color: var(--coral); box-shadow: 3px 3px 0 var(--coral); }
@@ -383,14 +387,17 @@
 
 /* ─── 4 · Comic (after the activity) ─────────────────────────────────────── */
 .cm { position: absolute; inset: 0; overflow: hidden; background: var(--paper-2); }
-.cm-head { position: absolute; top: calc(70px + var(--safe-top)); left: 24px; right: 24px; z-index: 3; }
+/* 머리(제목·차이·누가 찍었나)와 격자를 한 열로 흘린다 — 줄이 붙고 빠져도 격자가 알아서 내려가고,
+   자리가 모자라면(짧은 화면·줄이 많은 날) 격자가 줄어든다. 캐릭터(bottom 84px, 170px)와 겹치지 않게 bottom 254px */
+.cm-top {
+  position: absolute; top: calc(70px + var(--safe-top)); left: 20px; right: 20px; bottom: calc(254px + var(--safe-bottom)); z-index: 3;
+  display: flex; flex-direction: column; gap: 7px;
+}
+.cm-head { position: relative; flex: none; padding: 0 4px; }
 .cm-head h3 { font-size: 24px; line-height: 1.2; }
 .cm-head p { font-size: 13px; color: var(--ink-2); margin-top: 2px; }
 /* 계획-실제 차이 (ADR-0001): 만화 머리에 붙는 한 줄. 계획대로 간 날도 반드시 보여준다. */
-.cm-diff {
-  position: absolute; top: calc(126px + var(--safe-top)); left: 20px; right: 20px; z-index: 3;
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-}
+.cm-diff { flex: none; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .cm-diff-a, .cm-diff-b {
   display: inline-flex; align-items: center; gap: 4px; max-width: 46%;
   padding: 3px 9px; border: 2px solid var(--ink); border-radius: 999px; font-size: 12px; line-height: 1.3;
@@ -401,17 +408,29 @@
 .cm-diff-b.is-ok { background: var(--mint); color: var(--ink); max-width: none; }
 .cm-diff-ar { font-family: var(--mono); font-size: 13px; color: var(--ink-2); }
 .cm-diff-ok { font-family: var(--display); font-size: 12px; color: var(--ink-2); }
-.cm-diff-say {
-  position: absolute; top: calc(158px + var(--safe-top)); left: 20px; right: 20px; z-index: 3;
-  font-size: 12px; color: var(--ink-2); line-height: 1.35;
+.cm-diff-say { flex: none; font-size: 12px; color: var(--ink-2); line-height: 1.35; }
+/* 누가 찍었나 (ADR-0004): "내가 2장, 모모가 2장" / "안 찍길래 내가 대충 찍었어" — 문구는 화면이 조립한다 (CONTRACT) */
+.cm-shots { flex: none; display: flex; align-items: center; gap: 5px; font-family: var(--display); font-size: 13px; color: var(--ink); line-height: 1.25; }
+.cm-shots b { font-weight: 400; font-size: 12px; padding: 0 6px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--card); }
+.cm-shots b.is-me { background: var(--coral); color: #fff; }
+/* 아침에 그린 그림 — 머리 오른쪽에 폴라로이드 한 장처럼 붙는다 (제목 줄 아래, 부제·차이 줄 옆).
+   썸네일은 CONTRACT대로 40px (book의 .book-sketch와 같은 크기), 틀은 40 + 패딩 8 + 테두리 4 = 52px */
+.cm-sketch {
+  position: absolute; right: 0; top: 30px; z-index: 4; margin: 0; width: 52px; padding: 4px 4px 3px;
+  background: var(--card); border: 2px solid var(--ink); border-radius: 8px; box-shadow: var(--shadow-hard-sm); transform: rotate(6deg);
 }
-/* 차이 줄이 붙으면 컷 격자가 그만큼 내려간다 */
-.cm.has-diff .cm-gridwrap { top: calc(186px + var(--safe-top)); }
-.cm.has-diff .cm-grid { gap: 10px; }
+.cm-sketch img { display: block; width: 40px; height: 40px; border-radius: 4px; background: var(--paper); object-fit: contain; }
+/* "아침에 / 그린 것" 두 줄 — 글자는 10px 아래로 안 내려간다 (.cm-k·.req-due·.book-meta와 같은 최소치) */
+.cm-sketch figcaption { font-family: var(--display); font-size: 10px; color: var(--ink-2); text-align: center; word-break: keep-all; line-height: 1.15; margin-top: 3px; }
+/* 폴라로이드가 오른쪽 ≈60px(6° 회전 포함)를 차지하니 그 옆 줄들은 그 앞에서 접는다 */
+.cm.has-sketch .cm-head p, .cm.has-sketch .cm-with, .cm.has-sketch .cm-diff, .cm.has-sketch .cm-diff-say, .cm.has-sketch .cm-shots { padding-right: 64px; }
+/* 어긋난 날의 두 칩만 좁힌다 — 계획대로 간 날의 한 칩(.is-ok, max-width none)은 폴라로이드 옆에서도 다 들어간다 */
+.cm.has-sketch .cm-diff-a, .cm.has-sketch .cm-diff-b:not(.is-ok) { max-width: 36%; }
 
-.cm-gridwrap { position: absolute; top: 146px; left: 20px; right: 20px; z-index: 3; }
-/* 격자를 살짝 깨뜨린다 — 디자인된 게 아니라 붙여 모은 것처럼 */
-.cm-grid { display: grid; grid-template-columns: 1.08fr .92fr; grid-template-rows: .94fr 1.06fr; gap: 12px; }
+.cm-gridwrap { flex: 1; min-height: 0; container-type: size; display: flex; justify-content: center; align-items: flex-start; }
+/* 격자를 살짝 깨뜨린다 — 디자인된 게 아니라 붙여 모은 것처럼.
+   높이 ≈ 1.1664 × (너비 − 간격) + 간격 (넓은 열 1.08fr × 컷 비율 1.08 × 2행) — 그만큼 자리가 없으면 너비를 줄여 맞춘다 */
+.cm-grid { width: 100%; width: min(100%, calc((100cqh - 10px) / 1.1664 + 10px)); display: grid; grid-template-columns: 1.08fr .92fr; grid-template-rows: .94fr 1.06fr; gap: 10px; }
 .cm-p {
   aspect-ratio: 1 / 1.08; background: var(--card); border: 2.5px solid var(--ink); border-radius: 8px;
   position: relative; overflow: hidden; animation: cm-pop .45s cubic-bezier(.34, 1.56, .64, 1) both;
@@ -421,21 +440,44 @@
 .cm-floor { position: absolute; left: 0; right: 0; bottom: 0; height: 40%; background: rgba(42, 33, 24, .07); }
 /* 컷 번호가 아니라 그 컷이 찍힌 시각 (캠코더 OSD처럼) — ADR-0001 만화 질감 */
 .cm-k { position: absolute; top: 6px; left: 6px; z-index: 3; font-family: var(--mono); font-size: 10px; background: var(--ink); color: var(--paper); border-radius: 4px; padding: 1px 5px; letter-spacing: .04em; }
-/* 컷 안의 피사체만 기울고 확대된다 (프레임과 캡션은 그대로) */
+/* 컷 안의 피사체만 기울고 확대된다 (프레임과 캡션은 그대로). --cx/--cy는 에이전트 컷이 px, 사용자 컷이 % (CONTRACT ComicPanel.unit) */
 .cm-shot { position: absolute; inset: 0; transform: rotate(var(--rot, 0deg)) scale(var(--cs, 1)) translate(var(--cx, 0), var(--cy, 0)); transform-origin: 50% 78%; }
 /* 인쇄 하프톤 — 에셋 없이 반복 그라디언트로 */
 .cm-p::after {
   content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: .06;
   background-image: repeating-radial-gradient(circle at 0 0, var(--ink) 0 .6px, transparent .6px 2.4px);
 }
-/* 잘 안 찍힌 컷 — 크게 기울고 흐리다 */
+/* 잘 안 찍힌 컷 (옛 blur 플래그) — 크게 기울고 흐리고, 캡션은 "이건 잘 안 찍혔다" */
 .cm-p.is-blur .cm-shot { filter: blur(1.6px); opacity: .82; }
-.cm-p.is-blur .cm-cap { font-style: italic; color: var(--ink-2); }
+.cm-p.is-miss .cm-cap { font-style: italic; color: var(--ink-2); }
 .cm-cap { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 2; background: var(--card); border: 1.5px solid var(--ink); border-radius: 6px; font-size: 11px; padding: 3px 6px; line-height: 1.3; }
 .cm-c { position: absolute; bottom: 34px; left: 50%; margin-left: -59px; }
 .cm-c.is-left { left: 6px; margin-left: 0; }
 .cm-f { position: absolute; bottom: 36px; right: 2px; }
 .cm-prop { position: absolute; z-index: 1; }
+
+/* ── 누가 찍었나 (ADR-0004) ── */
+/* 우상단 스티커: 사용자 컷은 코랄 "내가 찍음", 에이전트 컷은 회색 "{name}가 찍음" */
+.cm-by {
+  position: absolute; top: 5px; right: 5px; z-index: 3; max-width: 62%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--display); font-size: 10px; line-height: 1; padding: 3px 7px; border-radius: 999px; border: 1.5px solid var(--ink);
+  background: color-mix(in srgb, var(--ink-3) 22%, var(--card)); color: var(--ink-2); box-shadow: 1.5px 1.5px 0 var(--ink); transform: rotate(5deg);
+}
+.cm-p.is-user .cm-by { background: var(--coral); color: #fff; }
+/* 사용자 컷: 코랄 3px 실선에 살짝 커서 앨범에서 튀어나온다 (cm-pop이 transform을 채우므로 끝값이 다른 키프레임을 쓴다) */
+.cm-p.is-user { border: 3px solid var(--coral); z-index: 2; transform: scale(1.05); animation-name: cm-pop-user; }
+@keyframes cm-pop-user { from { transform: scale(.7) rotate(-3deg); opacity: 0; } to { transform: scale(1.05); opacity: 1; } }
+/* 안은 카메라 뷰파인더와 같은 컴포넌트(CameraOverlay ShotStage → camera.css .cam-stage/.cam-shot/.cam-me/.cam-friend/.cam-met/.cam-ghost)를
+   그대로 쓴다 — 동행·마주침이 있을 때 주인공이 39 %로 비켜서는 것까지 "찍은 그대로". 컷 비율(1/1.08)이 뷰파인더와 같아 %크롭이 맞는다 */
+.cm-p.is-user .cam-stage { border-radius: inherit; }
+/* 에이전트가 대충 찍은 흔적 (오너 결정 14). overzoom/cut/tilt는 crop 값에 이미 들어 있어 클래스만 남긴다 */
+.cm-p.is-dark::before { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: var(--night); opacity: .3; mix-blend-mode: multiply; }
+.cm-p.is-dark .cm-shot { filter: brightness(.45) contrast(.85); }
+.cm-p.is-blur.is-dark .cm-shot { filter: brightness(.45) contrast(.85) blur(1.6px); }
+.cm-p.has-flaw.is-blur .cm-shot { filter: blur(2.2px); opacity: .9; }
+.cm-p.has-flaw.is-blur.is-dark .cm-shot { filter: brightness(.45) contrast(.85) blur(2.2px); }
+.cm-p.is-dark .cm-cap { background: var(--paper); }
+
 .cm-me { position: absolute; left: 6px; bottom: calc(84px + var(--safe-bottom)); z-index: 2; animation: act-breathe 3s ease-in-out infinite; }
 .cm-me-bubble { position: absolute; left: 150px; bottom: calc(200px + var(--safe-bottom)); z-index: 3; }
 .cm-stamp {
@@ -612,7 +654,6 @@
 }
 /* 만화 부제의 동행·마주침 칩 */
 .cm-with { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-.cm.has-with .cm-gridwrap { top: 182px; }
 .sum-with { margin-top: 6px; }
 .opt .cchip { flex: 0 0 auto; }
 .act-ghost { top: 244px; right: 0; }
@@ -630,3 +671,17 @@
 .fr-home { font-size: 12px; color: var(--ink-2); }
 .fr-now { display: inline-flex; align-items: center; gap: 6px; font-family: var(--display); font-size: 14px; color: var(--ink); margin-top: 2px; }
 .fr-now i { width: 8px; height: 8px; border-radius: 50%; background: var(--mint); border: 1.5px solid var(--ink); }
+
+/* ─── 사진 (ADR-0004): book 목록·상세, 요약 시트 ─────────────────────────── */
+/* 목록 썸네일 — 사용자 컷은 코랄 테두리 */
+.book-thumbs i.is-user { border-color: var(--coral); border-width: 2.5px; }
+/* 상세 헤더의 아침 그림 */
+.book-sketch { flex: none; width: 40px; height: 40px; object-fit: contain; padding: 2px; background: var(--card); border: 2px solid var(--ink); border-radius: 8px; box-shadow: var(--shadow-hard-sm); transform: rotate(-6deg); }
+/* 상세의 "내가 N장" 줄은 컷 아래, 요약 위 */
+.book-shots { margin-top: 12px; }
+/* 요약 카드의 작은 배지 "내가 N장" (user>0일 때만) */
+.sum-badge { display: inline-block; margin-left: 6px; font-family: var(--display); font-style: normal; font-size: 10px; letter-spacing: 0; line-height: 15px; padding: 0 7px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--coral); color: #fff; vertical-align: middle; }
+
+/* 쪽지·혼잣말은 화면 아래 카드와 같은 자리를 쓴다 — 활동 화면에선 사진 버튼(.act-stat), 만화 화면에선 두 버튼(.cm-foot)을 가리지 않게 위로 올린다 (ADR-0004: 사진 찍기가 활동 중 유일한 손댈 수 있는 것) */
+.home--active .req, .home--active .say { bottom: calc(152px + var(--safe-bottom)); }
+.home--comic .req, .home--comic .say { bottom: calc(92px + var(--safe-bottom)); }

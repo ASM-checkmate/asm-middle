@@ -15,6 +15,7 @@ import { Bubble, Button, Chip, CompanionChip, Glyph, JetlagChip, type ChipFriend
 import { Scene } from '../scenes';
 import { CATEGORY_FILL, Ring, type RingSeg } from './Ring';
 import { blockRange, bookIntent, dayTitle, progressLabel, shortTitle, transitNote, vehicleName } from './util';
+import './sketch.css';
 
 type Waiting = Extract<Phase, { kind: 'waiting' }>;
 type BlockState = 'sleep' | 'past' | 'current' | 'future';
@@ -47,6 +48,8 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
   const setBookOpen = useWorld(s => s.setBookOpen);
   const pushAnyway = useWorld(s => s.pushAnyway);
   const clearVerdict = useWorld(s => s.clearVerdict);
+  const setSketchOpen = useWorld(s => s.setSketchOpen);
+  const unsketchBlock = useWorld(s => s.unsketchBlock);
   const storeStatus = useWorld(s => s.status);
   const status = world?.status ?? storeStatus;
 
@@ -83,18 +86,23 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
   const foreign = kind === 'transit' || kind === 'landing' ? cover : undefined;
   const st = stateOf(sel);
   const editable = canEdit(sel);
+  /** 그림으로 넘긴 블록 (ADR-0004): 카드·예고·판정 대신 그림 카드만. verdict는 sketchBlock이 지웠으니 undefined다 */
+  const sketched = editable && plan.status === 'sketched';
   const category = act?.option.category ?? plan.category;
   const catDef = category ? categoryDef(category) : null;
   const options = plan.options;
   const verdict = editable ? plan.verdict : undefined;
+  /** 카드 분기(범주 고른 뒤 3장)에 "✎ 카드 대신 그려서 알려줄래"가 붙는 상태 — 그동안 링을 150px로 줄여 그 줄의 자리를 번다
+   *  (screens.css .tt.has-sk-entry: 그대로 두면 패널에서 세 번째 카드가 잘린다). 판정이 서 있으면 그 대답이 먼저라 버튼이 없다 */
+  const skEntry = editable && !picking && !!category && !sketched && !verdict;
   const pendingId = pending ?? verdict?.optionId ?? plan.chosenId ?? options[0]?.id ?? null;
   /** 판정이 서 있는 동안에는 판단의 대상과 역제안만 남긴다 — 나머지는 지금 고를 수 있는 게 아니다 */
   const shownOptions = verdict ? options.filter(o => o.id === verdict.optionId || o.id === verdict.counterOptionId) : options;
   /** user-confirmed (an agent pre-pick still shows the '이걸로 정할래' action, deck-style) */
   const confirmed = !!plan.chosenId && plan.chosenBy === 'user' && pendingId === plan.chosenId;
   const ownAct = kind === 'own' ? cover : undefined;
-  /** 정해둠 = the owner's own decisions and the friend proposals left standing — never the agent's block-start picks. */
-  const decidedCount = BLOCK_ORDER.filter(id => id !== 'sleep' && (plans[id].chosenBy === 'user' || plans[id].chosenBy === 'friend')).length;
+  /** 정해둠 = the owner's own decisions (a drawing counts — CONTRACT U1), the friend proposals left standing — never the agent's block-start picks. */
+  const decidedCount = BLOCK_ORDER.filter(id => id !== 'sleep' && (plans[id].chosenBy === 'user' || plans[id].chosenBy === 'friend' || plans[id].status === 'sketched')).length;
   // 상태는 게이지로 상주하지 않는다 (SPEC 메인 화면). 카드 안의 조용한 한 줄이 전부다.
   const statusLabel = `${decidedCount ? `${decidedCount}개 · ` : ''}${wonKo(status.money)} · 🔋${Math.round(100 - status.fatigue)}%`;
   /** A friend (or an agent we have not befriended yet) as the chip needs them — id, name, colour. */
@@ -125,7 +133,9 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
 
   const segs: RingSeg[] = BLOCKS.map(bd => {
     const a = coverOf(bd.id);
-    const cat: Category | null = bd.id === 'sleep' ? 'sleep' : a?.option.category ?? null;
+    // 그림으로 정한 블록은 시작 전까지 타임라인에 활동이 없다 (timeline.ts: chosenId 없음) → plan을 직접 봐서 범주 색 + ✎
+    const sk = plans[bd.id].status === 'sketched' && !a;
+    const cat: Category | null = bd.id === 'sleep' ? 'sleep' : a?.option.category ?? (sk ? plans[bd.id].category : null);
     const paint = (cat && CATEGORY_FILL[cat]) || { fill: 'var(--paper-2)', dark: false };   // unknown/legacy category → blank wedge
     return {
       id: bd.id,
@@ -135,6 +145,8 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
       state: stateOf(bd.id),
       decided: !!a,
       diff: !!a?.outcome && a.outcome.plannedPlaceId !== a.place.id && now >= a.outcome.divertedAt,
+      sketch: sk,
+      sketchSrc: sk ? plans[bd.id].sketch : undefined,
     };
   });
 
@@ -149,12 +161,13 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
       if (act) return `지금은 ${progressLabel(act.option, act.place)}!`;
       return `${b.label} 블록은 지나갔어`;
     }
+    if (sketched) return '그림 잘 봤어! 뭘 할지는 이따 보면 알 거야';   // 비밀 — 뭘 고를지는 말하지 않는다 (ADR-0004)
     if (proposer) return `${proposer.name}가 같이 가자는데, 갈까?`;
     if (plan.chosenBy === 'agent') return '내가 골라놨어, 바꿔도 돼';
     if (plan.chosenId) return '좋아, 이대로 갈게!';
     return `오늘 ${b.label}엔 뭐 할까?`;
   })();
-  const pose: Pose = editable ? (plan.chosenId ? 'happy' : 'think') : st === 'sleep' ? 'sleep' : 'idle';
+  const pose: Pose = editable ? (plan.chosenId || sketched ? 'happy' : 'think') : st === 'sleep' ? 'sleep' : 'idle';
 
   const shown = foreign ?? act;
   const todayComic = shown ? book.find(c => c.id === `c:${shown.key}`) : undefined;
@@ -186,7 +199,9 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
   );
 
   const note = editable
-    ? (catDef && !picking
+    ? (sketched && !picking
+      ? <div className="tt-note">그림으로 정했어 · {hhmmIn(bounds(sel)[0], tz)} 출발</div>
+      : catDef && !picking
       ? <button type="button" className="tt-link" onClick={() => setPicking(true)}>범주 바꾸기 ›</button>
       : catDef && picking
         ? <button type="button" className="tt-link" onClick={() => setPicking(false)}>‹ 제안으로 돌아가기</button>
@@ -228,6 +243,22 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
           ))}
           <div className="tt-ghost-note"><Glyph name="sparkle" size={14} color="#FF6A48" /> {category ? '바꾸면 새로 3개 제안할게' : '범주를 고르면 여기 3개가 나와요'}</div>
         </div>
+      </>
+    );
+  } else if (sketched) {
+    // 그림 카드 (ADR-0004 오너 결정 5): 예고도 반대도 없이 시작 때 에이전트가 범주 안에서 고른다 — 그래서 여기엔 카드도 판정도 없다
+    body = (
+      <>
+        <div className="done">
+          <img className="tt-sk-thumb" src={plan.sketch} alt="아침에 그린 그림" />
+          <div className="opt-tx"><b>그림으로 정했어</b><span>시작할 때 내가 알아서 고를게</span></div>
+          <Chip tone="sun" className="done-tag">비밀</Chip>
+        </div>
+        <div className="tt-verdict-btns tt-sk-btns">
+          <Button tone="paper" small onClick={() => setSketchOpen(sel)}>다시 그리기</Button>
+          <Button tone="paper" small onClick={() => unsketchBlock(sel)}>카드로 고를래</Button>
+        </div>
+        <div className="tt-sk-secret" aria-hidden="true"><span>🤫 뭘 할지는 비밀이야</span></div>
       </>
     );
   } else if (editable) {
@@ -307,6 +338,12 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
             {staySettled ? (ownAct ? `정했어 · ${hhmmIn(ownAct.departAt, tz)} 출발` : '이걸로 정했어') : '이걸로 정할래'}
           </Button>
         )}
+        {/* 카드 대신 그림으로 (ADR-0004): 판정이 서 있는 동안은 그 대답이 먼저다 (skEntry) */}
+        {skEntry && (
+          <Button tone="paper" small className="tt-sk-entry" onClick={() => setSketchOpen(sel)}>
+            <span className="tt-sk-pen" aria-hidden="true">✎</span> 카드 대신 그려서 알려줄래
+          </Button>
+        )}
       </>
     );
   } else {
@@ -349,7 +386,7 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
 
   if (asSheet) {
     return (
-      <div className={`tt tt-sheet ${verdict ? 'is-judging' : ''}`} role="dialog" aria-label="생활계획표">
+      <div className={`tt tt-sheet ${verdict ? 'is-judging' : ''} ${skEntry ? 'has-sk-entry' : ''}`} role="dialog" aria-label="생활계획표">
         <button type="button" className="tt-backdrop" aria-label="닫기" onClick={onClose} />
         <div className="tt-panel">
           {phase.jetlag && <JetlagChip sticker className="tt-sheet-jetlag" />}
@@ -373,7 +410,7 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
   }
 
   return (
-    <div className={`tt ${verdict ? 'is-judging' : ''}`}>
+    <div className={`tt ${verdict ? 'is-judging' : ''} ${skEntry ? 'has-sk-entry' : ''}`}>
       {away ? (
         <div className="tt-scene"><Scene type={phase.at.type} hush /></div>
       ) : (

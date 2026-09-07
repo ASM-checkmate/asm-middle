@@ -1,6 +1,7 @@
 import type { PlaceType, ScheduledActivity } from './types';
 import { costOf } from './status';
 import { rng } from './rng';
+import { narrate } from './narrate';
 
 // ─── 활동 로그 (docs/adr/0001-agentness.md — 결과가 아니라 과정의 관찰) ────────
 // 완성된 그림을 사후에 받는 것보다 지금 뭘 하고 있는지가 조금씩 보이는 편이 강하다.
@@ -70,6 +71,10 @@ export function activityLog(act: ScheduledActivity, now: number): LogLine[] {
   const out: LogLine[] = [];
   const span = Math.max(1, act.endAt - act.arriveAt);
   const type = act.place.type;
+
+  // 그림으로 정한 블록: 출발 시각에 "못 알아봐서 내 맘대로 골랐어"가 첫 줄로 찍힌다 (ADR-0004 오너 결정 8).
+  // 대사는 narrate() 하나를 지난다 (ADR-0001) — 이름은 시드에 안 섞이므로 비워 둔다
+  if (act.sketch) out.push({ at: act.departAt, text: narrate({ t: 'sketch-pick' }, { name: '', seed: `log:${act.key}:sketch` }) });
 
   out.push({ at: act.arriveAt, text: pick(ARRIVE[type] ?? ARRIVE_DEFAULT, `log:${act.key}:arrive`) });
 

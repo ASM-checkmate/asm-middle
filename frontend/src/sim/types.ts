@@ -48,7 +48,7 @@ export interface Friend {
 }
 
 /** 사용자가 골라 준 오늘의 고민 (docs/adr/0001-agentness.md — 고민 듣기). 하루 뒤 감쇠한다. */
-export type WorryKey = 'work' | 'people' | 'body' | 'money' | 'sleep' | 'stuck' | 'bored' | 'none';
+export type WorryKey = 'work' | 'people' | 'body' | 'money' | 'focus' | 'blue' | 'bored' | 'none';
 
 export interface Memory {
   name: string;                 // 캐릭터 이름
@@ -103,7 +103,7 @@ export interface ActivityOption {
  * 에이전트가 이 블록에 대해 뭐라고 했는가 (`chosenBy`는 "누가 골랐나", 이쪽은 "에이전트가 받아들였나").
  * `refused`/`pushback`이면 `chosenId`는 그대로 두고 `verdict`만 실린다 — 사용자의 선택이 확정되지 않았다는 뜻이다.
  */
-export type PlanStatus = 'empty' | 'proposed' | 'confirmed' | 'pushback' | 'refused' | 'forced';
+export type PlanStatus = 'empty' | 'proposed' | 'confirmed' | 'pushback' | 'refused' | 'forced' | 'sketched';
 
 export interface BlockPlan {
   blockId: BlockId;
@@ -116,6 +116,12 @@ export interface BlockPlan {
   status: PlanStatus;
   /** `pushback`/`refused`/`forced`일 때의 근거와 한 줄 */
   verdict?: Verdict;
+  /**
+   * 사용자가 그림으로 넘긴 계획 (ADR-0004). dataURL(PNG, 긴 변 ≤ 240px). sketched 불변식: category≠null,
+   * chosenId=null, chosenBy=null, verdict=undefined, options는 setCategory가 만든 3장 유지 — 블록이 시작하면
+   * 에이전트가 그 3장 안에서 review 문으로 고른다(chosenBy 'agent'). 카드 경로로 돌아오면 지워진다.
+   */
+  sketch?: string;
 }
 
 export interface Leg {
@@ -153,7 +159,20 @@ export interface ScheduledActivity {
   encounter?: Encounter;
   /** 계획과 어긋난 기록 (sim/friction.ts). 없으면 계획대로 갔다는 뜻이다. */
   outcome?: Outcome;
+  /** 아침에 그린 그림 — buildTimeline이 plan.sketch를 복사 (활동 로그 첫 줄·만화 헤더가 act만 받으므로) */
+  sketch?: string;
 }
+
+// ─── 사진 (ADR-0004 오너 결정 7) ─────────────────────────────────────────────
+/** 카메라 장면 창: 활동 시간(arriveAt~endAt) 4등분. 0 도착 · 1 하는 중 · 2 한창 · 3 마무리 */
+export type ShotWin = 0 | 1 | 2 | 3;
+/**
+ * 사용자가 찍은 한 장 (추가전용 이벤트, 같은 actKey+win은 뒤가 이긴다).
+ * crop.x/y는 촬영 뷰포트 자기 크기 대비 % (translate(x%, y%)), scale=시야각(1.0~2.2), rot=기울기(deg, -15~15).
+ */
+export interface UserShot { actKey: string; win: ShotWin; at: number; crop: { scale: number; x: number; y: number; rot: number } }
+/** 에이전트가 대충 찍은 흔적 (오너 결정 14: 에이전트 컷은 거의 항상 하나 이상). */
+export type PanelFlaw = 'blur' | 'dark' | 'overzoom' | 'cut' | 'tilt';
 
 /** 마주침: someone else's agent shared this place. `talked` → a new friend when the activity ends; `again` → already a friend. */
 export interface Encounter { agentId: string; talked: boolean; again?: boolean }
@@ -172,6 +191,12 @@ export interface ComicPanel {
   crop: { scale: number; x: number; y: number; rot: number };
   /** 잘 안 찍힌 컷 (가끔 하나). 못 찍힌 사진만큼 증거처럼 읽히는 건 없다 */
   blur?: boolean;
+  /** 누가 찍었나. 없으면(옛 만화) 'agent'로 본다 */
+  by?: 'user' | 'agent';
+  /** by==='user'이면 crop.x/y 단위가 %이다 (unit:'pct'). 없으면 px */
+  unit?: 'px' | 'pct';
+  /** 에이전트가 대충 찍은 흔적. by==='user'면 항상 없음 */
+  flaws?: PanelFlaw[];
 }
 
 export interface Comic {
@@ -184,6 +209,10 @@ export interface Comic {
   createdAt: number;
   panels: ComicPanel[];      // 1 or 4
   summary: string;           // one-line summary for the catch-up sheet
+  /** 컷 작성자 수 (헤더 "내가 N장, 모모가 M장"은 화면이 조립). 없으면 전부 에이전트 */
+  shots?: { user: number; agent: number };
+  /** 아침에 그린 그림(있을 때). act.sketch 복사 */
+  sketch?: string;
 }
 
 /** What the character does on board during a journey: sleeps in the sleep block, eats in meal blocks (train/plane/boat only). */

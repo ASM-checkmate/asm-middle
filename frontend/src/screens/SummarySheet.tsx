@@ -75,7 +75,11 @@ export function SummarySheet({ items, gap, tz, untold = [], missed = [], onClose
             <button key={it.comic.id} type="button" className="sum" onClick={() => { bookIntent.comicId = it.comic.id; onClose(); setBookOpen(true); }}>
               <div className="sum-ic" style={{ background: it.comic.panels[0]?.bg }}>{it.act.option.emoji}</div>
               <div>
-                <span className="sum-meta num">{blockRange(it.blockId)} · {blockDef(it.blockId).label} 블록</span>
+                <span className="sum-meta num">
+                  {blockRange(it.blockId)} · {blockDef(it.blockId).label} 블록
+                  {/* 내가 찍은 컷이 있는 이야기만 작은 배지 (ADR-0004) */}
+                  {(it.comic.shots?.user ?? 0) > 0 && <em className="sum-badge">📷 내가 {it.comic.shots?.user}장</em>}
+                </span>
                 <b>{it.comic.title}</b>
                 <span>{it.comic.summary}</span>
                 {/* 같이 간 친구는 요약 줄에도 얼굴로 */}

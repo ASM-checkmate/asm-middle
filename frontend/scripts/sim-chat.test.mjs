@@ -40,6 +40,8 @@ check('모르는 말은 모른다고 한다', intentOf('ㅁㄴㅇㄹ 우가우�
 check('사람에 지친 건 people', worryOf('사람한테 너무 지쳤어') === 'people', worryOf('사람한테 너무 지쳤어'));
 check('일에 지친 건 work', worryOf('일이 안 풀려서 힘들어') === 'work', worryOf('일이 안 풀려서 힘들어'));
 check('짚을 게 없으면 몸으로 본다', worryOf('그냥 지쳤어') === 'body', worryOf('그냥 지쳤어'));
+check('집중이 안 되는 건 focus', worryOf('집중이 안 돼서 힘들어') === 'focus', worryOf('집중이 안 돼서 힘들어'));
+check('그냥 안 좋은 건 blue', worryOf('그냥 기분이 안 좋아') === 'blue', worryOf('그냥 기분이 안 좋아'));
 
 // ── 답장 ─────────────────────────────────────────────────────────────────────
 console.log('\n── 답장 ──');
@@ -126,6 +128,46 @@ useWorld.setState({ clock: jumpedTo(S().clock, S().now + 3 * 3600_000) });
 S().tick();
 check('자리를 비운 사이의 전화는 부재중이 된다', S().activeCall === null && S().calls.length === 1, JSON.stringify(S().calls));
 check('부재중에는 내용이 없다', S().calls[0].lines === undefined, JSON.stringify(S().calls[0]));
+
+// ── 도착 혼잣말 (ADR-0004 오너 결정 6: 도착 알림 대신, 보고 있을 때 도착 순간 한마디) ──────────
+console.log('\n── 도착 혼잣말 ──');
+const { blockStartAt } = await import('../src/sim/blocks.ts');
+const { dayStartOfKey } = await import('../src/sim/tz.ts');
+// 다음 날 오전으로 옮겨, 오후 블록에 혼자 가는 계획을 사용자가 확정해 둔다
+S().jumpTo(KST(2026, 9, 9, 10, 0));
+useWorld.setState({ activeCall: null, calls: [], dueCalls: [], messages: [], requests: [], say: null });
+const pmStart = blockStartAt(dayStartOfKey(S().today), 'pm');
+// 이동 시간이 있고 동행·말 튼 마주침·마찰이 없는 계획이어야 혼잣말이 나온다 — 시드에 따라 후보를 고른다
+const SOLO = ['layered-yeonnam', 'anthracite-hapjeong', 'seoul-forest', 'coffee-hanyakbang', 'seokchon-lake'];
+let solo = null;
+for (const placeId of SOLO) {
+  const opt = { id: `solo-${placeId}`, title: `${placeById(placeId).name}에서 혼자 놀기`, reason: '검사용', emoji: '🙂', placeId, category: 'play' };
+  const plans = { ...S().plans, pm: { blockId: 'pm', category: 'play', options: [opt], chosenId: opt.id, chosenBy: 'user', status: 'confirmed' } };
+  useWorld.setState({ plans, days: { ...S().days, [S().today]: plans } });
+  S().jumpTo(pmStart + 1000);
+  const act = S().timeline.find(a => a.dayKey === S().today && a.blockIds[0] === 'pm');
+  if (act && act.arriveAt - act.departAt >= 2 * 60_000 && !act.companions.length && !act.encounter?.talked && !act.outcome) { solo = act; break; }
+}
+check('혼자 가는 계획이 하나 잡힌다', !!solo, JSON.stringify(S().timeline.map(a => [a.key, a.companions, a.encounter, a.outcome?.kind])));
+if (solo) {
+  S().jumpTo(solo.arriveAt - 30_000);
+  check('도착 30초 전엔 이동 중이다', S().phase.kind === 'moving' && S().phase.act.key === solo.key, S().phase.kind);
+  // 보고 있는 채로 도착 순간을 지난다 (lastTick은 그대로, 시계만 앞으로) — jumpTo는 전이를 tick에 보여주지 않는다
+  useWorld.setState({ clock: jumpedTo(S().clock, solo.arriveAt + 1000) });
+  S().tick();
+  check('도착하면 활동 중이 된다', S().phase.kind === 'active' && S().phase.act.key === solo.key, S().phase.kind);
+  check('도착 순간 기분 한 줄이 뜬다 (부탁이 아니다)', !!S().say && !/찍어/.test(S().say.text), JSON.stringify(S().say));
+  check('문자로는 남기지 않는다 — 문자는 마음이 오갈 때만', !S().messages.some(m => m.id.startsWith('arrive:')), JSON.stringify(S().messages));
+  const said = S().say?.text;
+  S().tick();
+  check('한 번만 말한다', S().say?.text === said, JSON.stringify(S().say));
+  // 오래 꺼 뒀다가 켠 도착은 말하지 않는다 (보고 있던 사람에게만 하는 말)
+  useWorld.setState({ messages: [], say: null });
+  S().jumpTo(solo.departAt + 1000);
+  useWorld.setState({ clock: jumpedTo(S().clock, S().now + 3 * 3600_000) });
+  S().tick();
+  check('안 보고 있던 도착에는 혼잣말이 없다', S().say === null && !S().messages.some(m => m.id.startsWith('arrive:')), JSON.stringify(S().say));
+}
 
 console.log(`\n${n - fails.length}/${n} checks passed`);
 if (fails.length) { console.log('FAILED: ' + fails.join(', ')); process.exit(1); }

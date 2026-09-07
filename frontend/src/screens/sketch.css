@@ -1,0 +1,75 @@
+/* ─── 그려서 알려줘 — 그림 캔버스 오버레이 (SketchOverlay, ADR-0004) ───────────────
+   룩은 design/home-deck.html: 2.5px --ink 외곽선, 하드 섀도, Jua 디스플레이, 파스텔 토큰.
+   .book(screens.css z 50)과 같은 풀스크린 패턴 — 시간표 시트(z 45) 위, 쪽지 아래 (Home.tsx가 마운트). */
+.sk {
+  position: absolute; inset: 0; z-index: 50; background: var(--paper); display: flex; flex-direction: column;
+  animation: sk-in .4s cubic-bezier(.22, 1, .36, 1) both;
+}
+@keyframes sk-in { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.sk-hd { display: flex; align-items: center; gap: 12px; padding: calc(14px + var(--safe-top)) 16px 0 20px; flex: none; }
+.sk-hd h2 { font-family: var(--display); font-weight: 400; font-size: 26px; line-height: 1.1; margin: 0; flex: 1; min-width: 0; }
+.sk-hd h2 small { display: block; font-family: var(--mono); font-size: 11px; color: var(--ink-2); letter-spacing: .08em; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sk-sub { margin: 4px 20px 0; font-size: 13px; color: var(--ink-2); flex: none; }
+.sk-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 16px 0; scrollbar-width: none; display: flex; flex-direction: column; }
+.sk-pad, .sk-tools { flex: none; }
+.sk-body::-webkit-scrollbar { display: none; }
+
+/* 모눈 캔버스: 정사각(화면 너비 − 32px), 종이 위에 옅은 모눈. 획은 그 위의 <canvas>에만 그린다 (저장 PNG엔 모눈이 없다) */
+.sk-pad {
+  position: relative; width: 100%; aspect-ratio: 1; border: 2.5px solid var(--ink); border-radius: 22px; overflow: hidden;
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--line) 70%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--line) 70%, transparent) 1px, transparent 1px);
+  background-size: 26px 26px; background-position: 12px 12px;
+  box-shadow: var(--shadow-hard);
+}
+.sk-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+/* 코너 스티커 — 뭘로 그리는지 한눈에 (tt-ghost-note와 같은 노란 쪽지 꼴) */
+.sk-tag {
+  position: absolute; right: 10px; top: 10px; transform: rotate(4deg); pointer-events: none;
+  background: var(--sun-2); border: var(--outline); border-radius: 12px; padding: 3px 9px;
+  font-family: var(--display); font-size: 12px; color: var(--ink); box-shadow: 2px 2px 0 var(--ink);
+}
+.sk-tools { display: flex; gap: 8px; margin-top: 12px; }
+.sk-tools > * { flex: 1; }
+
+/* 캐릭터가 옆에서 지켜본다 — 캔버스와 버튼 사이 남는 띠(390×844에서 ≈260px)를 차지하고(220px, 오너 우선순위 "캐릭터 크게"),
+   왼쪽 아래서 고개를 내민다. 말풍선은 머리 옆 */
+.sk-watch { flex: 1; display: flex; align-items: flex-end; gap: 2px; margin-top: 2px; min-height: 170px; }
+/* 아래 마진은 음수로 두지 않는다 — .sk-body가 overflow auto라 띠 밖으로 내민 발만큼 스크롤이 생긴다 (발은 띠 바닥에 딱 붙는다) */
+.sk-chara { flex: none; margin: -14px 0 0 -20px; animation: sk-breathe 3.2s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes sk-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.sk-say { margin-bottom: 92px; max-width: 200px; }
+.sk-foot { flex: none; padding: 8px 16px calc(16px + var(--safe-bottom)); }
+.sk-cta { min-height: 52px; font-size: 20px; }
+/* 짧은 화면(≤ 720px, 375×667 등): 띠의 하한을 풀고 캐릭터를 132px로, 캔버스도 남는 높이만큼만 — 캐릭터 하반신이 CTA 뒤로 들어가지 않게 */
+@media (max-height: 720px) {
+  .sk-watch { min-height: 0; }
+  .sk-chara { width: 132px; height: 132px; }
+  .sk-say { margin-bottom: 44px; }
+  .sk-pad { width: min(100%, calc(100dvh - 400px)); margin: 0 auto; }
+}
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } .sk-chara { animation: none; } }
+
+/* ─── 시간표 쪽 (TimetableScreen): 진입 버튼 · 그림 카드 (CONTRACT §TimetableScreen U1) ─── */
+/* 옵션 카드 아래 — 네 번째 칸처럼 점선으로, 낮게. 터치 타깃 40px(.btn--small과 같다); 3장 + 이 줄이 패널에 들어가야 해서
+   이 줄이 있는 동안 screens.css `.tt.has-sk-entry`가 링을 150px로 줄인다 */
+.tt-sk-entry {
+  flex: none; margin-top: 4px; min-height: 40px; padding: 3px 12px; font-size: 13px; gap: 6px;
+  border-style: dashed; border-color: var(--ink-3); box-shadow: none; background: var(--paper); color: var(--ink-2);
+}
+.tt-sk-entry:active { transform: translate(1px, 1px); box-shadow: none; }
+.tt-sk-pen { font-family: var(--display); font-size: 16px; color: var(--coral); line-height: 1; }
+/* 그림 카드 = .done 꼴 + 썸네일. 그림 자체는 240px PNG라 52px로 줄여도 붓이 살아 있다 */
+.tt-sk-thumb { width: 52px; height: 52px; border-radius: 12px; border: 2px solid var(--ink); background: var(--paper); object-fit: cover; flex: none; }
+.tt-sk-btns { margin-top: 8px; }
+/* 남는 자리엔 "비밀" 쪽지 하나 — 예고도 판정도 카드도 없다는 걸 자리로 말한다 */
+.tt-sk-secret { flex: 1; min-height: 0; display: grid; place-items: center; padding: 10px 0 4px; }
+.tt-sk-secret span {
+  display: inline-flex; align-items: center; gap: 5px; transform: rotate(-2deg); white-space: nowrap;
+  background: var(--sun-2); border: var(--outline); border-radius: 12px; padding: 6px 12px;
+  font-family: var(--display); font-size: 14px; color: var(--ink); box-shadow: var(--shadow-hard-sm);
+  animation: tt-sk-pop .4s cubic-bezier(.34, 1.56, .64, 1) both;
+}
+@keyframes tt-sk-pop { from { transform: rotate(-2deg) scale(.6); opacity: 0; } to { transform: rotate(-2deg) scale(1); opacity: 1; } }

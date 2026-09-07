@@ -9,13 +9,11 @@ import { wonKo, type StatusDelta } from './status';
 // 나중에 이 함수 하나만 LLM으로 갈아끼우면 앱의 모든 판단 문구가 한 번에 바뀐다.
 // (suggest.ts / comic.ts의 "LLM later; keep the signature"와 같은 계약)
 //
-// 규칙 하나: **상대 에이전트의 속내는 이 타입에 존재하지 않는다.** 조율 전언 갈래(`nego-relay`)는
-// 상대가 입 밖에 낸 이유와 내 에이전트의 추측만 받는다. 진짜 이유는 저장되지만 화면으로 나가는
-// 길이 타입 차원에서 막힌다 — "상대는 이름으로만 존재한다"를 컴파일러가 강제한다.
+// 규칙 하나: **상대 에이전트의 속내는 이 타입에 존재하지 않는다.** 친구는 이름과 자기 하루로만 존재한다
+// (FRIENDS_SPEC §2 사전 채움). 조율 전언 갈래는 ADR-0004에서 조율과 함께 제거됐다.
 
-/** 말풍선 한 줄의 최대 길이. 판정 카드는 좁고(34), 대화 실은 화면 폭을 다 쓴다(46). */
+/** 말풍선 한 줄의 최대 길이 (판정 카드 폭 기준). */
 const MAX = 34;
-const MAX_WIDE = 46;
 const len = (s: string) => [...s].length;
 
 export type NarratableEvent =
@@ -29,16 +27,10 @@ export type NarratableEvent =
   | { t: 'forced'; reason: RefusalReason; cost: StatusDelta }
   /** 도착했더니 계획대로가 아니었다. `actual`이 없으면 제자리에서 벌어진 일 */
   | { t: 'friction'; kind: FrictionKind; planned: Place; actual?: Place }
-  /**
-   * 조율이 깨졌다고 내가 전한다 — 상대가 입 밖에 낸 이유까지만.
-   * **`trueReason`이 이 타입에 없다**는 것이 핵심이다: 상대의 진짜 속내는 저장은 되지만
-   * 화면으로 나가는 길이 타입 차원에서 막힌다 ("상대는 이름으로만 존재한다").
-   */
-  | { t: 'nego-relay'; name: string; said: RefusalReason }
-  /** 내 에이전트의 추측 (틀릴 수 있다) */
-  | { t: 'nego-guess'; name: string; guess: RefusalReason }
-  /** 타결 */
-  | { t: 'nego-deal'; name: string; block: string; place: Place; conceded: { me: number; them: number } };
+  /** 혼자 도착했다 — 기분 한 줄 (ADR-0004 오너 결정 6: 도착 알림 대신, 보고 있을 때 한 번). 부탁은 하지 않는다 */
+  | { t: 'arrive-say' }
+  /** 그림으로 넘긴 계획을 블록 시작 때 자기 기준으로 골랐다 — 활동 로그 첫 줄 (ADR-0004 오너 결정 8: 규칙 기반이라 그림을 못 알아본다) */
+  | { t: 'sketch-pick' };
 
 export interface NarrateCtx {
   /** 캐릭터 이름 (문구에 쓰이진 않지만 시드에 섞인다) */
@@ -74,10 +66,6 @@ const PUSHBACK: Record<RefusalReason, string[]> = {
     '{place}까지 갔다 오면 블록이 다 지나가.',
     '거긴 너무 멀어. 갔다가 바로 와야 해.',
   ],
-  clashes: [
-    '그 시간엔 이미 잡힌 게 있는데.',
-    '앞 일정이랑 겹쳐. 그래도 갈까?',
-  ],
   dislike: [
     '{place}… 별로 안 내키는데.',
     '거기 그렇게 좋아하진 않아.',
@@ -96,7 +84,6 @@ const REFUSE: Record<RefusalReason, string[]> = {
   'not-in-the-mood': ['오늘은 진짜 아무것도 못 하겠어.'],
   'not-close-enough': ['그 집은 아직 못 가겠어.'],
   'too-far': ['그 시간엔 절대 못 갔다 와.'],
-  clashes: ['그 시간엔 약속 잡아놨어. 그건 못 미뤄.'],
   dislike: [
     '거긴 진짜 싫어. 다른 데 시켜줘.',
     '{place}만은 안 돼. 미안.',
@@ -128,38 +115,19 @@ const FRICTION_STAY: Record<FrictionKind, string[]> = {
   detour: ['오는 길에 딴 데를 좀 봤어.'],
 };
 
-// ── 조율 결말 (ADR-0003) ────────────────────────────────────────────────────
-// 왕복 자체는 화면에 나오지 않는다. 나오는 것은 **끝났다는 말** 뿐이고, 그것도 전부
-// **내 에이전트의 1인칭**이다.
-/** 상대가 댄 이유를 내가 전한다 — 사실 확인이 아니라 전언이다. */
-const SAID: Record<RefusalReason, string> = {
-  'no-money': '돈이 없대',
-  'too-tired': '피곤하대',
-  'not-in-the-mood': '그냥 별로래',
-  'not-close-enough': '좀 부담스럽대',
-  'too-far': '너무 멀대',
-  clashes: '그날 일이 있대',
-  dislike: '거긴 싫대',
-};
-const NEGO_REFUSE = ['결국 안 되겠대. {said}.', '{name}가 {said}. 이번엔 못 하겠다.'];
-const NEGO_GUESS = [
-  '근데 내 생각엔… {guess} 것 같아.',
-  '내 느낌엔 {guess} 거 아닐까?',
-  '말은 그렇게 했는데, {guess} 것 같기도 하고.',
+/** 혼자 도착한 순간의 혼잣말 — 찍어 달라는 부탁. 카메라 오버레이(ADR-0004)로 이어진다. */
+const ARRIVE_SAY: string[] = [
+  '도착! 여기 분위기 좋다',
+  '왔다. 오늘 여기 잘 고른 것 같아',
+  '자리 잡았어. 여긴 좀 마음에 들어',
 ];
-/** 추측은 "…인 것" 꼴로 이어 붙는다. */
-const GUESS_WHY: Record<RefusalReason, string> = {
-  'no-money': '이번 달 빠듯한',
-  'too-tired': '요즘 많이 지친',
-  'not-in-the-mood': '나랑 노는 게 좀 시들해진',
-  'not-close-enough': '아직 나를 어려워하는',
-  'too-far': '멀리 나가는 걸 싫어하는',
-  clashes: '진짜 바쁜',
-  dislike: '그 동네를 싫어하는',
-};
-const NEGO_DEAL = ['{block}에 {place}, 약속 잡았다!', '됐어! {block}에 {place}에서 보기로 했어.'];
-const CONCEDED_ME = ['이번엔 내가 접었어.'];
-const CONCEDED_THEM = ['{name}가 맞춰줬어.'];
+
+/** 그림을 못 알아보고 내 맘대로 골랐다는 고백 — 활동 로그의 첫 줄(departAt)에 찍힌다. */
+const SKETCH_PICK: string[] = [
+  '그림은 못 알아봐서 내 맘대로 골랐어',
+  '그림 보고 감으로 정했어. 이거다!',
+  '뭘 그린 건지 모르겠어서 그냥 내 취향대로',
+];
 
 const FORCED: string[] = [
   '알겠어. 갔다 올게.',
@@ -182,7 +150,7 @@ const fit = (s: string, max = MAX) => (len(s) <= max ? s : [...s].slice(0, max -
  *
  * @param ev 무슨 일이 있었나
  * @param ctx 캐릭터 이름과 사건의 안정적인 시드
- * @returns 34자 이내의 한국어 한 줄. 상대 에이전트의 속내는 절대 담기지 않는다.
+ * @returns 34자 이내의 한국어 한 줄.
  */
 export function narrate(ev: NarratableEvent, ctx: NarrateCtx): string {
   const r = rng(`${ctx.seed}:${ev.t}`);
@@ -204,14 +172,9 @@ export function narrate(ev: NarratableEvent, ctx: NarrateCtx): string {
       return fit((ev.actual ? r.pick(FRICTION_DIVERT[ev.kind]) : r.pick(FRICTION_STAY[ev.kind]))
         .replace('{planned}', ev.planned.name)
         .replace('{actual}', ev.actual?.name ?? ev.planned.name));
-    case 'nego-relay':
-      return fit(r.pick(NEGO_REFUSE).replace('{name}', ev.name).replace('{said}', SAID[ev.said]), MAX_WIDE);
-    case 'nego-guess':
-      return fit(r.pick(NEGO_GUESS).replace('{guess}', GUESS_WHY[ev.guess]), MAX_WIDE);
-    case 'nego-deal': {
-      const who = ev.conceded.me > ev.conceded.them ? r.pick(CONCEDED_ME) : ev.conceded.them > ev.conceded.me ? r.pick(CONCEDED_THEM) : '';
-      const head = r.pick(NEGO_DEAL).replace('{block}', ev.block).replace('{place}', ev.place.name);
-      return fit(who ? `${head} ${who.replace('{name}', ev.name)}` : head, MAX_WIDE);
-    }
+    case 'arrive-say':
+      return fit(r.pick(ARRIVE_SAY));
+    case 'sketch-pick':
+      return fit(r.pick(SKETCH_PICK));
   }
 }

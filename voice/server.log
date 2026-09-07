@@ -1,0 +1,14 @@
+Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files: 100%|██████████| 12/12 [00:00<00:00, 3458.03it/s]
+[transformers] You are using a model of type `qwen3_tts` to instantiate a model of type ``. This may be expected if you are loading a checkpoint that shares a subset of the architecture (e.g., loading a `sam2_video` checkpoint into `Sam2Model`), but is otherwise not supported and can yield errors. Please verify that the checkpoint is compatible with the model you are instantiating.
+00:15:50 models loaded in 2.3s: tts=mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit voice=Sohee stt=mlx-community/whisper-large-v3-turbo
+  Initialized encoder codebooks
+Loaded speech tokenizer from /Users/foxisdog/.cache/huggingface/hub/models--mlx-community--Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit/snapshots/049ef77fe8816b536193c0c25f9a214d17921282/speech_tokenizer
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files: 100%|██████████| 4/4 [00:00<00:00, 2072.54it/s]
+00:15:51 warm
+00:15:51 theworld voice on ws://localhost:8790  (health: http://localhost:8790/health)
+00:16:50 call session from ('::1', 55323, 0, 0)
+00:16:50 session closed
+00:20:33 call session from ('::1', 55432, 0, 0)
+00:20:33 session closed
+00:21:30 call session from ('::1', 55474, 0, 0)
+00:21:30 session closed

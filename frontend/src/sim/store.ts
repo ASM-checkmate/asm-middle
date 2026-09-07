@@ -526,6 +526,13 @@ export interface WorldState {
   callAgent: () => void;
   /** 걸려온 전화를 받는다 / 안 받는다. */
   answerCall: (accept: boolean) => void;
+  /**
+   * 말로 하는 통화가 붙었다 (ADR-0011): 규칙 대사를 비우고 `voice`를 켠다. 그 뒤 오간 말은 `appendCallLine`으로 쌓인다.
+   * 세션이 못 붙으면 부르지 않는다 — 규칙 대사가 그대로 뜬다.
+   */
+  beginVoiceCall: () => void;
+  /** 통화 중 오간 한 줄. 내 말은 "나: "를 앞에 붙여 같은 `lines`에 쌓는다 (대화 실이 그대로 펼친다). */
+  appendCallLine: (from: 'me' | 'agent', text: string) => void;
   /** 통화 화면을 닫는다 (기록은 남는다 — 받았던 통화라면 통화 시간까지). */
   endCall: () => void;
   /** 대화창에서 한 마디 보낸다. 답장은 상황에 따라 바로 오거나 한참 뒤에 온다 (sim/chat.ts). */
@@ -1010,6 +1017,22 @@ export const useWorld = create<WorldState>((set, get) => {
       // 안 받으면 내용은 사라진다 (오너 결정): 기록만 남기고 lines를 버린다. 안 받기를 눌렀든 12초가 지났든 똑같이 부재중이다 (ADR-0004 오너 결정 13)
       const done: CallEvent = accept ? { ...c, result: 'answered', startedAt: s.now } : { ...c, result: 'missed', lines: undefined };
       set({ activeCall: accept ? done : null, calls: s.calls.map(x => (x.id === c.id ? done : x)) });
+      persist();
+    },
+    beginVoiceCall: () => {
+      const s = get();
+      const c = s.activeCall;
+      if (!c || c.result !== 'answered') return;
+      const done: CallEvent = { ...c, voice: true, lines: [] };
+      set({ activeCall: done, calls: s.calls.map(x => (x.id === c.id ? done : x)) });
+    },
+    appendCallLine: (from, text) => {
+      const s = get();
+      const c = s.activeCall;
+      if (!c || c.result !== 'answered') return;
+      const line = from === 'me' ? `나: ${text}` : text;
+      const done: CallEvent = { ...c, lines: [...(c.lines ?? []), line].slice(-60) };
+      set({ activeCall: done, calls: s.calls.map(x => (x.id === c.id ? done : x)) });
       persist();
     },
     endCall: () => {

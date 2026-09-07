@@ -6,7 +6,8 @@ import { readSketch } from './sketch.ts';
 import { ThinPlanError, planTrip } from './trip.ts';
 import { NoApiKeyError } from './search.ts';
 import { planBlocks } from './plan.ts';
-import { PLAN_BLOCKS, PLAN_CATEGORIES, TRIP_PLACE_TYPES, type PlanRequest } from './contract.ts';
+import { callTurn } from './call.ts';
+import { PLAN_BLOCKS, PLAN_CATEGORIES, TRIP_PLACE_TYPES, type CallTurnRequest, type PlanRequest } from './contract.ts';
 
 // ─── theworld 백엔드 (docs/adr/0006-backend-and-llm.md) ──────────────────────
 // 지금은 LLM 관문 하나다. 시뮬레이션은 아직 프론트에 있고, 여기는 "말을 짓는" 일만 받는다.
@@ -138,6 +139,33 @@ function validatePlan(b: unknown): PlanRequest | string {
   };
 }
 
+/** 통화 턴 요청이 계약대로인지. */
+function validateCall(b: unknown): CallTurnRequest | string {
+  if (!b || typeof b !== 'object') return 'body must be an object';
+  const o = b as Record<string, unknown>;
+  if (o.tier !== 'small' && o.tier !== 'good') return 'tier must be small|good';
+  const a = o.agent as Record<string, unknown> | undefined;
+  if (!a || typeof a.name !== 'string') return 'agent.name required';
+  const s = o.situation as Record<string, unknown> | undefined;
+  if (!s || typeof s.where !== 'string' || typeof s.doing !== 'string' || typeof s.hhmm !== 'string') return 'situation.where/doing/hhmm required';
+  if (!['worry', 'ask', 'friction', 'out'].includes(o.why as string)) return 'why must be worry|ask|friction|out';
+  if (o.user !== null && typeof o.user !== 'string') return 'user must be string|null';
+  const strs = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+  const num = (v: unknown, fb: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : fb);
+  const transcript = Array.isArray(o.transcript)
+    ? o.transcript.filter((m): m is { from: 'me' | 'agent'; text: string } => !!m && (m.from === 'me' || m.from === 'agent') && typeof m.text === 'string').slice(-20).map(m => ({ from: m.from, text: m.text.slice(0, 200) }))
+    : [];
+  return {
+    tier: o.tier,
+    agent: { name: a.name.slice(0, 20), traits: strs(a.traits), likes: strs(a.likes), dislikes: strs(a.dislikes) },
+    situation: { where: s.where.slice(0, 40), doing: s.doing.slice(0, 40), hhmm: s.hhmm.slice(0, 5), mood: num(s.mood, 60), fatigue: num(s.fatigue, 30) },
+    why: o.why as CallTurnRequest['why'],
+    worry: typeof o.worry === 'string' && (WORRY_KEYS as readonly string[]).includes(o.worry) ? (o.worry as CallTurnRequest['worry']) : null,
+    transcript,
+    user: o.user === null ? null : (o.user as string).slice(0, 200),
+  };
+}
+
 async function handle(req: IncomingMessage, res: ServerResponse) {
   const url = new URL(req.url ?? '/', 'http://x');
   if (req.method === 'OPTIONS') return json(res, 204, null);
@@ -177,6 +205,26 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       console.warn(`[sketch] failed: ${(e as Error).message}`);
       return json(res, 502, { error: (e as Error).message });
     }
+  }
+  if (req.method === 'POST' && url.pathname === '/api/call/turn') {
+    let parsed: unknown;
+    try { parsed = JSON.parse(await readBody(req)); } catch (e) { return json(res, 400, { error: `bad json: ${(e as Error).message}` }); }
+    const v = validateCall(parsed);
+    if (typeof v === 'string') return json(res, 400, { error: v });
+    // ndjson 스트림 — 문장이 완성될 때마다 한 줄. 사용자가 말을 끊으면 프론트가 연결을 닫고, 그 신호로 Ollama 생성도 멈춘다
+    res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-cache', 'access-control-allow-origin': CORS_ORIGIN, 'access-control-allow-headers': 'content-type' });
+    const ctl = new AbortController();
+    req.on('close', () => ctl.abort());
+    const t0 = Date.now();
+    try {
+      const lines = await callTurn(v, MODELS[v.tier], cfg, s => res.write(JSON.stringify({ s }) + '\n'), ctl.signal);
+      res.end(JSON.stringify({ done: true, model: MODELS[v.tier], ms: Date.now() - t0 }) + '\n');
+      console.log(`[call] ${MODELS[v.tier]} ${Date.now() - t0}ms ${v.why} ${JSON.stringify(v.user)} → ${JSON.stringify(lines)}`);
+    } catch (e) {
+      if (!ctl.signal.aborted) console.warn(`[call] failed: ${(e as Error).message}`);
+      try { res.end(JSON.stringify({ error: (e as Error).message }) + '\n'); } catch { /* 닫힘 */ }
+    }
+    return;
   }
   if (req.method === 'POST' && url.pathname === '/api/plan/options') {
     let parsed: unknown;

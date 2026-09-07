@@ -171,3 +171,56 @@ Ollama Web Search 3회 → 로컬 모델이 JSON으로 추출 → Nominatim 지�
 *   `title`은 24자, `reason`은 30자 안. 범주에 안 맞는 장소 유형(식사에 헬스장)은 서버가 뺀다.
 
 오류: `400` 계약 위반, `502` Ollama 오류·제한 시간(블록 하나 20초, 하루 120초). 프론트는 규칙 카드를 쓴다.
+
+## POST /api/call/turn
+
+말로 하는 통화의 한 턴 (ADR-0011). 사용자가 방금 한 말(또는 통화가 막 붙은 첫 턴)에 에이전트가 뭐라고
+하는지를 **문장이 완성될 때마다** 흘려보낸다 — 프론트가 그 문장을 음성 서비스(`voice/`)에 넣어 목소리로 낸다.
+언제 걸리고 받을 수 있는지, 부재중이면 내용이 사라지는 것은 그대로 프론트 규칙(`sim/call.ts`).
+
+요청
+
+```json
+{ "tier": "small" | "good",
+  "agent": { "name": "모모", "traits": ["느긋한"], "likes": ["카페"], "dislikes": [] },
+  "situation": { "where": "연남동 카페", "doing": "커피 마시는 중", "hhmm": "16:25", "mood": 70, "fatigue": 20 },
+  "why": "worry" | "ask" | "friction" | "out",
+  "worry": null | "work" | …,
+  "transcript": [ { "from": "agent", "text": "여보세요, 나야." }, { "from": "me", "text": "어 왔어?" } ],
+  "user": "아 그냥 팀 사람들이 좀 그래" | null }
+```
+
+*   `why`: worry(약속한 전화) · ask(걸어 달래서) · friction(어긋남 통보) · out(사용자가 걸었다).
+*   `transcript`는 지금까지 오간 말, 마지막 20줄. `user`가 null이면 첫 턴 — 에이전트가 먼저 말한다.
+
+응답 (200, `application/x-ndjson`) — 한 줄에 문장 하나, 끝에 `done`
+
+```
+{"s":"어… 그랬구나."}
+{"s":"많이 힘들었겠다."}
+{"done":true,"model":"qwen3.5:9b","ms":1420}
+```
+
+*   문장은 60자 안, 이름표·따옴표·이모지·지문을 걷어 낸 것. 한 턴은 한두 문장이다.
+*   **끼어들기**: 사용자가 말을 시작하면 프론트가 요청을 닫는다. 서버는 그 신호로 Ollama 생성을 멈춘다.
+
+오류: `400` 계약 위반, 스트림 중 오류는 `{"error": …}` 한 줄로 끝난다. 프론트는 통화를 이어 간다.
+
+## 음성 서비스 (`voice/`, WebSocket)
+
+백엔드가 아니라 별도 선택 서비스다(파이썬·MLX). 귀(STT)·목소리(TTS)·말 감지(VAD)만 하고 말은 짓지 않는다.
+기본 주소 `ws://localhost:8790`, 프론트 개발 서버는 `/voice`를 여기로 프록시한다(`/voice/health`로 있는지 본다).
+
+| 방향 | 프레임 | 뜻 |
+|---|---|---|
+| 브라우저 → | binary | 마이크 PCM 16kHz · mono · int16, 통화 중 계속 |
+| 브라우저 → | `{"type":"say","turn":n,"seq":i,"text":"…"}` | 이 문장을 목소리로 |
+| 브라우저 → | `{"type":"cancel"}` | 말하던 것·줄 선 것 전부 버려라 (끼어들었다) |
+| 브라우저 → | `{"type":"stop"}` | 세션 끝 |
+| → 브라우저 | `{"type":"ready","tts":…,"voice":…,"stt":…}` | 붙었다 |
+| → 브라우저 | `{"type":"speech_start"}` / `{"type":"speech_end"}` | 사람 목소리가 들리기 시작했다 / 끝났다 |
+| → 브라우저 | `{"type":"transcript","text":"…","ms":…}` | 한 발화가 글로 |
+| → 브라우저 | `{"type":"audio","turn":n,"seq":i,"sr":24000,"last":false}` + binary | 목소리 조각 (int16 PCM). `last:true`는 그 문장의 끝 표시(binary 없음) |
+
+*   `speech_start`가 오면 브라우저는 재생을 즉시 멈추고 `/api/call/turn` 요청을 닫는다 (barge-in).
+*   `cancel` 뒤에 도착하는 옛 turn의 조각은 서비스가 버린다.

@@ -187,3 +187,22 @@ export interface PlanResponse {
   model: string;
   ms: number;
 }
+
+// ─── 통화 (ADR-0011) ──────────────────────────────────────────────────────────
+
+/** 통화 한 턴 — 사용자가 방금 한 말(또는 통화가 막 붙은 첫 턴)에 에이전트가 뭐라고 하는가. */
+export interface CallTurnRequest {
+  tier: Tier;
+  agent: { name: string; traits: string[]; likes: string[]; dislikes: string[] };
+  situation: { where: string; doing: string; hhmm: string; mood: number; fatigue: number };
+  /** 왜 붙은 통화인가 — worry(약속한 전화) · ask(걸어 달래서) · friction(어긋남 통보) · out(사용자가 걸었다) */
+  why: 'worry' | 'ask' | 'friction' | 'out';
+  worry: WorryKey | null;
+  /** 지금까지 오간 말 (오래된 것부터, 최대 20줄) */
+  transcript: { from: 'me' | 'agent'; text: string }[];
+  /** 방금 들은 말. null이면 첫 턴 — 에이전트가 먼저 말한다 */
+  user: string | null;
+}
+
+/** 응답은 ndjson 스트림이다: 문장마다 `{ "s": "…" }`, 끝에 `{ "done": true, "model": …, "ms": … }`. */
+export interface CallTurnDone { done: true; model: string; ms: number }

@@ -1241,7 +1241,7 @@ export const useWorld = create<WorldState>((set, get) => {
       const t = simNow(c);
       const anchor = freshAnchor(t, s.memory);
       lastTick = t;
-      set({ clock: c, anchor, days: {}, regen: {}, today: dayKeyIn(t, anchor.tz), tz: anchor.tz, plans: emptyPlans(), timeline: [], summary: null, gap: null, requests: [], calls: [], activeCall: null, selectedBlock: null, messages: [], dueCalls: [], chatOpen: false, say: null, shots: [], sketchOpen: null, cameraOpen: false });
+      set({ clock: c, anchor, days: {}, regen: {}, llmPlans: {}, today: dayKeyIn(t, anchor.tz), tz: anchor.tz, plans: emptyPlans(), timeline: [], summary: null, gap: null, requests: [], calls: [], activeCall: null, selectedBlock: null, messages: [], dueCalls: [], chatOpen: false, say: null, shots: [], sketchOpen: null, cameraOpen: false });
       recompute(t);
     },
   };

@@ -161,12 +161,13 @@ export function parsePlan(raw: string, req: PlanRequest): PlanBlock[] {
  * @param model 쓸 모델 태그
  * @param cfg Ollama 설정
  * @param timeoutMs 제한 시간 (블록 하나면 짧게, 하루면 길게 — 호출자가 정한다)
+ * @param signal 프론트가 요청을 닫으면(통화가 시작돼 모델을 양보) 생성을 멈춘다
  * @throws Ollama 오류·제한 시간 (호출자가 502로 — 프론트는 규칙 카드를 쓴다)
  */
-export async function planBlocks(req: PlanRequest, model: string, cfg: OllamaConfig, timeoutMs: number): Promise<PlanResponse> {
+export async function planBlocks(req: PlanRequest, model: string, cfg: OllamaConfig, timeoutMs: number, signal?: AbortSignal): Promise<PlanResponse> {
   const t0 = Date.now();
   const { system, user } = buildPlanPrompt(req);
   const blockIds = req.blocks.map(b => b.id).filter(id => PLAN_BLOCKS.includes(id));
-  const raw = await chatJson(cfg, model, system, user, planSchema(req.places.map(p => p.id), blockIds), undefined, { temperature: 0.7, numPredict: 120 + 260 * blockIds.length, timeoutMs });
+  const raw = await chatJson(cfg, model, system, user, planSchema(req.places.map(p => p.id), blockIds), undefined, { temperature: 0.7, numPredict: 120 + 260 * blockIds.length, timeoutMs, signal });
   return { blocks: parsePlan(raw, req), model, ms: Date.now() - t0 };
 }

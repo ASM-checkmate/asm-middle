@@ -144,6 +144,11 @@ export async function fetchSketchRead(req: SketchReadRequest, timeoutMs = 40_000
   }
 }
 
+/** 모델을 미리 올려 둔다 (ADR-0011). 벨이 울릴 때·대화 실을 열 때 — 첫마디가 모델 로드를 기다리지 않게. 실패는 조용히. */
+export function warmModel(tier: Exclude<LlmTier, 'off'>) {
+  void fetch('/api/warm', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tier }), signal: AbortSignal.timeout(60_000) }).catch(() => {});
+}
+
 // ─── 여행지 찾기 (ADR-0009) ───────────────────────────────────────────────────
 // "교토 가자"라고 하면 백엔드가 웹에서 그 도시의 장소를 찾아 "도시 팩"으로 돌려준다. 프론트는 그것을
 // places.ts에 등록할 뿐이고, 여행 카드·이동·도착지의 하루는 규칙 엔진이 그대로 만든다.

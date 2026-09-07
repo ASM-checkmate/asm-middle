@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useWorld } from '../sim/store';
 import { BLOCKS, hhmmIn } from '../sim/blocks';
 import { DAY_MS, HOUR_MS, ownerTz } from '../sim/tz';
-import { cityNameKo, cityOfTz } from '../sim/places';
+import { cityNameKo, cityOfTz, dynamicCities, forgetDynamicCities } from '../sim/places';
 import type { LlmTier } from '../sim/llm';
 
 const SCALES = [1, 10, 60, 600];
@@ -48,7 +48,13 @@ export function DevPanel() {
   const resetDay = useWorld(s => s.resetDay);
   const llmTier = useWorld(s => s.llmTier);
   const setLlmTier = useWorld(s => s.setLlmTier);
+  const tripBusy = useWorld(s => s.tripBusy);
+  const wish = useWorld(s => s.memory.wish);
+  const planTrip = useWorld(s => s.planTrip);
   const [open, setOpen] = useState(false);
+  const [tripCity, setTripCity] = useState('');
+  // 등록된 도시는 스토어 밖(places.ts)에 있어 구독이 안 된다 — tripBusy·wish가 바뀔 때 같이 다시 그려진다
+  const cities = dynamicCities();
 
   return (
     <div className={`dev ${open ? 'is-open' : ''} ${scale !== 1 ? 'is-fast' : ''}`}>
@@ -90,6 +96,13 @@ export function DevPanel() {
           <div className="dev-row">
             <span className="dev-k">llm</span>
             {LLM_TIERS.map(t => <button key={t} type="button" className={`dev-b ${t === llmTier ? 'is-on' : ''}`} onClick={() => setLlmTier(t)}>{t}</button>)}
+          </div>
+          <div className="dev-row">
+            <span className="dev-k">trip</span>
+            <input className="dev-status" style={{ width: 72, color: 'var(--ink)' }} value={tripCity} placeholder="교토" onChange={e => setTripCity(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && tripCity.trim()) { void planTrip(tripCity, `dev:${Date.now()}`); setTripCity(''); } }} />
+            <button type="button" className="dev-b" disabled={!!tripBusy || llmTier === 'off'} onClick={() => { if (tripCity.trim()) { void planTrip(tripCity, `dev:${Date.now()}`); setTripCity(''); } }}>{tripBusy ? `${tripBusy} 찾는 중…` : '찾기'}</button>
+            <span className="dev-status">{cities.map(c => c.key).join(' ') || '—'}{wish ? ` · wish=${wish.city}` : ''}</span>
+            {cities.length > 0 && <button type="button" className="dev-b dev-b--warn" onClick={() => { if (confirm('찾아 온 도시를 전부 잊고 오늘을 초기화할까요?')) { forgetDynamicCities(); resetDay(); } }}>forget</button>}
           </div>
           <div className="dev-row">
             <span className="dev-k">day</span>

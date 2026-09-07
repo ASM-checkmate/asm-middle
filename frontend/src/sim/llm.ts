@@ -1,4 +1,4 @@
-import type { ActivityOption, Category, Memory, Phase, WorryKey } from './types';
+import type { ActivityOption, Category, CityInfo, Memory, Phase, Place, WorryKey } from './types';
 import { placeById } from './places';
 import type { Status } from './status';
 import { pickupRule } from './call';
@@ -26,7 +26,15 @@ export interface ReplyRequest {
   recent: { from: 'me' | 'agent'; text: string }[];
   texts: string[];
 }
-export interface ReplyResponse { text: string | null; worry: Exclude<WorryKey, 'none'> | null; callMe: boolean; model: string; ms: number }
+export interface ReplyResponse {
+  text: string | null;
+  worry: Exclude<WorryKey, 'none'> | null;
+  callMe: boolean;
+  /** 사용자가 가자고 한 여행지 (한국어 도시 이름). 여행 얘기가 아니면 null (ADR-0009) */
+  trip: string | null;
+  model: string;
+  ms: number;
+}
 
 /** 며칠 안의 고민만 넘긴다 (메모리의 worry가 이보다 오래됐으면 잊은 걸로). */
 const WORRY_FRESH_MS = 3 * 24 * 3600_000;
@@ -69,7 +77,8 @@ export async function fetchReply(req: ReplyRequest, timeoutMs = 30_000, signal?:
     const res = await fetch('/api/chat/reply', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req), signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs) });
     if (!res.ok) return null;
     const j = (await res.json()) as ReplyResponse;
-    return typeof j.callMe === 'boolean' && (j.text === null || typeof j.text === 'string') ? j : null;
+    if (typeof j.callMe !== 'boolean' || !(j.text === null || typeof j.text === 'string')) return null;
+    return { ...j, trip: typeof j.trip === 'string' && j.trip.trim() ? j.trip.trim() : null };
   } catch {
     return null;
   }
@@ -130,6 +139,40 @@ export async function fetchSketchRead(req: SketchReadRequest, timeoutMs = 40_000
     if (!res.ok) return null;
     const j = (await res.json()) as SketchReadResponse;
     return (j.optionId === null || typeof j.optionId === 'string') && typeof j.seen === 'string' && (j.category === null || typeof j.category === 'string') ? j : null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── 여행지 찾기 (ADR-0009) ───────────────────────────────────────────────────
+// "교토 가자"라고 하면 백엔드가 웹에서 그 도시의 장소를 찾아 "도시 팩"으로 돌려준다. 프론트는 그것을
+// places.ts에 등록할 뿐이고, 여행 카드·이동·도착지의 하루는 규칙 엔진이 그대로 만든다.
+
+/** 백엔드 계약 (docs/CONTRACT.md의 TripPlanRequest/Response). */
+export interface TripPlanRequest { tier: Exclude<LlmTier, 'off'>; city: string }
+export interface TripPlanResponse {
+  city: CityInfo;
+  places: Place[];
+  /** 근거가 된 검색 결과 URL들 */
+  sources: string[];
+  cached: boolean;
+  model: string;
+  ms: number;
+}
+
+/**
+ * 백엔드에 도시 팩을 부탁한다. 검색·모델·지오코딩을 거치므로 1~2분 걸린다 (캐시되면 즉시).
+ * 실패(서버 없음·키 없음·얇은 팩·제한 시간)는 **null** — 호출자는 "잘 안 됐어" 한 줄을 남긴다.
+ *
+ * @param req 요청
+ * @param timeoutMs 이보다 늦으면 포기한다
+ */
+export async function fetchTripPlan(req: TripPlanRequest, timeoutMs = 120_000): Promise<TripPlanResponse | null> {
+  try {
+    const res = await fetch('/api/trip/plan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req), signal: AbortSignal.timeout(timeoutMs) });
+    if (!res.ok) return null;
+    const j = (await res.json()) as TripPlanResponse;
+    return j && j.city && typeof j.city.key === 'string' && Array.isArray(j.places) ? j : null;
   } catch {
     return null;
   }

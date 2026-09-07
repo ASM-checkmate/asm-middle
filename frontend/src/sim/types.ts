@@ -17,6 +17,12 @@ export type PlaceType =
   | 'home' | 'friend_home' | 'cafe' | 'restaurant' | 'park' | 'gym' | 'school' | 'library' | 'cinema'
   | 'mall' | 'river' | 'beach' | 'museum' | 'arcade' | 'bar' | 'office' | 'station' | 'airport' | 'port'
   | 'temple' | 'market' | 'hotel' | 'stadium' | 'mountain' | 'island';
+/** 모든 장소 유형 — 밖에서 들어온 장소(동적 도시 팩, ADR-0009)를 검증할 때 쓴다. */
+export const PLACE_TYPES: readonly PlaceType[] = [
+  'home', 'friend_home', 'cafe', 'restaurant', 'park', 'gym', 'school', 'library', 'cinema',
+  'mall', 'river', 'beach', 'museum', 'arcade', 'bar', 'office', 'station', 'airport', 'port',
+  'temple', 'market', 'hotel', 'stadium', 'mountain', 'island',
+];
 
 export interface LngLat { lng: number; lat: number }
 
@@ -39,6 +45,24 @@ export interface Place {
 /** A city's transport hubs used to build multi-leg journeys. */
 export interface CityHubs { station?: string; airport?: string; port?: string }
 
+/**
+ * 도시 하나의 정보 — 웹에서 찾아 온 도시(ADR-0009)가 places.ts의 레지스트리에 들어갈 때의 모양.
+ * 붙박이 13개 도시는 places.ts의 상수에 같은 내용이 흩어져 있다.
+ */
+export interface CityInfo {
+  /** 도시 키 ("kyoto") — Place.city와 같다 */
+  key: string;
+  nameKo: string;
+  nameEn?: string;
+  /** ISO 3166-1 alpha-2 */
+  country: string;
+  /** IANA 시간대 */
+  tz: string;
+  /** 여행 옵션의 기본 체류 박수 (0 = 당일치기) */
+  stayNights: number;
+  hubs: CityHubs & { intlAirport?: string; hasSubway?: boolean };
+}
+
 /** A friend in the character's memory. Every friend is also an `Agent` (src/sim/agents.ts) living its own day. */
 export interface Friend {
   id: string; name: string; homePlaceId: string; color: string; emoji: string;
@@ -60,6 +84,8 @@ export interface Memory {
   visited: { placeId: string; at: number }[];
   /** 에이전트가 물어서 들은 고민. 다음 블록의 범주를 이쪽으로 튼다. */
   worry?: { key: WorryKey; at: number };
+  /** 대화에서 가자고 한 여행지 (도시 키). 다음 여행 카드의 첫 장이 된다 (ADR-0009). */
+  wish?: { city: string; at: number };
 }
 
 // ─── days & zones (TIMEZONE_SPEC) ───────────────────────────────────────────

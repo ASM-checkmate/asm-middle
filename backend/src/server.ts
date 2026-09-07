@@ -1,8 +1,10 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { WORRY_KEYS, type ModelsResponse, type ReplyRequest, type SketchReadRequest, type Tier } from './contract.ts';
+import { WORRY_KEYS, type ModelsResponse, type ReplyRequest, type SketchReadRequest, type Tier, type TripPlanRequest } from './contract.ts';
 import { configFromEnv, installedModels } from './ollama.ts';
 import { replyFor } from './reply.ts';
 import { readSketch } from './sketch.ts';
+import { ThinPlanError, planTrip } from './trip.ts';
+import { NoApiKeyError } from './search.ts';
 
 // ─── theworld 백엔드 (docs/adr/0006-backend-and-llm.md) ──────────────────────
 // 지금은 LLM 관문 하나다. 시뮬레이션은 아직 프론트에 있고, 여기는 "말을 짓는" 일만 받는다.
@@ -14,10 +16,14 @@ const MODELS: Record<Tier, string> = {
   good: process.env.MODEL_GOOD ?? 'qwen3.8:27b',
 };
 const cfg = configFromEnv();
+/** 여행지 추출 (ADR-0009). 모델은 요청의 tier를 따르되 TRIP_MODEL이 있으면 그것으로 고정한다. */
+const tripConfig = (tier: Tier) => ({ model: process.env.TRIP_MODEL || MODELS[tier], modelTimeoutMs: Number(process.env.TRIP_MODEL_TIMEOUT_MS ?? 90_000) });
+/** 허용 origin. 기본 `*`는 편의용 — 검색 키를 서버가 쓰므로 아무 탭이나 한도를 쓸 수 있다. 개발 서버 주소로 좁히는 걸 권한다. */
+const CORS_ORIGIN = process.env.CORS_ORIGIN ?? '*';
 const MAX_BODY = 512 * 1024;   // 240px PNG dataURL이 실린다
 
 const json = (res: ServerResponse, status: number, body: unknown) => {
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type' });
+  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': CORS_ORIGIN, 'access-control-allow-headers': 'content-type' });
   res.end(JSON.stringify(body));
 };
 
@@ -73,6 +79,16 @@ function validateSketch(b: unknown): SketchReadRequest | string {
   };
 }
 
+/** 여행지 요청이 계약대로인지. */
+function validateTrip(b: unknown): TripPlanRequest | string {
+  if (!b || typeof b !== 'object') return 'body must be an object';
+  const o = b as Record<string, unknown>;
+  if (o.tier !== 'small' && o.tier !== 'good') return 'tier must be small|good';
+  const city = typeof o.city === 'string' ? o.city.normalize('NFC').trim() : '';
+  if (!city || city.length > 40) return 'city must be 1-40 chars';
+  return { tier: o.tier, city };
+}
+
 async function handle(req: IncomingMessage, res: ServerResponse) {
   const url = new URL(req.url ?? '/', 'http://x');
   if (req.method === 'OPTIONS') return json(res, 204, null);
@@ -92,7 +108,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     if (typeof v === 'string') return json(res, 400, { error: v });
     try {
       const out = await replyFor(v, MODELS[v.tier], cfg);
-      console.log(`[reply] ${out.model} ${out.ms}ms ${JSON.stringify(v.texts)} → ${JSON.stringify(out.text)}${out.worry ? ` worry=${out.worry}` : ''}${out.callMe ? ' callMe' : ''}`);
+      console.log(`[reply] ${out.model} ${out.ms}ms ${JSON.stringify(v.texts)} → ${JSON.stringify(out.text)}${out.worry ? ` worry=${out.worry}` : ''}${out.callMe ? ' callMe' : ''}${out.trip ? ` trip=${out.trip}` : ''}`);
       return json(res, 200, out);
     } catch (e) {
       console.warn(`[reply] failed: ${(e as Error).message}`);
@@ -111,6 +127,22 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     } catch (e) {
       console.warn(`[sketch] failed: ${(e as Error).message}`);
       return json(res, 502, { error: (e as Error).message });
+    }
+  }
+  if (req.method === 'POST' && url.pathname === '/api/trip/plan') {
+    let parsed: unknown;
+    try { parsed = JSON.parse(await readBody(req)); } catch (e) { return json(res, 400, { error: `bad json: ${(e as Error).message}` }); }
+    const v = validateTrip(parsed);
+    if (typeof v === 'string') return json(res, 400, { error: v });
+    try {
+      const out = await planTrip(v, cfg, tripConfig(v.tier));
+      console.log(`[trip] ${v.city} → ${out.city.key} ${out.places.length} places ${out.ms}ms${out.cached ? ' cached' : ` ${out.model}`}`);
+      return json(res, 200, out);
+    } catch (e) {
+      const err = e as Error;
+      console.warn(`[trip] ${v.city} failed: ${err.message}`);
+      const status = err instanceof NoApiKeyError ? 503 : err instanceof ThinPlanError ? 422 : 502;
+      return json(res, status, { error: err.message });
     }
   }
   return json(res, 404, { error: 'not found' });

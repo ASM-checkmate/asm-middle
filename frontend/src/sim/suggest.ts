@@ -1,6 +1,6 @@
 import type { ActivityOption, BlockId, Category, Memory, Place, PlaceType } from './types';
 import type { CompanionCtx } from './agents';
-import { PLACES, placeById, cityNameKo } from './places';
+import { PLACES, placeById, cityNameKo, stayNightsOf } from './places';
 import { rng } from './rng';
 import { haversineKm } from './geo';
 import { nextBlockId } from './blocks';
@@ -326,7 +326,7 @@ function pickPlace(cands: Place[], ctx: SuggestCtx, r: R, softUsed: Set<string>,
 
 /** Trips to another city take the rest of the day from this block (so the journey fits). */
 function spanFor(blockId: BlockId, p: Place, from: Place): BlockId[] {
-  const far = p.country !== 'KR' || p.city === 'jeju' || p.city === 'udo';
+  const far = p.country !== 'KR' || p.city === 'jeju' || p.city === 'udo' || p.reachBy === 'plane';
   const veryFar = haversineKm(from, p) > 3000;
   const span: BlockId[] = [blockId];
   let n = nextBlockId(blockId);
@@ -335,10 +335,27 @@ function spanFor(blockId: BlockId, p: Place, from: Place): BlockId[] {
   return span;
 }
 
+/** 소원이 살아 있는 기간. 그 뒤엔 잊는다. */
+const WISH_FRESH_MS = 7 * 24 * 3600_000;
+/**
+ * 아직 유효한 여행 소원(도시 키). 7일이 지났거나, 말한 뒤 그 도시에 가 봤거나, 지금 그 도시에 있거나,
+ * 그 도시의 장소가 없으면 null.
+ */
+function freshWish(m: Memory, fromCity: string, dateKey: string): string | null {
+  const w = m.wish;
+  if (!w || w.city === fromCity) return null;
+  // 제안 엔진은 "지금"을 모른다 — 날짜 키(YYYY-MM-DD)로 셈한다. 하루쯤의 오차는 7일 창이 삼킨다.
+  const day = Date.parse(`${dateKey}T00:00:00Z`);
+  if (Number.isFinite(day) && day - w.at > WISH_FRESH_MS) return null;
+  if (m.visited.some(v => v.at > w.at && placeCity(v.placeId) === w.city)) return null;
+  return PLACES.some(p => p.city === w.city) ? w.city : null;
+}
+const placeCity = (id: string): string | null => { try { return placeById(id).city; } catch { return null; } };
+
 type TripKind = 'train' | 'boat' | 'plane-near' | 'plane-far';
 const tripKind = (from: Place, p: Place): TripKind => {
   if (p.reachBy === 'boat') return 'boat';
-  if (p.country === from.country && p.city !== 'jeju' && p.city !== 'udo') return 'train';
+  if (p.country === from.country && p.city !== 'jeju' && p.city !== 'udo' && p.reachBy !== 'plane') return 'train';
   return haversineKm(from, p) > 3000 ? 'plane-far' : 'plane-near';
 };
 /** "우도 우도 서빈백사" → "우도 서빈백사": drop the city when the place name already starts with it. */
@@ -356,12 +373,8 @@ const TRIP_REASONS: Record<TripKind, string[]> = {
   'plane-far': ['한 번은 꼭 가보고 싶었던 곳', '{friend}랑 전부터 얘기하던 곳', '{trait} 성격이라 큰 결심 한 번', '멀리 갈수록 이야기가 많아짐'],
 };
 const TRIP_EMOJI: Record<TripKind, string> = { train: '🚄', boat: '⛴️', 'plane-near': '✈️', 'plane-far': '🛫' };
-/** Nights a trip keeps the character there before the agent books the way home (FRIENDS_SPEC §5). 당일치기 = 0. */
-const STAY_NIGHTS: Record<string, number> = {
-  busan: 1, gangneung: 1, gyeongju: 1, jeonju: 1, yeosu: 1, jeju: 2, udo: 2,
-  fukuoka: 2, tokyo: 2, osaka: 2, taipei: 2, newyork: 3,
-};
-export const stayDaysFor = (p: Place, title = '') => title.includes('당일치기') ? 0 : STAY_NIGHTS[p.city] ?? (p.country !== 'KR' ? 2 : 1);
+/** Nights for a trip to `p` (places.ts CITY_STAY — 찾아 온 도시도 거기 적힌다). 제목이 당일치기면 0. */
+export const stayDaysFor = (p: Place, title = '') => title.includes('당일치기') ? 0 : stayNightsOf(p.city, p.country);
 /** 체류 칩: 국내는 당일치기·1박·2박, 해외는 1·2·3·5박 (FRIENDS_SPEC §5). */
 export const STAY_CHOICES = (o: ActivityOption): number[] => {
   let domestic = true;
@@ -393,11 +406,7 @@ function travelOptions(ctx: SuggestCtx, r: R, softUsed: Set<string>): ActivityOp
   const usedCity = new Set<string>();
   // TIMEZONE_SPEC: away from home the first travel option is always the way back (spans the rest of the day like a trip).
   if (away) out.push({ id: `${ctx.blockId}-0-${home.id}`, title: '집으로 돌아가기', reason: '슬슬 집이 그리움', emoji: pickEmoji(['🏠'], usedEmoji), placeId: home.id, category: 'travel', spanBlocks: spanFor(ctx.blockId, home, ctx.from), forecast: '해 지기 전엔 도착할 듯' });
-  for (const kind of kinds) {
-    const pool = buckets[kind].filter(p => !softUsed.has(p.id) && !usedCity.has(p.city));
-    const fresh = pool.filter(p => !visitedRecently(ctx.memory, p.id));
-    const p = r.pick(fresh.length ? fresh : pool.length ? pool : buckets[kind]);
-    if (!p) continue;
+  const trip = (p: Place, kind: TripKind) => {
     usedCity.add(p.city);
     const friend = ctx.memory.friends.length && r.next() < 0.35 ? r.pick(ctx.memory.friends) : undefined;
     const city = cityNameKo(p.city);
@@ -415,6 +424,22 @@ function travelOptions(ctx: SuggestCtx, r: R, softUsed: Set<string>): ActivityOp
       stayDays,
       friendId: friend?.id,
     });
+  };
+  // 대화에서 가자고 한 도시가 있으면 그 카드가 먼저다 (ADR-0009). 소원이 없으면 난수를 안 쓰므로 하루가 그대로다.
+  const wish = freshWish(ctx.memory, ctx.from.city, ctx.dateKey);
+  if (wish) {
+    const pool = dests.filter(p => p.city === wish && p.type !== 'hotel');
+    const p = r.pick(pool.filter(p => !softUsed.has(p.id)).length ? pool.filter(p => !softUsed.has(p.id)) : pool);
+    if (p) { const kind = tripKind(ctx.from, p); if (allowed.includes(kind)) trip(p, kind); }
+    // 카드는 넷까지 — 소원 카드가 자리를 차지하면 배가 비켜 준다 (집 밖에서와 같은 규칙).
+    if (out.length && kinds.length > 3) kinds = kinds.filter(k => k !== 'boat');
+  }
+  for (const kind of kinds) {
+    const pool = buckets[kind].filter(p => !softUsed.has(p.id) && !usedCity.has(p.city));
+    const fresh = pool.filter(p => !visitedRecently(ctx.memory, p.id));
+    const p = r.pick(fresh.length ? fresh : pool.length ? pool : buckets[kind]);
+    if (!p) continue;
+    trip(p, kind);
   }
   // A closer excursion (mountain/temple) rounds it out — the night block, which only has the train, lives on these.
   if (out.length < 3) {

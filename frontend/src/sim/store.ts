@@ -5,7 +5,7 @@ import type { WorryKey } from './types';
 import { BLOCK_ORDER, CATEGORIES, blockEndAt, blockSlotIn, blockStartAt } from './blocks';
 import { DAY_MS, HOUR_MS, compareDayKeys, dayEndOfKey, dayKeyIn, dayStartIn, dayStartOfKey, isValidTz, ownerTz } from './tz';
 import { loadClock, saveClock, simNow, withScale, jumpedTo, resetClock, type ClockState } from './clock';
-import { PLACES, placeById, tzOf } from './places';
+import { PLACES, cityKeyOfName, cityNameKo, placeById, registerCity, tzOf } from './places';
 import { suggestOptions, withStayDays } from './suggest';
 import { AGENTS, agentActivityAt, agentById, agentOfFriend, companionCtx, friendOf, type Agent } from './agents';
 import { makeComic } from './comic';
@@ -18,8 +18,8 @@ import { PUSH_COST, cheapestFirst, fallbackOption, review, type ReviewCtx } from
 import { WORRY_CHOICES, expire, nextRequest, trimRequests, type AgentRequest } from './requests';
 import { callLines, lateText, pickupRule, trimCalls, trimDueCalls, worryLines, type CallEvent, type DueCall } from './call';
 import { narrate } from './narrate';
-import { MAX_LEN, WORRY_CALL_MS, ASK_CALL_MS, openBatch, reactToWorry, replyToAll, trimMessages, type ChatMsg } from './chat';
-import { fetchSketchRead, getTier, requestOf, scheduleReply, setTier, sketchRequestOf, type LlmTier, type ReplyResponse, type SketchReadResponse } from './llm';
+import { MAX_LEN, WORRY_CALL_MS, ASK_CALL_MS, openBatch, reactToWorry, replyToAll, tripFollowUp, trimMessages, type ChatMsg } from './chat';
+import { fetchSketchRead, fetchTripPlan, getTier, requestOf, scheduleReply, setTier, sketchRequestOf, type LlmTier, type ReplyResponse, type SketchReadResponse } from './llm';
 
 /** Seed memory: the first launch starts from 모모; onboarding (`updateMemory`) overwrites name/likes/traits. */
 export const DEFAULT_MEMORY: Memory = {
@@ -97,6 +97,7 @@ const loadMemory = (): Memory => {
       : DEFAULT_MEMORY.friends,
     visited: Array.isArray(m.visited) ? m.visited.filter(v => v && typeof v.placeId === 'string' && Number.isFinite(v.at)).slice(-VISITED_CAP) : [],
     worry: m.worry && isWorryKey(m.worry.key) && Number.isFinite(m.worry.at) ? m.worry : undefined,
+    wish: m.wish && typeof m.wish.city === 'string' && Number.isFinite(m.wish.at) ? m.wish : undefined,
   };
 };
 
@@ -462,6 +463,8 @@ export interface WorldState {
   chatOpen: boolean;
   /** LLM 단계 (sim/llm.ts). off면 규칙 기반 답장만. */
   llmTier: LlmTier;
+  /** 지금 웹에서 찾고 있는 여행지 (ADR-0009). 없으면 null. 한 번에 하나만. */
+  tripBusy: string | null;
   /** 대화 실을 마지막으로 본 시각 — 안 읽은 줄 배지가 이걸 쓴다 */
   chatSeen: number;
   /** 혼잣말 한 줄 (ADR-0001 §1의 1단계). 대가 없이 지나가고, 잠깐 떴다 사라진다. */
@@ -513,6 +516,14 @@ export interface WorldState {
    * 화면에 떴으면 버린다 — 본 적 없는 답장만 바꾼다 (ADR-0006).
    */
   applyLlmReply: (batch: string, seq: number, r: ReplyResponse) => void;
+  /**
+   * "교토 가자"에 답한다 (ADR-0009). 아는 도시면 소원만 적고, 모르는 도시면 백엔드에 웹에서 찾아 달라고 해서
+   * 도시 팩을 등록한다. 어느 쪽이든 끝나면 에이전트가 한 줄 덧붙인다. tier가 off거나 이미 찾는 중이면 아무것도 안 한다.
+   *
+   * @param city 도시 이름 (한국어)
+   * @param batch 그 말이 속한 묶음 id — 후속 줄 id(`${batch}:trip`)와 시드에 쓴다
+   */
+  planTrip: (city: string, batch: string) => Promise<void>;
   /** 혼잣말을 지운다 (뜬 지 몇 초 뒤 화면이 부른다). */
   dismissSay: () => void;
 
@@ -772,7 +783,7 @@ export const useWorld = create<WorldState>((set, get) => {
 
   const st: WorldState = {
     clock, now, anchor: w.anchor, days: w.days, today, tz: initialPhase.tz, memory, agents: AGENTS, encounters, status: initialStatus, requests: w.requests, calls: w.calls, activeCall: null, onboarded,
-    messages: w.messages, dueCalls: w.dueCalls, chatOpen: false, chatSeen: load<number>(CHAT_SEEN_KEY, now), llmTier: getTier(), say: null,
+    messages: w.messages, dueCalls: w.dueCalls, chatOpen: false, chatSeen: load<number>(CHAT_SEEN_KEY, now), llmTier: getTier(), tripBusy: null, say: null,
     shots: w.shots, sketchOpen: null, cameraOpen: false,
     plans: w.days[today], journeys: w.journeys, regen: w.regen, book,
     timeline: first.timeline,
@@ -1004,7 +1015,10 @@ export const useWorld = create<WorldState>((set, get) => {
       const now = simNow(s.clock);
       const mine = s.messages.filter(m => m.batch === batch && m.from === 'me');
       const old = s.messages.find(m => m.id === `${batch}:r`);
-      if (mine.length !== seq || !old || old.at <= now) return;   // 묶음이 바뀌었거나 이미 뜬 답장 — 손대지 않는다
+      if (mine.length !== seq) return;   // 묶음에 말이 더 붙었다 — 이 답은 낡았다
+      // 여행 가자는 말은 답장이 이미 떴어도 유효하다 — 찾는 일은 답장과 별개로 시작한다 (ADR-0009)
+      if (r.trip) void get().planTrip(r.trip, batch);
+      if (!old || old.at <= now) return;   // 이미 뜬 답장 — 손대지 않는다
       const promised = s.dueCalls.some(d => d.id === `worry:${batch}` || d.id === `ask:${batch}`);
       let messages = s.messages;
       if (r.text === null) {
@@ -1028,6 +1042,39 @@ export const useWorld = create<WorldState>((set, get) => {
       set({ messages, dueCalls: trimDueCalls(dueCalls, s.anchor.t), memory });
       persist();
       if (r.worry && !promised) recompute(now);
+    },
+    planTrip: async (cityName, batch) => {
+      const s0 = get();
+      const city = cityName.normalize('NFC').trim();
+      if (!city) return;
+      // 후속 줄: 답장 뒤에, 답장과 같은 리듬으로. 찾는 데 걸린 실제 시간은 sim 시각에 이미 흘러 있다.
+      const follow = (kind: 'found' | 'failed' | 'known', nameKo: string, names: string[] = []) => {
+        const s = get();
+        const now = simNow(s.clock);
+        const reply = s.messages.find(m => m.id === `${batch}:r`);
+        const { text, delayMs } = tripFollowUp(kind, { phase: s.phase, status: s.status, name: s.memory.name, seed: `${batch}:${city}`, now }, nameKo, names);
+        const msg: ChatMsg = { id: `${batch}:trip`, at: Math.max(now, reply?.at ?? 0) + delayMs, from: 'agent', text };
+        set({ messages: trimMessages([...s.messages.filter(m => m.id !== msg.id), msg], s.anchor.t) });
+      };
+      const wish = (key: string) => {
+        const memory: Memory = { ...get().memory, wish: { city: key, at: simNow(get().clock) } };
+        set({ memory }); save(MEMORY_KEY, memory);
+      };
+      const known = cityKeyOfName(city);
+      if (known) {
+        if (known !== placeById(s0.memory.homePlaceId).city) { wish(known); follow('known', cityNameKo(known)); persist(); recompute(simNow(get().clock)); }
+        return;
+      }
+      if (s0.llmTier === 'off' || s0.tripBusy) return;
+      set({ tripBusy: city });
+      const r = await fetchTripPlan({ tier: s0.llmTier, city });
+      set({ tripBusy: null });
+      if (!r || !registerCity(r.city, r.places)) { follow('failed', city); persist(); return; }
+      wish(r.city.key);
+      const names = rng(`trip-names:${batch}:${r.city.key}`).shuffle(r.places.filter(p => !['hotel', 'airport', 'station', 'port'].includes(p.type)).map(p => p.name)).slice(0, 2);
+      follow('found', r.city.nameKo, names);
+      persist();
+      recompute(simNow(get().clock));
     },
     setChatOpen: (open) => {
       const s = get();

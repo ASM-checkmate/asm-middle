@@ -3,6 +3,8 @@
 // JSON 스키마를 `format`으로 넘겨 모델이 형식을 지키게 한다.
 
 export interface OllamaConfig { url: string; timeoutMs: number }
+/** 한 호출의 생성 옵션. 없는 것은 답장용 기본값. */
+export interface ChatOpts { temperature?: number; numPredict?: number; timeoutMs?: number }
 
 export const configFromEnv = (): OllamaConfig => ({
   url: (process.env.OLLAMA_URL ?? 'http://localhost:11434').replace(/\/$/, ''),
@@ -18,21 +20,22 @@ export const configFromEnv = (): OllamaConfig => ({
  * @param user 사용자 프롬프트
  * @param schema 응답 JSON 스키마 (Ollama structured output)
  * @param images 사용자 메시지에 붙일 이미지 (base64, 접두 없이). 비전 모델만 받는다
+ * @param opts 생성 옵션. 기본은 답장용(온도 0.9, 160토큰, cfg.timeoutMs) — 긴 구조화 출력은 여기서 늘린다
  * @returns 모델이 낸 JSON 문자열 (파싱은 호출자가)
  * @throws 서버 오류·제한 시간 초과. 모델이 없으면 Ollama의 메시지가 그대로 실린다.
  */
-export async function chatJson(cfg: OllamaConfig, model: string, system: string, user: string, schema: object, images?: string[]): Promise<string> {
+export async function chatJson(cfg: OllamaConfig, model: string, system: string, user: string, schema: object, images?: string[], opts: ChatOpts = {}): Promise<string> {
   const res = await fetch(`${cfg.url}/api/chat`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    signal: AbortSignal.timeout(cfg.timeoutMs),
+    signal: AbortSignal.timeout(opts.timeoutMs ?? cfg.timeoutMs),
     body: JSON.stringify({
       model,
       stream: false,
       think: false,
       format: schema,
       keep_alive: '30m',     // 답장마다 17GB를 다시 올리지 않게
-      options: { temperature: 0.9, num_predict: 160 },
+      options: { temperature: opts.temperature ?? 0.9, num_predict: opts.numPredict ?? 160 },
       messages: [{ role: 'system', content: system }, { role: 'user', content: user, ...(images?.length ? { images } : {}) }],
     }),
   });

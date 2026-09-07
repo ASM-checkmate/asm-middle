@@ -1,4 +1,4 @@
-import type { CityHubs, Place } from './types';
+import { PLACE_TYPES, type CityHubs, type CityInfo, type Place } from './types';
 
 // Real places with real coordinates (≈3-decimal precision). Ids are stable — screens, memory and the
 // book reference them. Seoul is dense around the home in 연남동 so morning/lunch blocks stay walkable;
@@ -240,6 +240,10 @@ export const PLACES: Place[] = [
   P('standard-high-line', '더 스탠다드 하이라인', 'hotel', -74.0080, 40.7409, '미트패킹', 'newyork', 'US', '🏨'),
 ];
 
+// ─── 도시 레지스트리 ──────────────────────────────────────────────────────────
+// 아래 세 표(허브·이름·시간대)는 상수처럼 읽지만 **가변**이다. 웹에서 찾아 온 도시(ADR-0009)가
+// `registerCity`로 들어오면 여기에 같이 적힌다 — 제안·이동·시간대 코드는 도시 키만 보므로 바꿀 것이 없다.
+
 export const CITY_HUBS: Record<string, CityHubs & { intlAirport?: string; hasSubway?: boolean }> = {
   seoul: { station: 'seoul-station', airport: 'gimpo-airport', intlAirport: 'incheon-airport', hasSubway: true },
   busan: { station: 'busan-station', airport: 'gimhae-airport', intlAirport: 'gimhae-airport', port: 'busan-port', hasSubway: true },
@@ -262,6 +266,19 @@ export const CITY_NAME_KO: Record<string, string> = {
   fukuoka: '후쿠오카', tokyo: '도쿄', osaka: '오사카', taipei: '타이베이', newyork: '뉴욕',
 };
 export const cityNameKo = (city: string) => CITY_NAME_KO[city] ?? city;
+/** "교토" → "kyoto". 붙박이든 찾아 온 도시든. 모르면 null. */
+export const cityKeyOfName = (nameKo: string): string | null => {
+  const q = nameKo.normalize('NFC').trim();
+  return Object.keys(CITY_NAME_KO).find(k => CITY_NAME_KO[k] === q || k === q.toLowerCase()) ?? null;
+};
+
+/** Nights a trip keeps the character there before the agent books the way home (FRIENDS_SPEC §5). 당일치기 = 0. */
+export const CITY_STAY: Record<string, number> = {
+  busan: 1, gangneung: 1, gyeongju: 1, jeonju: 1, yeosu: 1, jeju: 2, udo: 2,
+  fukuoka: 2, tokyo: 2, osaka: 2, taipei: 2, newyork: 3,
+};
+/** 그 도시의 기본 체류 박수. 표에 없으면 해외 2박, 국내 1박. */
+export const stayNightsOf = (city: string, country: string): number => CITY_STAY[city] ?? (country !== 'KR' ? 2 : 1);
 
 // ─── time zones (TIMEZONE_SPEC) ─────────────────────────────────────────────
 /** IANA zone per city key — the character lives in the zone of the place it is at. */
@@ -280,4 +297,125 @@ export const placeById = (id: string): Place => {
   if (!p) throw new Error(`unknown place ${id}`);
   return p;
 };
+export const hasPlace = (id: string): boolean => byId.has(id);
 export const registerPlaces = (extra: Place[]) => { for (const p of extra) { if (!byId.has(p.id)) { PLACES.push(p); byId.set(p.id, p); } } };
+
+// ─── 찾아 온 도시 (ADR-0009) ───────────────────────────────────────────────────
+// 백엔드가 웹에서 찾아 만든 "도시 팩"(도시 정보 + 장소들)은 브라우저에 남는다. 하루보다 오래 살아야
+// 새로고침해도 같은 하루가 나온다 — 장소 id가 사라지면 그 도시에서의 활동이 통째로 없어진다.
+// 이 모듈은 `./types`만 import하므로 store.ts가 뜨기 전에 아래 hydrate가 먼저 돈다.
+
+const PLACES_KEY = 'theworld.places.v1';
+interface CityPack { info: CityInfo; places: Place[]; at: number }
+interface PersistedPacks { v: 1; cities: Record<string, CityPack> }
+const BUILTIN_CITIES: ReadonlySet<string> = new Set(Object.keys(CITY_NAME_KO));
+const dynamic = new Map<string, CityPack>();
+
+const isTz = (tz: unknown): tz is string => { if (typeof tz !== 'string' || !tz) return false; try { new Intl.DateTimeFormat('en', { timeZone: tz }); return true; } catch { return false; } };
+const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+/**
+ * 저장본(또는 백엔드 응답)에서 도시 팩들을 검증해 꺼낸다. 순수 함수 — 검사에서 그대로 본다.
+ * 틀린 팩은 통째로 버린다 (장소 하나만 빠져도 허브가 깨질 수 있다).
+ *
+ * @param raw JSON.parse한 값
+ * @returns 도시 키 → 팩. 붙박이 도시 키와 겹치는 팩은 버린다.
+ */
+export function loadDynamic(raw: unknown): Record<string, CityPack> {
+  const out: Record<string, CityPack> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  const cities = (raw as { cities?: unknown }).cities;
+  if (!cities || typeof cities !== 'object') return out;
+  for (const [key, v] of Object.entries(cities as Record<string, unknown>)) {
+    const pack = validPack(key, v);
+    if (pack) out[key] = pack;
+  }
+  return out;
+}
+
+/** 팩 하나를 검증한다. 틀리면 null. */
+export function validPack(key: string, v: unknown): CityPack | null {
+  if (!v || typeof v !== 'object' || BUILTIN_CITIES.has(key) || !/^[a-z][a-z0-9-]{1,30}$/.test(key)) return null;
+  const { info, places, at } = v as { info?: Partial<CityInfo>; places?: unknown; at?: unknown };
+  if (!info || info.key !== key || typeof info.nameKo !== 'string' || !info.nameKo.trim()) return null;
+  if (typeof info.country !== 'string' || !/^[A-Z]{2}$/.test(info.country) || !isTz(info.tz)) return null;
+  if (!Array.isArray(places) || !places.length) return null;
+  const ok: Place[] = [];
+  for (const p of places as Partial<Place>[]) {
+    if (!p || typeof p.id !== 'string' || !p.id || typeof p.name !== 'string' || !p.name.trim()) return null;
+    if (!(PLACE_TYPES as readonly string[]).includes(p.type as string) || !finite(p.lng) || !finite(p.lat)) return null;
+    if (p.city !== key || typeof p.area !== 'string' || typeof p.country !== 'string') return null;
+    if (p.type === 'home' || p.type === 'friend_home') return null;
+    const place: Place = { id: p.id, name: p.name.trim(), type: p.type as Place['type'], lng: p.lng, lat: p.lat, area: p.area, city: key, country: p.country, emoji: typeof p.emoji === 'string' && p.emoji ? p.emoji : '📍' };
+    if (p.reachBy === 'boat' || p.reachBy === 'plane' || p.reachBy === 'train') place.reachBy = p.reachBy;
+    ok.push(place);
+  }
+  if (new Set(ok.map(p => p.id)).size !== ok.length) return null;
+  const hubs0 = info.hubs && typeof info.hubs === 'object' ? info.hubs : {};
+  const hubs: CityInfo['hubs'] = {};
+  for (const k of ['station', 'airport', 'port', 'intlAirport'] as const) {
+    const id = hubs0[k];
+    if (id === undefined) continue;
+    if (typeof id !== 'string' || !ok.some(p => p.id === id)) return null;
+    hubs[k] = id;
+  }
+  if (hubs0.hasSubway === true) hubs.hasSubway = true;
+  const stayNights = finite(info.stayNights) ? Math.max(0, Math.min(5, Math.round(info.stayNights))) : (info.country !== 'KR' ? 2 : 1);
+  return {
+    info: { key, nameKo: info.nameKo.trim(), ...(typeof info.nameEn === 'string' ? { nameEn: info.nameEn } : {}), country: info.country, tz: info.tz, stayNights, hubs },
+    places: ok,
+    at: finite(at) ? at : 0,
+  };
+}
+
+const saveDynamic = () => {
+  try { localStorage.setItem(PLACES_KEY, JSON.stringify({ v: 1, cities: Object.fromEntries(dynamic) } satisfies PersistedPacks)); } catch { /* ignore */ }
+};
+
+/** 팩 하나를 표들에 적는다 (저장은 호출자가). */
+const apply = (pack: CityPack) => {
+  const { info } = pack;
+  dynamic.set(info.key, pack);
+  registerPlaces(pack.places);
+  CITY_HUBS[info.key] = { ...info.hubs };
+  CITY_NAME_KO[info.key] = info.nameKo;
+  CITY_TZ[info.key] = info.tz;
+  CITY_STAY[info.key] = info.stayNights;
+};
+
+/**
+ * 찾아 온 도시를 등록하고 저장한다. 같은 키가 이미 있으면 새 팩으로 바꾼다 (장소는 추가만 — 옛 id는 남겨
+ * 이미 계획된 활동이 깨지지 않게 한다).
+ *
+ * @param info 도시 정보
+ * @param places 그 도시의 장소들 (허브 포함, `city === info.key`)
+ * @returns 등록됐으면 true. 검증에 걸리면 false — 아무것도 바뀌지 않는다.
+ */
+export function registerCity(info: CityInfo, places: Place[]): boolean {
+  const pack = validPack(info.key, { info, places, at: Date.now() });
+  if (!pack) return false;
+  apply(pack);
+  saveDynamic();
+  return true;
+}
+
+/** 등록된(찾아 온) 도시들. 붙박이는 빼고. */
+export const dynamicCities = (): CityInfo[] => [...dynamic.values()].map(p => p.info);
+
+/** 찾아 온 도시를 전부 잊는다. 장소 표에서도 지우므로 **그 도시를 참조하는 하루는 함께 초기화해야 한다** (resetDay). */
+export function forgetDynamicCities() {
+  for (const [key, pack] of dynamic) {
+    for (const p of pack.places) { byId.delete(p.id); const i = PLACES.indexOf(p); if (i >= 0) PLACES.splice(i, 1); }
+    delete CITY_HUBS[key]; delete CITY_NAME_KO[key]; delete CITY_TZ[key]; delete CITY_STAY[key];
+  }
+  dynamic.clear();
+  try { localStorage.removeItem(PLACES_KEY); } catch { /* ignore */ }
+}
+
+/** 저장된 팩을 표에 올린다. 모듈이 뜰 때 한 번. */
+function hydrateDynamic() {
+  let raw: unknown = null;
+  try { const s = localStorage.getItem(PLACES_KEY); raw = s ? JSON.parse(s) : null; } catch { return; }
+  for (const pack of Object.values(loadDynamic(raw))) apply(pack);
+}
+hydrateDynamic();

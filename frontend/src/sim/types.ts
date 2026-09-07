@@ -105,6 +105,14 @@ export interface ActivityOption {
  */
 export type PlanStatus = 'empty' | 'proposed' | 'confirmed' | 'pushback' | 'refused' | 'forced' | 'sketched';
 
+export interface SketchVerdict {
+  kind: 'seen' | 'near' | 'clash' | 'blocked' | 'unread';
+  /** 그림이 무엇으로 보였나 ("컵"). unread면 빈 문자열 */
+  seen: string;
+  /** clash일 때 사용자가 골라 뒀던 범주 */
+  askedCategory?: Category;
+}
+
 export interface BlockPlan {
   blockId: BlockId;
   category: Category | null;
@@ -122,6 +130,17 @@ export interface BlockPlan {
    * 에이전트가 그 3장 안에서 review 문으로 고른다(chosenBy 'agent'). 카드 경로로 돌아오면 지워진다.
    */
   sketch?: string;
+  /**
+   * 비전 모델이 그림을 읽은 결과 (ADR-0007). 그림을 넘길 때 백엔드에 미리 묻고 여기 적어 둔다 — 블록이 시작하면
+   * decide()가 `optionId`를 먼저 본다. 못 읽었으면 optionId null. 사용자에겐 보이지 않는다 (그림은 비밀).
+   */
+  sketchRead?: { optionId: string | null; seen: string; category: Category | null };
+  /**
+   * 블록이 시작할 때 에이전트가 그림을 어떻게 다뤘는가 (ADR-0008) — 출발 줄이 이걸로 정해진다.
+   * seen: 알아보고 그 카드로 · near: 범주는 맞는데 그 카드가 없어 비슷한 걸로 · clash: 범주와 그림이 어긋나 내 맘대로 ·
+   * blocked: 알아봤지만 돈·피로에 막혀 딴 데로 · unread: 못 알아봄
+   */
+  sketchVerdict?: SketchVerdict;
   /** 돈이 빠듯해서 에이전트가 알아서 아꼈다(`cheap`: 싼 데로) 또는 벌러 갔다(`earn`: work). 묻지 않고 한다 — 출발 줄에 이유만 찍힌다 */
   frugal?: 'cheap' | 'earn';
 }
@@ -163,6 +182,8 @@ export interface ScheduledActivity {
   outcome?: Outcome;
   /** 아침에 그린 그림 — buildTimeline이 plan.sketch를 복사 (활동 로그 첫 줄·만화 헤더가 act만 받으므로) */
   sketch?: string;
+  /** 그림을 어떻게 다뤘나 — buildTimeline이 plan.sketchVerdict를 복사 (출발 줄, ADR-0008) */
+  sketchVerdict?: SketchVerdict;
   /** 지갑이 얇아서 알아서 아꼈다/벌러 갔다 — buildTimeline이 plan.frugal을 복사 (활동 로그의 출발 줄) */
   frugal?: 'cheap' | 'earn';
 }

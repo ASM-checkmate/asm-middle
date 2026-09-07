@@ -150,6 +150,9 @@
 .chat-say.is-ask { border-bottom: 3px solid var(--coral); }
 .chat-say.is-alone { background: var(--paper-2); color: var(--ink-2); font-size: 14px; }
 .chat-t { font-size: 10px; color: var(--ink-3); padding-bottom: 3px; }
+.chat-row.is-me .chat-t { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+/* 아직 안 읽은 내 말의 "1" (ADR-0005) — 읽히면 사라진다 */
+.chat-unread { font-size: 10px; font-weight: 700; color: var(--coral); line-height: 1; }
 .chat-chips { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 8px; }
 .chat-chip {
   border: var(--outline); border-radius: 999px; background: var(--card); box-shadow: 2px 2px 0 var(--ink);

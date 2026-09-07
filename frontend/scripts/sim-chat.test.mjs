@@ -18,7 +18,7 @@ const fails = [];
 let n = 0;
 const check = (name, ok, detail = '') => { n++; console.log(`${ok ? '  ok ' : ' FAIL'} ${name}${ok ? '' : '  ← ' + detail}`); if (!ok) fails.push(name); };
 
-const { buildThread, intentOf, replyTo, reactToWorry, trimMessages, unreadCount, worryOf, WORRY_CALL_MS } = await import('../src/sim/chat.ts');
+const { buildThread, intentOf, isUnread, openBatch, replyTo, replyToAll, reactToWorry, trimMessages, unreadCount, worryOf, WORRY_CALL_MS } = await import('../src/sim/chat.ts');
 const { fmtDur, worryLines } = await import('../src/sim/call.ts');
 const { placeById } = await import('../src/sim/places.ts');
 const { jumpedTo } = await import('../src/sim/clock.ts');
@@ -119,6 +119,86 @@ check('시간이 지나면 답장이 보인다', buildThread(S().messages, [], [
 S().tick();
 check('채팅에서 시작한 전화도 온다', S().activeCall?.why === 'worry', JSON.stringify(S().activeCall));
 S().answerCall(false);
+
+// ── 읽음 · 읽씹 · 묶음 답장 (ADR-0005) ──────────────────────────────────────
+console.log('\n── 읽음 / 읽씹 ──');
+check('추임새는 추임새로 듣는다', intentOf('ㅋㅋㅋ') === 'ack' && intentOf('ㅇㅇ') === 'ack' && intentOf('응 알겠어~') === 'ack', `${intentOf('ㅋㅋㅋ')} ${intentOf('응 알겠어~')}`);
+check('추임새에 물음이 섞이면 물음이다', intentOf('ㅋㅋ 어디야') === 'where', intentOf('ㅋㅋ 어디야'));
+const ack = replyTo('ㅋㅋ', ctx());
+check('추임새만 오면 읽고 답하지 않는다 (읽씹)', ack.text === undefined && ack.readMs > 0 && ack.delayMs === ack.readMs, JSON.stringify(ack));
+const plain = replyTo('어디야?', ctx());
+check('읽는 시각이 답하는 시각보다 앞선다', plain.readMs > 0 && plain.delayMs > plain.readMs, JSON.stringify([plain.readMs, plain.delayMs]));
+const sulky = replyTo('안녕!', { ...ctx(), status: { ...INITIAL_STATUS, mood: 20 } });
+check('기분이 바닥이면 인사는 읽씹한다', sulky.text === undefined, JSON.stringify(sulky));
+check('기분이 바닥이어도 지쳤다는 말엔 답한다', !!replyTo('지쳤어', { ...ctx(), status: { ...INITIAL_STATUS, mood: 20 } }).text, '');
+const asleepRead = replyTo('뭐 해?', { ...ctx(sleeping), now: T0 });
+check('자는 중엔 깰 때까지 안 읽는다 (안읽씹)', asleepRead.readMs >= 3600_000, String(asleepRead.readMs));
+check('자다가도 지쳤다는 말은 금방 본다', replyTo('지쳤어', { ...ctx(sleeping), now: T0 }).readMs <= 4 * 60_000, '');
+const three = replyToAll(['야', '어디야', '뭐해'], ctx());
+check('세 줄에 답은 한 줄이다', typeof three.text === 'string' && !three.text.includes('\n'), JSON.stringify(three));
+check('제일 급한 물음에 답하고 다음 물음을 덧붙인다', three.text.includes(placeById('home').name) && /중/.test(three.text), three.text);
+check('못 알아들은 줄은 알아들은 줄이 있으면 넘긴다', !/모르겠|무슨 말/.test(replyToAll(['ㅁㄴㅇㄹ', '어디야'], ctx()).text), replyToAll(['ㅁㄴㅇㄹ', '어디야'], ctx()).text);
+check('같은 묶음 같은 시드면 같은 답', replyToAll(['야', '어디야'], ctx()).text === replyToAll(['야', '어디야'], ctx()).text, '');
+
+console.log('\n── 스토어: 연달아 보내면 한 번에 읽고 한 번에 답한다 ──');
+useWorld.setState({ requests: [], messages: [], calls: [], dueCalls: [], activeCall: null, say: null, memory: { ...S().memory, worry: undefined } });
+S().sendMessage('야');
+S().jumpBy(3_000);
+S().sendMessage('어디야');
+S().jumpBy(3_000);
+S().sendMessage('뭐해');
+const mine = S().messages.filter(m => m.from === 'me');
+const theirs = S().messages.filter(m => m.from === 'agent');
+check('내 말 셋이 한 묶음이다', mine.length === 3 && new Set(mine.map(m => m.batch)).size === 1, JSON.stringify(mine.map(m => m.batch)));
+check('답장은 하나뿐이다', theirs.length === 1, JSON.stringify(theirs));
+check('보내자마자는 셋 다 안 읽음 ("1")', mine.every(m => isUnread(m, S().now)), JSON.stringify(mine.map(m => m.readAt - S().now)));
+check('셋을 같은 순간에 읽는다', new Set(mine.map(m => m.readAt)).size === 1, JSON.stringify(mine.map(m => m.readAt)));
+check('답장은 읽은 뒤에 온다', theirs[0].at > mine[0].readAt, `${theirs[0].at} vs ${mine[0].readAt}`);
+check('묶음은 답이 올 때까지 열려 있다', openBatch(S().messages, S().now) === mine[0].batch, String(openBatch(S().messages, S().now)));
+S().jumpBy(mine[0].readAt - S().now + 1_000);
+check('읽는 시각이 지나면 "1"이 사라진다', S().messages.filter(m => m.from === 'me').every(m => !isUnread(m, S().now)), '');
+check('읽었지만 아직 답은 안 왔다', !buildThread(S().messages, [], [], S().now).some(i => i.kind === 'msg' && i.msg.from === 'agent'), '');
+S().jumpBy(theirs[0].at - S().now + 1_000);
+check('답이 오면 실에 보인다', buildThread(S().messages, [], [], S().now).some(i => i.kind === 'msg' && i.msg.from === 'agent'), '');
+check('답이 오면 묶음이 닫힌다', openBatch(S().messages, S().now) === null, String(openBatch(S().messages, S().now)));
+S().jumpBy(60_000);
+S().sendMessage('ㅋㅋ');
+const ackMsg = S().messages.filter(m => m.from === 'me').at(-1);
+check('닫힌 뒤의 말은 새 묶음이다', ackMsg.batch === ackMsg.id, `${ackMsg.batch} / ${ackMsg.id}`);
+check('추임새엔 답장이 저장되지 않는다 (읽씹)', S().messages.filter(m => m.from === 'agent').length === 1, JSON.stringify(S().messages.filter(m => m.from === 'agent')));
+check('그래도 읽는 시각은 있다', isUnread(ackMsg, S().now) && ackMsg.readAt > S().now, JSON.stringify(ackMsg));
+// 고민을 묶음에 뒤늦게 붙이면 앞의 답장이 고민 답장으로 바뀌고 전화가 잡힌다
+useWorld.setState({ messages: [], dueCalls: [], memory: { ...S().memory, worry: undefined } });
+S().sendMessage('어디야');
+S().jumpBy(2_000);
+S().sendMessage('나 일 때문에 너무 지쳤어');
+check('뒤늦게 붙은 고민에 답장이 갈아끼워진다', S().messages.filter(m => m.from === 'agent').length === 1 && /전화/.test(S().messages.find(m => m.from === 'agent').text), JSON.stringify(S().messages.filter(m => m.from === 'agent')));
+check('그 묶음으로 전화가 하나만 예약된다', S().dueCalls.length === 1 && S().dueCalls[0].worry === 'work', JSON.stringify(S().dueCalls));
+useWorld.setState({ messages: [], dueCalls: [], memory: { ...S().memory, worry: undefined } });
+
+// ── 백엔드가 지은 답장 끼우기 (ADR-0006): 본 적 없는 답장만 바뀐다 ──────────
+console.log('\n── LLM 답장 끼우기 ──');
+S().sendMessage('어디야');
+const b = S().messages.find(m => m.from === 'me').batch;
+const ruleText = S().messages.find(m => m.id === `${b}:r`).text;
+S().applyLlmReply(b, 2, { text: '엉뚱한 seq', worry: null, callMe: false, model: 'x', ms: 1 });
+check('묶음에 말이 더 붙은 뒤 온 답장은 버린다', S().messages.find(m => m.id === `${b}:r`).text === ruleText, '');
+S().applyLlmReply(b, 1, { text: '나 지금 레이어드야, 커피 마셔', worry: null, callMe: false, model: 'x', ms: 1 });
+check('제때 온 답장은 말만 갈아끼운다', S().messages.find(m => m.id === `${b}:r`).text === '나 지금 레이어드야, 커피 마셔', JSON.stringify(S().messages));
+check('시각은 규칙이 정한 그대로다', S().messages.find(m => m.id === `${b}:r`).at > S().now, '');
+S().applyLlmReply(b, 1, { text: '헉 왜 그래, 이따 전화할게', worry: 'people', callMe: false, model: 'x', ms: 1 });
+check('모델이 고민을 알아들으면 전화가 잡힌다', S().dueCalls.some(d => d.id === `worry:${b}`) && S().memory.worry?.key === 'people', JSON.stringify(S().dueCalls));
+S().applyLlmReply(b, 1, { text: null, worry: null, callMe: false, model: 'x', ms: 1 });
+check('전화를 약속한 묶음은 모델이 침묵을 골라도 답장이 남는다', !!S().messages.find(m => m.id === `${b}:r`), '');
+S().jumpBy(S().messages.find(m => m.id === `${b}:r`).at - S().now + 1000);
+S().applyLlmReply(b, 1, { text: '늦은 답장', worry: null, callMe: false, model: 'x', ms: 1 });
+check('이미 뜬 답장은 바꾸지 않는다', S().messages.find(m => m.id === `${b}:r`).text !== '늦은 답장', '');
+useWorld.setState({ messages: [], dueCalls: [], memory: { ...S().memory, worry: undefined } });
+S().sendMessage('안녕');
+const b2 = S().messages.find(m => m.from === 'me').batch;
+S().applyLlmReply(b2, 1, { text: null, worry: null, callMe: false, model: 'x', ms: 1 });
+check('모델이 침묵을 고르면 규칙 답장을 지운다 (읽씹)', !S().messages.some(m => m.from === 'agent'), JSON.stringify(S().messages));
+useWorld.setState({ messages: [], dueCalls: [], memory: { ...S().memory, worry: undefined } });
 
 // ── 못 받으면 내용이 없다 (ADR-0001) ────────────────────────────────────────
 console.log('\n── 부재중 ──');

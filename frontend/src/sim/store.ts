@@ -18,7 +18,8 @@ import { PUSH_COST, cheapestFirst, fallbackOption, review, type ReviewCtx } from
 import { WORRY_CHOICES, expire, nextRequest, trimRequests, type AgentRequest } from './requests';
 import { callLines, lateText, pickupRule, trimCalls, trimDueCalls, worryLines, type CallEvent, type DueCall } from './call';
 import { narrate } from './narrate';
-import { MAX_LEN, WORRY_CALL_MS, ASK_CALL_MS, reactToWorry, replyTo, trimMessages, type ChatMsg } from './chat';
+import { MAX_LEN, WORRY_CALL_MS, ASK_CALL_MS, openBatch, reactToWorry, replyToAll, trimMessages, type ChatMsg } from './chat';
+import { fetchSketchRead, getTier, requestOf, scheduleReply, setTier, sketchRequestOf, type LlmTier, type ReplyResponse, type SketchReadResponse } from './llm';
 
 /** Seed memory: the first launch starts from 모모; onboarding (`updateMemory`) overwrites name/likes/traits. */
 export const DEFAULT_MEMORY: Memory = {
@@ -134,6 +135,10 @@ const validDays = (raw: unknown): Days => {
     for (const p of Object.values(plans)) {
       if (p.sketch !== undefined && !isSketch(p.sketch)) delete p.sketch;
       if (p.status === 'sketched' && p.sketch === undefined) p.status = p.options.length ? 'proposed' : 'empty';
+      // 그림 읽기 결과(ADR-0007)는 모양이 맞을 때만 — 그림이 없으면 같이 지운다
+      const sr = p.sketchRead as unknown;
+      if (sr !== undefined && (p.sketch === undefined || !sr || typeof sr !== 'object' || typeof (sr as { seen?: unknown }).seen !== 'string' || !((sr as { optionId?: unknown }).optionId === null || typeof (sr as { optionId?: unknown }).optionId === 'string'))) delete p.sketchRead;
+      else if (p.sketchRead && p.sketchRead.category !== null && !CATEGORIES.some(c => c.id === p.sketchRead?.category)) p.sketchRead = { ...p.sketchRead, category: null };
     }
     out[k] = plans;
   }
@@ -307,8 +312,26 @@ export function decide(dayKey: DayKey, w: World, horizon: number, now: number): 
       // 돈이 없으면 비싼 걸 안 고르고, 지쳤으면 운동을 안 고른다. 셋 다 막히면 집에서 쉰다.
       const rctx: ReviewCtx = { dayKey, status, memory: w.memory, from, blockId: id, blockStart: start, blockEnd: blockEndAt(dayStart, id) };
       // 빠듯하면 통과하는 것 중 가장 싼(일이면 가장 많이 버는) 것부터 — 밥도 집밥이 먼저 온다
-      const order = tight ? cheapestFirst(p.options, rctx) : p.options;
-      const ok = order.find(o => !review(o, rctx));
+      let order = tight ? cheapestFirst(p.options, rctx) : p.options;
+      // 그림(ADR-0007·0008): 알아봤으면 그 카드가 먼저다 — 단 같은 문(돈·피로)은 지나야 한다. 골라 둔 범주와 그림이
+      // 많이 다르면 범주도 그림도 놓고 내가 하고 싶은 거로 간다 (오너 결정 2026-09-07). 판정은 출발 줄에만 남는다
+      let seenPick: ActivityOption | undefined;
+      if (p0.status === 'sketched' && p0.sketch) {
+        const sr = p0.sketchRead;
+        const seen = sr?.optionId ? p.options.find(o => o.id === sr.optionId) : undefined;
+        if (!sr || (!sr.optionId && !sr.category)) p.sketchVerdict = { kind: 'unread', seen: sr?.seen ?? '' };
+        else if (seen && !review(seen, rctx)) { seenPick = seen; p.sketchVerdict = { kind: 'seen', seen: sr.seen }; }
+        else if (seen) p.sketchVerdict = { kind: 'blocked', seen: sr.seen };
+        else if (sr.category && p.category && sr.category !== p.category && sr.category !== 'travel') {
+          const mine = r.pick(CATEGORIES.filter(c => c.id !== 'travel' && c.id !== 'meal' && c.id !== p.category && c.id !== sr.category)).id;
+          p.sketchVerdict = { kind: 'clash', seen: sr.seen, askedCategory: p.category };
+          p.category = mine;
+          p.options = suggestOptions(ctx(mine));
+          order = tight ? cheapestFirst(p.options, rctx) : p.options;
+        }
+        else p.sketchVerdict = { kind: 'near', seen: sr.seen };
+      }
+      const ok = seenPick ?? order.find(o => !review(o, rctx));
       if (ok) p.chosenId = ok.id;
       else {
         const fb = fallbackOption(id, w.memory);
@@ -437,6 +460,8 @@ export interface WorldState {
   dueCalls: DueCall[];
   /** 대화창이 열려 있나 */
   chatOpen: boolean;
+  /** LLM 단계 (sim/llm.ts). off면 규칙 기반 답장만. */
+  llmTier: LlmTier;
   /** 대화 실을 마지막으로 본 시각 — 안 읽은 줄 배지가 이걸 쓴다 */
   chatSeen: number;
   /** 혼잣말 한 줄 (ADR-0001 §1의 1단계). 대가 없이 지나가고, 잠깐 떴다 사라진다. */
@@ -481,6 +506,13 @@ export interface WorldState {
   sendMessage: (text: string) => void;
   /** 대화창을 연다 / 닫는다. 열거나 닫을 때 "여기까지 봤다"를 찍는다. */
   setChatOpen: (open: boolean) => void;
+  /** LLM 단계를 고른다 (개발 패널). */
+  setLlmTier: (t: LlmTier) => void;
+  /**
+   * 백엔드가 지은 답장을 묶음에 끼운다. 묶음에 그 사이 말이 더 붙었거나(`seq`가 다름) 규칙 답장이 이미
+   * 화면에 떴으면 버린다 — 본 적 없는 답장만 바꾼다 (ADR-0006).
+   */
+  applyLlmReply: (batch: string, seq: number, r: ReplyResponse) => void;
   /** 혼잣말을 지운다 (뜬 지 몇 초 뒤 화면이 부른다). */
   dismissSay: () => void;
 
@@ -499,6 +531,8 @@ export interface WorldState {
    * 범주 안에서 고른다. isBlockEditable 가드. chosenBy는 null이어야 decide()가 시작 때 골라 준다.
    */
   sketchBlock: (id: BlockId, dataUrl: string) => void;
+  /** 백엔드가 읽은 그림의 뜻을 그 계획에 적는다 (ADR-0007). 그림이 그 사이 바뀌었으면 버린다. */
+  applySketchRead: (dayKey: DayKey, id: BlockId, dataUrl: string, r: SketchReadResponse) => void;
   /** '카드로 고를래' — 그림을 지우고 카드 상태로 돌아온다 (옵션이 있으면 제안, 없으면 빈 칸). */
   unsketchBlock: (id: BlockId) => void;
   setSketchOpen: (id: BlockId | null) => void;
@@ -738,7 +772,7 @@ export const useWorld = create<WorldState>((set, get) => {
 
   const st: WorldState = {
     clock, now, anchor: w.anchor, days: w.days, today, tz: initialPhase.tz, memory, agents: AGENTS, encounters, status: initialStatus, requests: w.requests, calls: w.calls, activeCall: null, onboarded,
-    messages: w.messages, dueCalls: w.dueCalls, chatOpen: false, chatSeen: load<number>(CHAT_SEEN_KEY, now), say: null,
+    messages: w.messages, dueCalls: w.dueCalls, chatOpen: false, chatSeen: load<number>(CHAT_SEEN_KEY, now), llmTier: getTier(), say: null,
     shots: w.shots, sketchOpen: null, cameraOpen: false,
     plans: w.days[today], journeys: w.journeys, regen: w.regen, book,
     timeline: first.timeline,
@@ -773,7 +807,7 @@ export const useWorld = create<WorldState>((set, get) => {
       const s = get();
       const options = suggestOptions({ dateKey: s.today, blockId: id, category: c, memory: s.memory, from: placeBefore(s, id), regenSalt: s.regen[s.today]?.[id], usedPlaceIds: usedPlaceIds(s.plans, id), companions: companionCtx(s.memory, id, s.today, dayStartOfKey(s.today)) });
       // 주인이 다른 걸로 바꾸면 동행은 취소된다 (친구는 혼자 간다) — the block becomes the owner's again. 그림도 지운다 (카드 경로로 복귀)
-      setPlans({ ...s.plans, [id]: { ...s.plans[id], category: c, options, chosenId: null, chosenBy: null, status: 'proposed', verdict: undefined, sketch: undefined } });
+      setPlans({ ...s.plans, [id]: { ...s.plans[id], category: c, options, chosenId: null, chosenBy: null, status: 'proposed', verdict: undefined, sketch: undefined, sketchRead: undefined, sketchVerdict: undefined } });
     },
     chooseOption: (id, optionId, by = 'user', stayDays) => {
       const s = get();
@@ -788,13 +822,13 @@ export const useWorld = create<WorldState>((set, get) => {
       if (by === 'user' && picked) {
         const verdict = review(picked, reviewCtxOf(s, id), options);
         if (verdict) {
-          setPlans({ ...s.plans, [id]: { ...p, options, verdict, status: verdict.kind === 'refuse' ? 'refused' : 'pushback', sketch: undefined } });
+          setPlans({ ...s.plans, [id]: { ...p, options, verdict, status: verdict.kind === 'refuse' ? 'refused' : 'pushback', sketch: undefined, sketchRead: undefined, sketchVerdict: undefined } });
           return;
         }
       }
       // 친구 제안 카드를 다시 고르면 동행이 되살아난다 (블록 시작 전까지). 카드를 고르면 그림은 지운다 (ADR-0004)
       const chosenBy = by === 'user' && chosen?.proposedBy ? 'friend' : by;
-      setPlans({ ...s.plans, [id]: { ...p, options, chosenId: optionId, chosenBy, status: 'confirmed', verdict: undefined, sketch: undefined } });
+      setPlans({ ...s.plans, [id]: { ...p, options, chosenId: optionId, chosenBy, status: 'confirmed', verdict: undefined, sketch: undefined, sketchRead: undefined, sketchVerdict: undefined } });
     },
     pushAnyway: (id) => {
       const s = get();
@@ -819,14 +853,32 @@ export const useWorld = create<WorldState>((set, get) => {
       const salt = (s.regen[s.today]?.[id] ?? 0) + 1;
       const options = suggestOptions({ dateKey: s.today, blockId: id, category: p.category, memory: s.memory, from: placeBefore(s, id), regenSalt: salt, usedPlaceIds: usedPlaceIds(s.plans, id), companions: companionCtx(s.memory, id, s.today, dayStartOfKey(s.today)) });
       set({ regen: { ...s.regen, [s.today]: { ...s.regen[s.today], [id]: salt } } });
-      setPlans({ ...s.plans, [id]: { ...p, options, chosenId: null, chosenBy: null, status: 'proposed', verdict: undefined, sketch: undefined } });
+      setPlans({ ...s.plans, [id]: { ...p, options, chosenId: null, chosenBy: null, status: 'proposed', verdict: undefined, sketch: undefined, sketchRead: undefined, sketchVerdict: undefined } });
     },
     sketchBlock: (id, dataUrl) => {
       const s = get();
       const p = s.plans[id];
       // 범주가 있어야 "범주 안에서 고른다"가 성립한다 (SketchOverlay는 카드 분기에서만 열린다). chosenBy는 null — 'user'면 decide()가 영원히 건너뛴다
       if (!p.category || !isSketch(dataUrl) || !isBlockEditable(s.now, id, s.today, s.timeline, s.anchor)) return;
-      setPlans({ ...s.plans, [id]: { ...p, sketch: dataUrl, chosenId: null, chosenBy: null, status: 'sketched', verdict: undefined } });
+      setPlans({ ...s.plans, [id]: { ...p, sketch: dataUrl, chosenId: null, chosenBy: null, status: 'sketched', verdict: undefined, sketchRead: undefined, sketchVerdict: undefined } });
+      // 비전 모델이 켜져 있으면 지금 미리 읽어 둔다 (ADR-0007) — 블록 시작은 동기라 그때는 못 기다린다. 결과는 사용자에게 안 보인다
+      if (s.llmTier !== 'off' && p.options.length) {
+        const dayKey = s.today;
+        void fetchSketchRead(sketchRequestOf(dataUrl, p.category, p.options, s.llmTier)).then(r => { if (r) get().applySketchRead(dayKey, id, dataUrl, r); });
+      }
+    },
+    applySketchRead: (dayKey, id, dataUrl, r) => {
+      const s = get();
+      const plans = s.days[dayKey];
+      const p = plans?.[id];
+      // 그 사이 그림이 바뀌었거나 카드로 돌아갔거나 이미 시작해 골랐으면 버린다
+      if (!p || p.status !== 'sketched' || p.sketch !== dataUrl) return;
+      const optionId = r.optionId && p.options.some(o => o.id === r.optionId) ? r.optionId : null;
+      const category = r.category && CATEGORIES.some(c => c.id === r.category) ? r.category : null;
+      const next = { ...plans, [id]: { ...p, sketchRead: { optionId, seen: r.seen.slice(0, 12), category } } };
+      const days = { ...s.days, [dayKey]: next };
+      set(dayKey === s.today ? { days, plans: next } : { days });
+      persist();
     },
     unsketchBlock: (id) => {
       const s = get();
@@ -908,24 +960,74 @@ export const useWorld = create<WorldState>((set, get) => {
       const s = get();
       const text = raw.trim().slice(0, MAX_LEN);
       if (!text) return;
-      const id = `m:${Math.round(s.now)}`;
-      const reply = replyTo(text, { phase: s.phase, status: s.status, name: s.memory.name, seed: id });
+      const base = `m:${Math.round(s.now)}`;
+      // 같은 밀리초에 두 번 보내면(검사 스크립트·붙여넣기) id가 겹친다 — 뒤에 번호를 단다
+      const id = s.messages.some(m => m.id === base) ? `${base}:${s.messages.filter(m => m.id.startsWith(base)).length}` : base;
+      // 연달아 보낸 말은 한 묶음이다 — 에이전트는 한 번에 읽고 한 번에 답한다 (docs/adr/0005-read-receipts.md).
+      // 앞 말에 이미 예약돼 있던(아직 안 온) 답장은 버리고 묶음 전체에 대한 답장으로 갈아끼운다.
+      const batch = openBatch(s.messages, s.now) ?? id;
+      const mine = s.messages.filter(m => m.batch === batch && m.from === 'me');
+      const texts = [...mine.map(m => m.text), text];
+      const reply = replyToAll(texts, { phase: s.phase, status: s.status, name: s.memory.name, seed: `${batch}:${texts.length}`, now: s.now });
+      const readAt = s.now + reply.readMs;
+      const stale = new Set([`${batch}:r`, `worry:${batch}`, `ask:${batch}`]);
       // 답장은 **도착할 시각을 달고** 지금 저장된다. 실은 `at <= now`만 그리므로 늦은 답장이 저절로 늦게 뜬다.
-      const msgs: ChatMsg[] = [
-        { id, at: s.now, from: 'me', text },
-        { id: `${id}:r`, at: s.now + reply.delayMs, from: 'agent', text: reply.text },
-      ];
-      let dueCalls = s.dueCalls;
+      // 이미 읽은 말의 읽은 시각은 그대로 두고, 아직 안 읽은 말은 새 말과 같이 읽힌다.
+      const kept = s.messages
+        .filter(m => !(stale.has(m.id) && m.at > s.now))
+        .map(m => (m.batch === batch && m.from === 'me' && m.readAt !== undefined && m.readAt > s.now ? { ...m, readAt } : m));
+      const msgs: ChatMsg[] = [...kept, { id, at: s.now, from: 'me', text, readAt, batch }];
+      if (reply.text !== undefined) msgs.push({ id: `${batch}:r`, at: s.now + reply.delayMs, from: 'agent', text: reply.text });
+      let dueCalls = s.dueCalls.filter(d => !(stale.has(d.id) && d.at > s.now));
       let memory = s.memory;
       if (reply.worry) {
         memory = { ...s.memory, worry: { key: reply.worry, at: s.now } };
         save(MEMORY_KEY, memory);
-        dueCalls = [...dueCalls, { id: `worry:${id}`, at: s.now + reply.delayMs + WORRY_CALL_MS, why: 'worry', worry: reply.worry }];
+        dueCalls = [...dueCalls, { id: `worry:${batch}`, at: s.now + reply.delayMs + WORRY_CALL_MS, why: 'worry', worry: reply.worry }];
       }
-      if (reply.callMe) dueCalls = [...dueCalls, { id: `ask:${id}`, at: s.now + reply.delayMs + ASK_CALL_MS, why: 'ask' }];
-      set({ messages: trimMessages([...s.messages, ...msgs], s.anchor.t), dueCalls: trimDueCalls(dueCalls, s.anchor.t), memory, chatSeen: s.now });
+      if (reply.callMe) dueCalls = [...dueCalls, { id: `ask:${batch}`, at: s.now + reply.delayMs + ASK_CALL_MS, why: 'ask' }];
+      set({ messages: trimMessages(msgs, s.anchor.t), dueCalls: trimDueCalls(dueCalls, s.anchor.t), memory, chatSeen: s.now });
       persist();
       if (reply.worry) recompute(simNow(get().clock));
+      // LLM: 규칙이 정한 시각은 그대로 두고 **말만** 백엔드에 묻는다. 읽씹으로 정해진 묶음은 묻지 않는다.
+      if (s.llmTier !== 'off' && reply.text !== undefined) {
+        const seq = texts.length;
+        const req = requestOf(texts, { phase: s.phase, status: s.status, memory, messages: msgs, now: s.now }, s.llmTier, batch);
+        // 규칙 답장이 뜨기 전까지만 기다린다 (sim 시간이 실시간이면 delayMs가 그 여유다)
+        const budget = Math.max(4_000, Math.min(30_000, reply.delayMs / Math.max(s.clock.scale, 1) - 1_000));
+        scheduleReply(batch, req, budget, r => get().applyLlmReply(batch, seq, r));
+      }
+    },
+    setLlmTier: (t) => { setTier(t); set({ llmTier: t }); },
+    applyLlmReply: (batch, seq, r) => {
+      const s = get();
+      const now = simNow(s.clock);
+      const mine = s.messages.filter(m => m.batch === batch && m.from === 'me');
+      const old = s.messages.find(m => m.id === `${batch}:r`);
+      if (mine.length !== seq || !old || old.at <= now) return;   // 묶음이 바뀌었거나 이미 뜬 답장 — 손대지 않는다
+      const promised = s.dueCalls.some(d => d.id === `worry:${batch}` || d.id === `ask:${batch}`);
+      let messages = s.messages;
+      if (r.text === null) {
+        // 모델이 침묵을 골랐다. 규칙이 전화를 약속해 둔 묶음이면 약속은 지켜야 하니 규칙 답장을 남긴다
+        if (promised) return;
+        messages = messages.filter(m => m.id !== old.id);
+      } else {
+        messages = messages.map(m => (m.id === old.id ? { ...m, text: r.text as string } : m));
+      }
+      let dueCalls = s.dueCalls;
+      let memory = s.memory;
+      const { ok } = pickupRule(s.phase);
+      // 규칙이 못 알아들은 고민·전화 부탁을 모델이 알아들었으면 그 뒤처리를 여기서 한다 (sendMessage와 같은 규칙)
+      if (r.worry && !promised) {
+        memory = { ...s.memory, worry: { key: r.worry, at: now } };
+        save(MEMORY_KEY, memory);
+        dueCalls = [...dueCalls, { id: `worry:${batch}`, at: old.at + WORRY_CALL_MS, why: 'worry', worry: r.worry }];
+      } else if (r.callMe && ok && !promised) {
+        dueCalls = [...dueCalls, { id: `ask:${batch}`, at: old.at + ASK_CALL_MS, why: 'ask' }];
+      }
+      set({ messages, dueCalls: trimDueCalls(dueCalls, s.anchor.t), memory });
+      persist();
+      if (r.worry && !promised) recompute(now);
     },
     setChatOpen: (open) => {
       const s = get();

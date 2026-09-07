@@ -119,7 +119,7 @@ export function buildTimeline(anchor: Anchor, days: Days, memory: Memory, journe
     // a big jump starts a 24 h jet-lag window; activities inside that window inherit it so phases can show the chip
     const jetlagUntil = zoneJump ? arriveAt + JETLAG_MS : cursor.jetlagUntil !== null && cursor.jetlagUntil > arriveAt ? cursor.jetlagUntil : null;
     // 그림으로 정한 블록은 그림을 활동에 싣는다 (ADR-0004) — 로그 첫 줄과 만화 헤더가 act만 받으므로
-    acts.push({ key, dayKey, blockIds, option: opt, place: place2, fromPlace: cursor.place, journey, departAt, arriveAt, endAt, comicUntil, originTz: tz, tz: destTz, jetlagUntil, companions: opt.friendId ? [opt.friendId] : [], outcome, sketch: plan?.sketch, frugal: plan?.frugal });
+    acts.push({ key, dayKey, blockIds, option: opt, place: place2, fromPlace: cursor.place, journey, departAt, arriveAt, endAt, comicUntil, originTz: tz, tz: destTz, jetlagUntil, companions: opt.friendId ? [opt.friendId] : [], outcome, sketch: plan?.sketch, sketchVerdict: plan?.sketchVerdict, frugal: plan?.frugal });
     cursor = { place: place2, free: comicUntil, tz: destTz, jetlagUntil };
     t = blockSlotIn(comicUntil - 1, destTz).end;          // the rest of that block is waiting
   }

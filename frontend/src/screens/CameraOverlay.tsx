@@ -10,17 +10,24 @@ import { GHOST, poseFor } from './util';
 import './camera.css';
 
 type Crop = UserShot['crop'];
-const CROP0: Crop = { scale: 1, x: 0, y: 0, rot: 0 };
-/** 프레이밍 범위 — types.ts UserShot 주석 그대로: x/y ±35 %(뷰포트 자기 크기 대비), 시야각 1.0~2.2, 기울기 ±15° */
+const CROP0: Crop = { scale: 1, x: 0, y: 0, rot: 0, pitch: 0, light: 1, dof: 0 };
+/** 프레이밍 범위 — types.ts ShotCrop 주석 그대로: x/y ±35 %(뷰포트 자기 크기 대비), 확대 1.0~2.2, 기울임 ±15°, 각도 ±18°, 조도 0.55~1.45, 심도 0~1 */
 const PAN_MAX = 35;
 const SCALE_MIN = 1;
 const SCALE_MAX = 2.2;
 const ROT_MAX = 15;
+const PITCH_MAX = 18;
+const LIGHT_MIN = 0.55;
+const LIGHT_MAX = 1.45;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const round1 = (v: number) => Math.round(v * 10) / 10;
-/** `.cam-shot`의 CSS 변수 — 만화 `.cm-shot`과 같은 이름(--rot/--cs/--cx/--cy), 단위만 %(unit 'pct') */
-const cropVars = (c: Crop): CSSProperties => ({ ['--rot' as string]: `${c.rot}deg`, ['--cs' as string]: String(c.scale), ['--cx' as string]: `${c.x}%`, ['--cy' as string]: `${c.y}%` });
+/** `.cam-shot`의 CSS 변수 — 만화 `.cm-shot`과 같은 이름(--rot/--cs/--cx/--cy), 단위만 %(unit 'pct').
+ *  각도(--pitch/--pitchn)와 조도(--light)는 카메라에서만 쓰는 변수 — 옛 샷(필드 없음)은 0°·1배로 그린다 */
+const cropVars = (c: Crop): CSSProperties => ({
+  ['--rot' as string]: `${c.rot}deg`, ['--cs' as string]: String(c.scale), ['--cx' as string]: `${c.x}%`, ['--cy' as string]: `${c.y}%`,
+  ['--pitch' as string]: `${c.pitch ?? 0}deg`, ['--pitchn' as string]: String(c.pitch ?? 0), ['--light' as string]: String(c.light ?? 1), ['--dof' as string]: String(c.dof ?? 0),
+});
 /** range의 채운 비율(--pct) */
 const pctVar = (v: number, min: number, max: number): CSSProperties => ({ ['--pct' as string]: `${((v - min) / (max - min)) * 100}%` });
 
@@ -159,21 +166,37 @@ export function CameraOverlay({ act, progress, nowMs, companions, encounter, pre
         {flash > 0 && <b key={`s${flash}`} className="cam-snap" aria-hidden="true">찰칵!</b>}
       </div>
       <p className="cam-hint">
-        <span>끌어서 자리 잡고, 슬라이더로 당겨 봐</span>
+        <span>끌어서 자리 잡고, 아래에서 분위기까지 잡아 봐</span>
         <Button tone="text" onClick={() => setCrop(CROP0)}>처음 자리로</Button>
       </p>
 
       <div className="cam-ctl">
+        {/* 확대 · 각도(위/아래 앵글) · 기울임(더치 앵글) · 조도 · 심도(배경 흐림) — 다섯 개 다 컷에 그대로 실린다 (ShotStage가 같은 변수를 읽는다) */}
         <div className="cam-sliders">
           <label className="cam-sl">
-            <span>시야각</span>
-            <input className="cam-range" type="range" min={SCALE_MIN} max={SCALE_MAX} step={0.05} value={crop.scale} style={pctVar(crop.scale, SCALE_MIN, SCALE_MAX)} onChange={e => setCrop(c => ({ ...c, scale: Number(e.target.value) }))} aria-label="시야각" />
+            <span>확대</span>
+            <input className="cam-range" type="range" min={SCALE_MIN} max={SCALE_MAX} step={0.05} value={crop.scale} style={pctVar(crop.scale, SCALE_MIN, SCALE_MAX)} onChange={e => setCrop(c => ({ ...c, scale: Number(e.target.value) }))} aria-label="확대" />
             <output className="num">{crop.scale.toFixed(2)}×</output>
           </label>
           <label className="cam-sl">
-            <span>기울기</span>
-            <input className="cam-range" type="range" min={-ROT_MAX} max={ROT_MAX} step={0.5} value={crop.rot} style={pctVar(crop.rot, -ROT_MAX, ROT_MAX)} onChange={e => setCrop(c => ({ ...c, rot: Number(e.target.value) }))} aria-label="기울기" />
+            <span>각도</span>
+            <input className="cam-range" type="range" min={-PITCH_MAX} max={PITCH_MAX} step={1} value={crop.pitch ?? 0} style={pctVar(crop.pitch ?? 0, -PITCH_MAX, PITCH_MAX)} onChange={e => setCrop(c => ({ ...c, pitch: Number(e.target.value) }))} aria-label="각도 (위에서 · 아래에서)" />
+            <output className="num">{(crop.pitch ?? 0) > 0 ? '위 ' : (crop.pitch ?? 0) < 0 ? '아래 ' : ''}{Math.abs(crop.pitch ?? 0)}°</output>
+          </label>
+          <label className="cam-sl">
+            <span>기울임</span>
+            <input className="cam-range" type="range" min={-ROT_MAX} max={ROT_MAX} step={0.5} value={crop.rot} style={pctVar(crop.rot, -ROT_MAX, ROT_MAX)} onChange={e => setCrop(c => ({ ...c, rot: Number(e.target.value) }))} aria-label="기울임" />
             <output className="num">{crop.rot > 0 ? '+' : ''}{crop.rot}°</output>
+          </label>
+          <label className="cam-sl">
+            <span>조도</span>
+            <input className="cam-range cam-range--light" type="range" min={LIGHT_MIN} max={LIGHT_MAX} step={0.05} value={crop.light ?? 1} style={pctVar(crop.light ?? 1, LIGHT_MIN, LIGHT_MAX)} onChange={e => setCrop(c => ({ ...c, light: Number(e.target.value) }))} aria-label="조도" />
+            <output className="num">{Math.round((crop.light ?? 1) * 100)}%</output>
+          </label>
+          <label className="cam-sl">
+            <span>심도</span>
+            <input className="cam-range" type="range" min={0} max={1} step={0.05} value={crop.dof ?? 0} style={pctVar(crop.dof ?? 0, 0, 1)} onChange={e => setCrop(c => ({ ...c, dof: Number(e.target.value) }))} aria-label="심도 (배경 흐림)" />
+            <output className="num">{(crop.dof ?? 0) === 0 ? '선명' : `흐림 ${Math.round((crop.dof ?? 0) * 100)}%`}</output>
           </label>
         </div>
         <div className="cam-shutter-wrap">

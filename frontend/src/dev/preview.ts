@@ -153,15 +153,15 @@ const NY_TRIP: OptionText = { title: '센트럴파크까지 훌쩍 (3박)', reas
 /** `&sketch=1` 의 그림 — 96×96 PNG, 코랄 붓으로 그린 컵 낙서 (SketchOverlay가 만드는 것과 같은 꼴: PNG dataURL, 긴 변 ≤ 240px). */
 export const SAMPLE_SKETCH = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAIAAABt+uBvAAADU0lEQVR42u2bv2tVMRTH8+e5uejiJm4WoQ4KCiou0koVQYTqUhepoEM7VBwcRKwIXRSKLioWcWonF93it4hS78279yUv35Pk8YUzvOFwX/K5+Z4fN4nzvw5kA+aEQIAEaG4B7b0/NJ5/w4Awz+UFf/bYoeHH6LRj/ZsHtPR3tv/mnNe/bUAbq//N9o8NLIpY/7YBfXwTmO3AhGP9mwfUEcuoZGL92wYUFAsMyySLf9uAJokFFLL4Nw9oOSSWpYVs/m0DQkyNEkusvwDNOyBJTEFaaV6FoloNAZLE1IupF1OaV6GoVsMK0IBYYv3nUGKjYon1bx5QO1s9ReugFjYLtfUsQNUBggo+7dRiWSXpcobeeixfUHeU+rgSRuUBTap3K7Eci0iAJDEF6bqD9NE0f/Fkd6CbD4jpHA/v/B0GUF2aP2rXz3RH/GiFWMXh4Z2/wwCqrqRvne+O+P5VIiA8vC+ua6f9vcv+yV3/8qn/sO33P9cEqD9iIOMB6r+PoF044W+e8w9v+K01v/M8VoCuuTU/pGhCCM8KKBg1eYD6OYFQBGQF9GI9MJSf+xQ6eOyMpcDXd+aA3m4FxnHwhQIIj50R0OsNc0C7r5JfVLThsf3/QhhGMEZIRmAeBfT4jjmg4KBBjQFo9GUgwSPNI9kj5SPxI/13nFcWzQEFlz10xwAUK2esl47z4nFzQMHAicjNABSbEBBxkuTv6KkXuZ8BKLakCMp/ijjt6MUbqR1LKEqhqfg47ejlP6kdS2hrEJXj47QrP26zN5EUp135lW+m5WdrCZ9lXeHYaZYNvu2mfbd2hbOvWT2xeiWtZXWF6zebinR7M7x8pqjynXUHYN/T/PjuL50K+K/fLnF4waYdC76GSd/2AaLvDGQAVwCQTTsWFHKUQXRljr/YtGPBVDC9IWCXPB9k0I71i4koQ8ovCcigHeuXo9MbysXCJ8wM2rHgjhhnw95V0UaSdsRybNgTABm0Y0EVc87lEQBNOlOQ0cw+y1EAzZiD04z0YZcCaPYqLsFIWwMUQME+gG2kzSUKoCIHF2nXFTgn7Y0P5TGvsHIAWR5cJF8EYt7VMLifwL8IpMssAiRAAiRAAiRAAiRAMgESIAESIAESIAESIJkACZAAWdlv0Tu1GhVwrTUAAAAASUVORK5CYII=';
 
-/** `&shots=` 의 가짜 사용자 컷 — 창마다 다른 프레이밍(% 단위·시야각·기울기), 촬영 시각은 그 창의 앞쪽. */
+/** `&shots=` 의 가짜 사용자 컷 — 창마다 다른 프레이밍(% 단위·확대·각도·기울임·조도·심도), 촬영 시각은 그 창의 앞쪽. */
 function fakeShots(act: ScheduledActivity, wins: ShotWin[]): UserShot[] {
   const starts = winStarts(act);
   const span = Math.max(1, act.endAt - act.arriveAt);
   const CROP = [
-    { scale: 1.15, x: -8, y: 4, rot: -5 },
-    { scale: 1.6, x: 6, y: -6, rot: 3 },
-    { scale: 2.0, x: 0, y: 8, rot: -2 },
-    { scale: 1.3, x: -4, y: 0, rot: 9 },
+    { scale: 1.15, x: -8, y: 4, rot: -5, pitch: 8, light: 1.15, dof: 0.6 },
+    { scale: 1.6, x: 6, y: -6, rot: 3, pitch: -10, light: 0.75, dof: 0 },
+    { scale: 2.0, x: 0, y: 8, rot: -2, pitch: 0, light: 1.3, dof: 1 },
+    { scale: 1.3, x: -4, y: 0, rot: 9, pitch: 12, light: 0.6, dof: 0.35 },
   ];
   return wins.map(w => ({ actKey: act.key, win: w, at: starts[w] + span * 0.06, crop: { ...CROP[w] } }));
 }

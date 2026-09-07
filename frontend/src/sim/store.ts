@@ -148,7 +148,8 @@ const validShots = (raw: unknown): UserShot[] => {
   return (raw as Partial<UserShot>[]).filter((x): x is UserShot => {
     const c = x?.crop;
     return !!x && typeof x.actKey === 'string' && isWin(x.win) && Number.isFinite(x.at)
-      && !!c && Number.isFinite(c.scale) && Number.isFinite(c.x) && Number.isFinite(c.y) && Number.isFinite(c.rot);
+      && !!c && Number.isFinite(c.scale) && Number.isFinite(c.x) && Number.isFinite(c.y) && Number.isFinite(c.rot)
+      && (c.pitch === undefined || Number.isFinite(c.pitch)) && (c.light === undefined || Number.isFinite(c.light)) && (c.dof === undefined || Number.isFinite(c.dof));
   });
 };
 const persistedOf = (w: World): Persisted => ({ v: 5, days: w.days, anchor: w.anchor, journeys: w.journeys, regen: w.regen, encounters: w.encounters, requests: w.requests, calls: w.calls, messages: w.messages, dueCalls: w.dueCalls, shots: w.shots });

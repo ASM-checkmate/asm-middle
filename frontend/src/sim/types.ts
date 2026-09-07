@@ -168,9 +168,12 @@ export interface ScheduledActivity {
 export type ShotWin = 0 | 1 | 2 | 3;
 /**
  * 사용자가 찍은 한 장 (추가전용 이벤트, 같은 actKey+win은 뒤가 이긴다).
- * crop.x/y는 촬영 뷰포트 자기 크기 대비 % (translate(x%, y%)), scale=시야각(1.0~2.2), rot=기울기(deg, -15~15).
+ * crop.x/y는 촬영 뷰포트 자기 크기 대비 % (translate(x%, y%)), scale=확대(1.0~2.2), rot=기울임(deg, -15~15),
+ * pitch=각도(위/아래에서 보는 앵글, deg, -18~18, 없으면 0), light=조도(밝기 배율 0.55~1.45, 없으면 1),
+ * dof=심도(0 = 전부 선명 … 1 = 배경 최대 흐림, 캐릭터는 항상 선명, 없으면 0).
  */
-export interface UserShot { actKey: string; win: ShotWin; at: number; crop: { scale: number; x: number; y: number; rot: number } }
+export interface ShotCrop { scale: number; x: number; y: number; rot: number; pitch?: number; light?: number; dof?: number }
+export interface UserShot { actKey: string; win: ShotWin; at: number; crop: ShotCrop }
 /** 에이전트가 대충 찍은 흔적 (오너 결정 14: 에이전트 컷은 거의 항상 하나 이상). */
 export type PanelFlaw = 'blur' | 'dark' | 'overzoom' | 'cut' | 'tilt';
 
@@ -188,7 +191,7 @@ export interface ComicPanel {
    */
   t: number;
   /** 크롭과 앵글 — 컷마다 화각이 달라야 "그린 그림"이 아니라 "찍힌 사진"이 된다 */
-  crop: { scale: number; x: number; y: number; rot: number };
+  crop: ShotCrop;
   /** 잘 안 찍힌 컷 (가끔 하나). 못 찍힌 사진만큼 증거처럼 읽히는 건 없다 */
   blur?: boolean;
   /** 누가 찍었나. 없으면(옛 만화) 'agent'로 본다 */

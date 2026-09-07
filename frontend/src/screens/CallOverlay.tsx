@@ -5,6 +5,7 @@ import { hhmmIn } from '../sim/tz';
 import { Character } from '../character';
 import { Bubble, Button, Glyph } from '../ui';
 import { voiceAvailable } from '../sim/voice';
+import { warmModel } from '../sim/llm';
 import { startVoiceCall, type VoiceCallHandle, type VoiceState } from '../sim/callvoice';
 
 /** 못 받았을 때 문자가 늦게 도착하는 연출 (wall ms). 실제 40초를 기다리게 하지는 않되, 시각은 1분 뒤로 찍는다. */
@@ -34,6 +35,8 @@ export function CallOverlay({ call, tz }: { call: CallEvent; tz: string }) {
   const [late, setLate] = useState(false);
   const [voice, setVoice] = useState<VoiceState | null>(null);
   const handle = useRef<VoiceCallHandle | null>(null);
+  /** 세션은 통화당 한 번 — 개발 모드의 StrictMode가 효과를 두 번 돌려도 마이크를 두 번 열지 않는다 */
+  const started = useRef(false);
   const linesEnd = useRef<HTMLDivElement>(null);
 
   const answered = call.result === 'answered';
@@ -41,21 +44,23 @@ export function CallOverlay({ call, tz }: { call: CallEvent; tz: string }) {
 
   // 받은 통화: 말로 할 수 있으면 말로 (음성 서비스 + 모델). 아니면 규칙 대사가 한 줄씩
   useEffect(() => {
-    if (!answered || llmTier === 'off' || handle.current) return;
-    let cancelled = false;
+    if (!answered || llmTier === 'off' || started.current) return;
+    started.current = true;
     void (async () => {
-      if (!(await voiceAvailable()) || cancelled) return;
+      if (!(await voiceAvailable())) return;
       try {
-        const h = await startVoiceCall(() => useWorld.getState(), { onConnected: beginVoiceCall, onLine: appendCallLine, onState: st => { if (!cancelled) setVoice(st); } });
-        if (cancelled) { h.stop(); return; }
+        const h = await startVoiceCall(() => useWorld.getState(), { onConnected: beginVoiceCall, onLine: appendCallLine, onState: setVoice });
+        if (handle.current) { h.stop(); return; }   // 그 사이 끊었다
         handle.current = h;
       } catch {
         // 마이크를 못 열었거나 서비스에 못 붙었다 — 규칙 대사로 간다
-        if (!cancelled) setVoice(null);
+        setVoice(null);
       }
     })();
-    return () => { cancelled = true; };
   }, [answered, llmTier, beginVoiceCall, appendCallLine]);
+
+  // 벨이 울리는 12초 동안 모델을 미리 올린다 — 받자마자 첫마디가 나오게 (ADR-0011)
+  useEffect(() => { if (call.dir === 'in' && call.result === 'missed' && llmTier !== 'off') warmModel(llmTier); }, [call.dir, call.result, llmTier]);
 
   // 끊으면(오버레이가 사라지면) 마이크도 놓는다
   useEffect(() => () => { handle.current?.stop(); handle.current = null; }, []);
@@ -88,7 +93,7 @@ export function CallOverlay({ call, tz }: { call: CallEvent; tz: string }) {
   const ringing = call.dir === 'in' && call.result === 'missed';
   const lines = call.voice ? (call.lines ?? []) : (call.lines ?? []).slice(0, shown);
   const pose = ringing ? 'wave' : voice === 'thinking' ? 'think' : voice === 'listening' ? 'idle' : 'happy';
-  const hangUp = () => { handle.current?.stop(); handle.current = null; endCall(); };
+  const hangUp = () => { handle.current?.stop(); handle.current = { stop: () => {} }; endCall(); };
 
   return (
     <div className={`call ${refused ? 'is-refused' : ''} ${call.voice ? 'is-voice' : ''}`} role="dialog" aria-label="통화">

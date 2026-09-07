@@ -321,9 +321,10 @@ export interface TripConfig { model: string; modelTimeoutMs: number }
  * @param req 요청
  * @param cfg Ollama 설정
  * @param trip 추출 모델과 제한 시간
+ * @param signal 끊기 — 통화가 모델을 가져가면 추출을 멈춘다 (검색 결과는 캐시돼 다음에 이어진다)
  * @throws NoApiKeyError · ThinPlanError · 검색/모델/지오코딩 오류
  */
-export function planTrip(req: TripPlanRequest, cfg: OllamaConfig, trip: TripConfig): Promise<TripPlanResponse> {
+export function planTrip(req: TripPlanRequest, cfg: OllamaConfig, trip: TripConfig, signal?: AbortSignal): Promise<TripPlanResponse> {
   const norm = normCity(req.city);
   const running = inflight.get(norm);
   if (running) return running;
@@ -334,7 +335,7 @@ export function planTrip(req: TripPlanRequest, cfg: OllamaConfig, trip: TripConf
     const hits = await searchCached(norm, req.city);
     if (!hits.length) throw new Error(`no search results for ${req.city}`);
     const { system, user } = buildTripPrompt(req.city, hits);
-    const raw = await chatJson(cfg, trip.model, system, user, TRIP_SCHEMA, undefined, { temperature: 0.2, numPredict: 2500, timeoutMs: trip.modelTimeoutMs });
+    const raw = await chatJson(cfg, trip.model, system, user, TRIP_SCHEMA, undefined, { temperature: 0.2, numPredict: 2500, timeoutMs: trip.modelTimeoutMs, signal });
     const draft = parseTripDraft(raw, hits.length);
     if (!draft) throw new Error(`model output unusable for ${req.city}`);
     console.log(`[trip] ${req.city} draft ${draft.key} ${draft.country} ${draft.places.length} places (hotel ${draft.places.some(p => p.type === 'hotel') ? 'yes' : 'no'}) hubs ${Object.entries(draft.hubs).filter(([, h]) => h).map(([k, h]) => `${k}=${h!.nameEn}`).join(', ') || 'none'}`);

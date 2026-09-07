@@ -77,5 +77,26 @@ check('저장본에도 남는다', JSON.parse(storage.get('theworld.world.v5')).
 S().appendCallLine('me', '끊긴 뒤');
 check('통화가 없으면 줄을 안 쌓는다', S().calls.find(c => c.id === c0.id).lines.length === 3, '');
 
+console.log('\n── 통화가 붙으면 하루 계획을 양보한다 ──');
+{
+  let seen = null; let release;
+  const gate = new Promise(r => { release = r; });
+  globalThis.fetch = async (url, init) => { if (String(url) === '/api/plan/options') { seen = init.signal; await gate; return { ok: false, status: 502, json: async () => ({}) }; } return { ok: false, status: 404, json: async () => ({}) }; };
+  try {
+    S().jumpToHour(8, 55);
+    const { emptyPlans } = await import('../src/sim/timeline.ts');
+    const fresh = emptyPlans();   // 앞 절에서 지나간 블록들이 이미 정해져 있다 — 빈 하루로 되돌린다
+    useWorld.setState({ plans: fresh, days: { ...S().days, [S().today]: fresh }, llmPlans: {} });
+    const p = S().planDay();
+    await new Promise(r => setTimeout(r, 10));
+    check('계획 요청이 나갔고 아직 안 끊겼다', seen && !seen.aborted && S().planBusy === true, JSON.stringify([!!seen, seen?.aborted, S().planBusy]));
+    S().callAgent(); S().beginVoiceCall();
+    check('말 통화가 붙으면 계획 요청을 끊는다', seen.aborted === true, String(seen?.aborted));
+    release(); await p;
+    check('끊긴 뒤엔 busy가 내려간다', S().planBusy === false, '');
+    S().endCall();
+  } finally { globalThis.fetch = realFetch; }
+}
+
 console.log(`\n${n - fails.length}/${n} checks passed`);
 if (fails.length) { console.log('FAILED: ' + fails.join(', ')); process.exit(1); }

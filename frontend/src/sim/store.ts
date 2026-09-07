@@ -824,6 +824,8 @@ export const useWorld = create<WorldState>((set, get) => {
     return out;
   };
 
+  /** 진행 중인 하루 계획 요청 — 통화가 붙으면 끊는다 (Ollama는 한 번에 하나라, 20~60초짜리 계획이 통화 첫마디 앞을 막는다) */
+  let planCtl: AbortController | null = null;
   /** 블록 하나·범주 하나의 카드를 백엔드에 묻는다 (ADR-0010). 늦거나 실패하면 규칙 카드로 채운다 — 같은 자리를 두 번 채우지 않는다. */
   const CARDS_WAIT_MS = 15_000;
   const askCards = (id: BlockId, category: PlanCategory, previous?: string[]) => {
@@ -1023,6 +1025,8 @@ export const useWorld = create<WorldState>((set, get) => {
       const s = get();
       const c = s.activeCall;
       if (!c || c.result !== 'answered') return;
+      // 하루 계획이 돌고 있으면 끊는다 — 통화 첫마디가 먼저다. 끊고 나서(endCall) 다시 짓는다
+      planCtl?.abort(); planCtl = null;
       const done: CallEvent = { ...c, voice: true, lines: [] };
       set({ activeCall: done, calls: s.calls.map(x => (x.id === c.id ? done : x)) });
     },
@@ -1043,6 +1047,7 @@ export const useWorld = create<WorldState>((set, get) => {
         const done: CallEvent = { ...c, durSec: Math.max(1, Math.round((s.now - c.startedAt) / 1000)) };
         set({ activeCall: null, calls: s.calls.map(x => (x.id === c.id ? done : x)) });
         persist();
+        if (c.voice) void get().planDay();   // 통화에 양보했던 하루 계획을 이어서
         return;
       }
       set({ activeCall: null });
@@ -1125,10 +1130,13 @@ export const useWorld = create<WorldState>((set, get) => {
         list.push({ id, category, from: from.name, avoid: usedPlaceIds(s.plans, id) });
         groups.set(from.city, list);
       }
+      if (s.activeCall?.result === 'answered') return;   // 통화 중엔 모델을 통화에 양보한다
+      const ctl = new AbortController();
+      planCtl = ctl;
       set({ planBusy: true });
       try {
         for (const [city, blocks] of groups) {
-          const r = await fetchPlan(planRequestOf(blocks, { memory: s.memory, status: s.status, now: s.now, tz: s.tz, dateKey: splitDayKey(dayKey).dateKey }, s.llmTier, city), 120_000);
+          const r = await fetchPlan(planRequestOf(blocks, { memory: s.memory, status: s.status, now: s.now, tz: s.tz, dateKey: splitDayKey(dayKey).dateKey }, s.llmTier, city), 120_000, ctl.signal);
           if (!r) continue;
           const cur = get();
           const day: LlmDayPlan = { ...(cur.llmPlans[dayKey] ?? {}) };
@@ -1139,6 +1147,7 @@ export const useWorld = create<WorldState>((set, get) => {
           set({ llmPlans: { ...cur.llmPlans, [dayKey]: day } });
         }
       } finally {
+        if (planCtl === ctl) planCtl = null;
         set({ planBusy: false });
       }
       persist();

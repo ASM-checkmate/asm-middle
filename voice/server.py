@@ -42,6 +42,9 @@ START_FRAMES = 5                  # 이만큼 연속으로 말이면 "시작" (�
 END_FRAMES = int(os.environ.get("VOICE_END_FRAMES", "18"))   # 이만큼 조용하면 "끝" (≈580ms) — 380ms면 쉼표 뒤 쉼에서 잘렸다. 짧으면 말을 자르고 길면 느리다
 PRE_ROLL = 10                     # 시작 판정 전의 창들도 발화에 넣는다 (첫 음절 보존)
 MAX_UTTER_S = 20
+MIN_UTTER_S = 0.35                # 이보다 짧은 발화는 기침이다
+NO_SPEECH = float(os.environ.get("VOICE_NO_SPEECH", "0.6"))
+HALLUCINATIONS = {"감사합니다", "시청해주셔서감사합니다", "구독과좋아요부탁드립니다", "MBC뉴스이덕영입니다", "네", "음"}
 
 
 def log(*a):
@@ -80,7 +83,16 @@ class Engines:
 
     def transcribe(self, audio16: np.ndarray) -> str:
         r = self.whisper.transcribe(audio16, path_or_hf_repo=STT_MODEL, language="ko", fp16=True, condition_on_previous_text=False)
-        return (r.get("text") or "").strip()
+        text = (r.get("text") or "").strip()
+        # whisper는 침묵·잡음에서 "감사합니다", "시청해 주셔서 감사합니다" 같은 환청을 낸다 — 말이 아닐 확률이 높으면 버린다
+        segs = r.get("segments") or []
+        if segs and all(float(sg.get("no_speech_prob", 0)) > NO_SPEECH for sg in segs):
+            log(f"stt dropped (no_speech) {text!r}")
+            return ""
+        if text.replace(".", "").replace(" ", "") in HALLUCINATIONS:
+            log(f"stt dropped (hallucination) {text!r}")
+            return ""
+        return text
 
     def speak(self, text: str):
         """문장 하나를 int16 PCM 조각들로. 스트리밍이라 첫 조각이 빨리 나온다."""
@@ -142,7 +154,8 @@ class Session:
             self.buf = []
             self.eng.vad_reset()
             await self.send({"type": "speech_end"})
-            asyncio.create_task(self.transcribe(audio))
+            if len(audio) / SR_IN - (PRE_ROLL * FRAME / SR_IN) >= MIN_UTTER_S:
+                asyncio.create_task(self.transcribe(audio))
 
     async def transcribe(self, audio: np.ndarray):
         t0 = time.time()

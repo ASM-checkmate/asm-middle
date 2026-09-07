@@ -107,6 +107,11 @@ export async function startVoiceCall(
   let ctl: AbortController | null = null;
   let stopped = false;
   let speaking = false;
+  /** 진행 중인 턴이 낸 문장 수 — 0이면 아직 생각 중이다 */
+  let said = 0;
+  let inflight: Promise<unknown> | null = null;
+  /** 생각 중에 들어온 말 — 그 턴이 끝나면 이어서 묻는다 (끊어 버리면 느린 모델에선 영영 답을 못 한다) */
+  let pending: string | null = null;
 
   const runTurn = (user: string | null) => {
     const s = get();
@@ -115,23 +120,29 @@ export async function startVoiceCall(
     const mine = new AbortController();
     ctl = mine;
     const t = ++turn;
-    let seq = 0;
+    said = 0;
     onState('thinking');
     const req = callTurnRequestOf(s.activeCall, transcript, user, s, s.llmTier);
-    void streamCallTurn(req, sentence => {
+    inflight = streamCallTurn(req, sentence => {
       if (mine.signal.aborted || stopped) return;
       transcript.push({ from: 'agent', text: sentence });
       onLine('agent', sentence);
-      session.say(t, seq++, sentence);
+      session.say(t, said++, sentence);
       speaking = true;
       onState('speaking');
-    }, mine.signal).then(() => { if (!mine.signal.aborted && !stopped && seq === 0) onState('listening'); });
+    }, mine.signal).then(() => {
+      if (ctl !== mine || stopped) return;
+      inflight = null;
+      if (pending !== null) { const next = pending; pending = null; runTurn(next); return; }
+      if (said === 0) onState('listening');
+    });
   };
 
   const session = new VoiceSession({
     onSpeechStart: () => {
-      // 끼어들었다 — 만들던 답을 끊는다. 이미 쌓인 문장은 그대로 남긴다 (실제로 들렸으니)
-      ctl?.abort();
+      // 끼어들었다 — 말하던 답만 끊는다. 아직 한 문장도 안 나온 턴은 그대로 둔다 (곧 나올 답을 버리면 영영 말을 못 한다).
+      // 이미 쌓인 문장은 그대로 남긴다 (실제로 들렸으니)
+      if (said > 0) ctl?.abort();
       speaking = false;
       onState('listening');
     },
@@ -139,6 +150,7 @@ export async function startVoiceCall(
       if (stopped) return;
       transcript.push({ from: 'me', text });
       onLine('me', text);
+      if (inflight && said === 0) { pending = text; return; }   // 생각 중 — 끝나면 이어서
       runTurn(text);
     },
     onSpoken: t => { if (t === turn && speaking) { speaking = false; onState('listening'); } },

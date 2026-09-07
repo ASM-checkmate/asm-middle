@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { WORRY_KEYS, type ModelsResponse, type ReplyRequest, type SketchReadRequest, type Tier, type TripPlanRequest } from './contract.ts';
-import { configFromEnv, installedModels } from './ollama.ts';
+import { configFromEnv, installedModels, warmModel } from './ollama.ts';
 import { replyFor } from './reply.ts';
 import { readSketch } from './sketch.ts';
 import { ThinPlanError, planTrip } from './trip.ts';
@@ -27,6 +27,12 @@ const PLAN_DAY_TIMEOUT_MS = Number(process.env.PLAN_DAY_TIMEOUT_MS ?? 120_000);
 /** 허용 origin. 기본 `*`는 편의용 — 검색 키를 서버가 쓰므로 아무 탭이나 한도를 쓸 수 있다. 개발 서버 주소로 좁히는 걸 권한다. */
 const CORS_ORIGIN = process.env.CORS_ORIGIN ?? '*';
 const MAX_BODY = 512 * 1024;   // 240px PNG dataURL이 실린다
+/**
+ * 낮은 우선순위로 도는 모델 요청들(하루 계획·여행지). Ollama는 이 맥에서 한 번에 하나만 돌리므로, 통화 턴이 오면
+ * 이것들을 끊어 모델을 넘긴다 (ADR-0011). 끊긴 쪽은 프론트가 규칙으로 채우거나 나중에 다시 묻는다.
+ */
+const lowPriority = new Set<AbortController>();
+const yieldToCall = () => { for (const c of lowPriority) c.abort(); lowPriority.clear(); };
 
 const json = (res: ServerResponse, status: number, body: unknown) => {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': CORS_ORIGIN, 'access-control-allow-headers': 'content-type' });
@@ -206,11 +212,20 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       return json(res, 502, { error: (e as Error).message });
     }
   }
+  if (req.method === 'POST' && url.pathname === '/api/warm') {
+    // 모델 예열 — 벨이 울리거나 대화 실을 열 때. 답은 기다리지 않아도 된다
+    let parsed: { tier?: unknown } = {};
+    try { parsed = JSON.parse(await readBody(req)); } catch { /* 빈 본문 */ }
+    const tier: Tier = parsed.tier === 'good' ? 'good' : 'small';
+    try { await warmModel(cfg, MODELS[tier]); return json(res, 200, { ok: true, model: MODELS[tier] }); } catch (e) { return json(res, 502, { error: (e as Error).message }); }
+  }
   if (req.method === 'POST' && url.pathname === '/api/call/turn') {
     let parsed: unknown;
     try { parsed = JSON.parse(await readBody(req)); } catch (e) { return json(res, 400, { error: `bad json: ${(e as Error).message}` }); }
     const v = validateCall(parsed);
     if (typeof v === 'string') return json(res, 400, { error: v });
+    // 통화가 먼저다 — 돌고 있던 하루 계획·여행지 추출을 끊고 모델을 가져온다
+    yieldToCall();
     // ndjson 스트림 — 문장이 완성될 때마다 한 줄. 사용자가 말을 끊으면 프론트가 연결을 닫고, 그 신호로 Ollama 생성도 멈춘다
     res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-cache', 'access-control-allow-origin': CORS_ORIGIN, 'access-control-allow-headers': 'content-type' });
     const ctl = new AbortController();
@@ -231,14 +246,21 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     try { parsed = JSON.parse(await readBody(req)); } catch (e) { return json(res, 400, { error: `bad json: ${(e as Error).message}` }); }
     const v = validatePlan(parsed);
     if (typeof v === 'string') return json(res, 400, { error: v });
+    // 프론트가 요청을 닫거나 통화 턴이 오면 Ollama 생성도 멈춘다 — 하루 계획은 20~60초라 통화 앞을 막는다
+    const ctl = new AbortController();
+    req.on('close', () => ctl.abort());
+    lowPriority.add(ctl);
     try {
       // 블록 하나면 카드 고르는 몇 초, 하루면 넉넉히 — 프론트의 기다림도 그에 맞춘다 (docs/CONTRACT.md)
-      const out = await planBlocks(v, MODELS[v.tier], cfg, v.blocks.length === 1 ? PLAN_ONE_TIMEOUT_MS : PLAN_DAY_TIMEOUT_MS);
+      const out = await planBlocks(v, MODELS[v.tier], cfg, v.blocks.length === 1 ? PLAN_ONE_TIMEOUT_MS : PLAN_DAY_TIMEOUT_MS, ctl.signal);
       console.log(`[plan] ${out.model} ${out.ms}ms ${v.city.key} ${v.blocks.map(b => `${b.id}:${b.category ?? '?'}`).join(',')} → ${out.blocks.map(b => `${b.id}:${b.category}[${b.options.map(o => o.title).join(' | ')}]`).join(' ; ') || 'nothing'}`);
       return json(res, 200, out);
     } catch (e) {
+      if (ctl.signal.aborted) { console.log('[plan] yielded'); try { return json(res, 503, { error: 'yielded to call' }); } catch { return; } }
       console.warn(`[plan] failed: ${(e as Error).message}`);
       return json(res, 502, { error: (e as Error).message });
+    } finally {
+      lowPriority.delete(ctl);
     }
   }
   if (req.method === 'POST' && url.pathname === '/api/trip/plan') {
@@ -246,15 +268,21 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     try { parsed = JSON.parse(await readBody(req)); } catch (e) { return json(res, 400, { error: `bad json: ${(e as Error).message}` }); }
     const v = validateTrip(parsed);
     if (typeof v === 'string') return json(res, 400, { error: v });
+    const ctl = new AbortController();
+    req.on('close', () => ctl.abort());
+    lowPriority.add(ctl);
     try {
-      const out = await planTrip(v, cfg, tripConfig(v.tier));
+      const out = await planTrip(v, cfg, tripConfig(v.tier), ctl.signal);
       console.log(`[trip] ${v.city} → ${out.city.key} ${out.places.length} places ${out.ms}ms${out.cached ? ' cached' : ` ${out.model}`}`);
       return json(res, 200, out);
     } catch (e) {
       const err = e as Error;
+      if (ctl.signal.aborted) { console.log('[trip] yielded'); return json(res, 503, { error: 'yielded to call' }); }
       console.warn(`[trip] ${v.city} failed: ${err.message}`);
       const status = err instanceof NoApiKeyError ? 503 : err instanceof ThinPlanError ? 422 : 502;
       return json(res, status, { error: err.message });
+    } finally {
+      lowPriority.delete(ctl);
     }
   }
   return json(res, 404, { error: 'not found' });

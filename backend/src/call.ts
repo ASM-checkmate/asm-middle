@@ -76,7 +76,8 @@ export function tidy(s: string): string {
   t = t.replace(/^[A-Za-z가-힣]{1,10}\s*:\s*/, '');           // "모모: "
   t = t.replace(/^["'「]+|["'」]+$/g, '');
   t = t.replace(/\([^)]*\)|\[[^\]]*\]|\*[^*]*\*/g, '').trim();   // (웃음) [지문] *행동*
-  t = t.replace(/\p{Extended_Pictographic}/gu, '').replace(/\s+/g, ' ').trim();
+  t = t.replace(/\p{Extended_Pictographic}/gu, '');
+  t = t.replace(/[\u3400-\u9fff\uf900-\ufaff]/g, '').replace(/\s+/g, ' ').trim();   // 한자·중국어가 새어 나온다 ("집沙发上에서") — TTS가 중국어로 읽는다
   if (t.length > MAX_SENTENCE) t = t.slice(0, MAX_SENTENCE).replace(/[,\s]+\S*$/, '') + '…';
   return t;
 }

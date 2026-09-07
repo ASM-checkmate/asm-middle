@@ -140,12 +140,14 @@ console.log('\n── chatJson 옵션 ──');
 {
   const calls = [];
   const realFetch = globalThis.fetch;
-  globalThis.fetch = async (url, init) => { calls.push(JSON.parse(init.body)); return { ok: true, json: async () => ({ message: { content: '{}' } }) }; };
+  // chatJson은 스트리밍(ndjson)으로 받는다 — 끊기면 Ollama가 바로 멈추게 하려고
+  const ndjson = () => new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode(JSON.stringify({ message: { content: '{' }, done: false }) + '\n' + JSON.stringify({ message: { content: '}' }, done: true }) + '\n')); c.close(); } });
+  globalThis.fetch = async (url, init) => { calls.push(JSON.parse(init.body)); return { ok: true, body: ndjson(), text: async () => '' }; };
   try {
     await chatJson({ url: 'http://o', timeoutMs: 1000 }, 'm', 's', 'u', {});
     await chatJson({ url: 'http://o', timeoutMs: 1000 }, 'm', 's', 'u', {}, undefined, { temperature: 0.2, numPredict: 2500 });
   } finally { globalThis.fetch = realFetch; }
-  check('기본은 답장용(0.9·160)', calls[0].options.temperature === 0.9 && calls[0].options.num_predict === 160, JSON.stringify(calls[0].options));
+  check('기본은 답장용(0.9·160), 스트리밍으로 받는다', calls[0].options.temperature === 0.9 && calls[0].options.num_predict === 160 && calls[0].stream === true, JSON.stringify(calls[0].options));
   check('옵션을 주면 본문에 실린다', calls[1].options.temperature === 0.2 && calls[1].options.num_predict === 2500, JSON.stringify(calls[1].options));
 }
 

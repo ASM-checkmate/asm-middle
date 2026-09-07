@@ -92,7 +92,7 @@ if (act) {
   check('같은 창을 다시 찍으면 교체된다 (뒤가 이김)', S().shots.length === 1 && sameCrop(S().shots[0].crop, c1b), JSON.stringify(S().shots));
   S().jumpTo(act.arriveAt + span * 0.6);
   check('창 2로 넘어갔다', winAt(S().phase.progress) === 2, String(S().phase.progress));
-  const c2 = { ...crop(1.0, 0, 0, 0), pitch: 10, light: 0.7, dof: 0.5 };   // 각도·조도·심도 (선택 필드)
+  const c2 = { ...crop(1.0, 0, 0, 0), pitch: 10, light: 0.7, dof: 0.5, focus: 'far' };   // 각도·조도·심도·초점 (선택 필드)
   S().addShot(shot(2, S().now, c2));
   check('다른 창은 추가된다', S().shots.length === 2, String(S().shots.length));
   check('각도·조도·심도가 저장된다', S().shots.find(x => x.win === 2)?.crop.pitch === 10 && JSON.parse(storage.get('theworld.world.v5')).shots.find(x => x.win === 2)?.crop.dof === 0.5, JSON.stringify(S().shots));
@@ -107,7 +107,7 @@ if (act) {
   if (comic) {
     const [p0, p1, p2, p3] = comic.panels;
     check('사용자 컷: by user · % 단위 · crop 그대로 · 촬영 시각', p1.by === 'user' && p1.unit === 'pct' && sameCrop(p1.crop, c1b) && p1.t === S().shots[0].at, JSON.stringify(p1));
-    check('각도·조도·심도도 컷에 그대로 실린다', p2.by === 'user' && p2.crop.pitch === 10 && p2.crop.light === 0.7 && p2.crop.dof === 0.5, JSON.stringify(p2.crop));
+    check('각도·조도·심도·초점도 컷에 그대로 실린다', p2.by === 'user' && p2.crop.pitch === 10 && p2.crop.light === 0.7 && p2.crop.dof === 0.5 && p2.crop.focus === 'far', JSON.stringify(p2.crop));
     check('사용자 컷: 흐림·열화 없음', p1.blur === undefined && p1.flaws === undefined && p2.blur === undefined && p2.flaws === undefined, JSON.stringify([p1.blur, p1.flaws, p2.blur, p2.flaws]));
     check('사용자 컷 캡션은 "잘 안 찍혔다"로 바뀌지 않는다', p1.caption !== '이건 잘 안 찍혔다' && p2.caption !== '이건 잘 안 찍혔다', p1.caption);
     check('에이전트 컷: by agent · px 단위', p0.by === 'agent' && p0.unit === 'px' && p3.by === 'agent' && p3.unit === 'px', JSON.stringify([p0.by, p0.unit, p3.by, p3.unit]));

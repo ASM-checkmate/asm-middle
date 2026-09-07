@@ -1,5 +1,6 @@
-import { memo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { memo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect } from 'react';
 import { useWorld } from '../sim/store';
+import { rng } from '../sim/rng';
 import type { Friend, PhaseEncounter, PlaceType, ScheduledActivity, ShotWin, UserShot } from '../sim/types';
 import { WIN_LABEL, shotsFor, winAt, winState } from '../sim/shots';
 import { hhmmIn } from '../sim/tz';
@@ -10,7 +11,20 @@ import { GHOST, poseFor } from './util';
 import './camera.css';
 
 type Crop = UserShot['crop'];
-const CROP0: Crop = { scale: 1, x: 0, y: 0, rot: 0, pitch: 0, light: 1, dof: 0 };
+const CROP0: Crop = { scale: 1, x: 0, y: 0, rot: 0, pitch: 0, light: 1, dof: 0, focus: 'near' };
+/**
+ * 카메라를 열면 구도가 일부러 흐트러져 있다 — 자리·확대·기울임·각도·조도·심도·초점이 조금씩 어긋난 채 시작한다
+ * (오너 결정 2026-09-08: 맞추는 게 촬영이다). 활동·창마다 같은 값(시드)이라 닫았다 열어도 같은 자리에서 다시 시작한다.
+ */
+export function messyStart(actKey: string, win: ShotWin): Crop {
+  const r = rng(`cam:${actKey}:${win}`);
+  const sp = (a: number, b: number) => a + r.next() * (b - a);
+  const step = (v: number, q: number) => Math.round(v / q) * q;
+  return {
+    x: step(sp(-18, 18), 0.1), y: step(sp(-14, 14), 0.1), scale: step(sp(1.0, 1.7), 0.05), rot: step(sp(-10, 10), 0.5),
+    pitch: step(sp(-10, 10), 1), light: step(sp(0.7, 1.25), 0.05), dof: step(sp(0.15, 0.8), 0.05), focus: r.next() < 0.5 ? 'near' : 'far',
+  };
+}
 /** 프레이밍 범위 — types.ts ShotCrop 주석 그대로: x/y ±35 %(뷰포트 자기 크기 대비), 확대 1.0~2.2, 기울임 ±15°, 각도 ±18°, 조도 0.55~1.45, 심도 0~1 */
 const PAN_MAX = 35;
 const SCALE_MIN = 1;
@@ -27,6 +41,8 @@ const round1 = (v: number) => Math.round(v * 10) / 10;
 const cropVars = (c: Crop): CSSProperties => ({
   ['--rot' as string]: `${c.rot}deg`, ['--cs' as string]: String(c.scale), ['--cx' as string]: `${c.x}%`, ['--cy' as string]: `${c.y}%`,
   ['--pitch' as string]: `${c.pitch ?? 0}deg`, ['--pitchn' as string]: String(c.pitch ?? 0), ['--light' as string]: String(c.light ?? 1), ['--dof' as string]: String(c.dof ?? 0),
+  // 초점: near면 배경이 흐리고(bg 1) far면 캐릭터가 흐리다(fg 1) — camera.css의 blur 계수
+  ['--bgblur' as string]: (c.focus ?? 'near') === 'far' ? '0' : '1', ['--fgblur' as string]: (c.focus ?? 'near') === 'far' ? '1' : '0',
 });
 /** range의 채운 비율(--pct) */
 const pctVar = (v: number, min: number, max: number): CSSProperties => ({ ['--pct' as string]: `${((v - min) / (max - min)) * 100}%` });
@@ -56,9 +72,11 @@ export interface ShotStageProps {
  */
 export function ShotStage({ type, pose, crop, friendColor, metColor, seenColor, still, className = '' }: ShotStageProps) {
   return (
-    <div className={`cam-stage ${friendColor ? 'has-friend' : ''} ${metColor ? 'has-met' : ''} ${className}`}>
-      <div className="cam-shot" style={cropVars(crop)}>
-        <Still type={type} />
+    // 변수는 무대(.cam-stage)에 둔다: 밝기·톤은 무대가, transform은 그 안의 .cam-shot이, blur는 .scene/캐릭터가 물려받아 읽는다
+    <div className={`cam-stage ${friendColor ? 'has-friend' : ''} ${metColor ? 'has-met' : ''} ${className}`} style={cropVars(crop)}>
+      <div className="cam-shot">
+        {/* 배경은 프레임보다 넓게(가로 3장·세로 2배) — 밀고 돌려도 끝이 안 보인다. 양옆은 거울처럼 뒤집어 이어 붙인다 */}
+        <div className="cam-bg"><Still type={type} /><Still type={type} /><Still type={type} /></div>
         {seenColor && <Chara className="cam-ghost" pose="idle" size={190} variant="friend" color={seenColor} paused={still} />}
         {friendColor && <Chara className="cam-friend" pose="wave" size={224} variant="friend" color={friendColor} paused={still} />}
         <Chara className="cam-me" pose={pose} size={300} paused={still} />
@@ -94,12 +112,18 @@ export function CameraOverlay({ act, progress, nowMs, companions, encounter, pre
   const taken = shotsFor(preview ? local : stored, act.key);
   const now = winAt(progress);
   const count = Object.keys(taken).length;
-  // 열 때 지금 창에 이미 찍은 게 있으면 그 프레이밍에서 시작한다 (재촬영은 조금만 고치는 일이 많다)
-  const [crop, setCrop] = useState<Crop>(() => taken[now]?.crop ?? CROP0);
+  // 열 때 지금 창에 이미 찍은 게 있으면 그 프레이밍에서, 아니면 일부러 흐트러진 구도(messyStart)에서 시작한다
+  const [crop, setCrop] = useState<Crop>(() => taken[now]?.crop ?? messyStart(act.key, now));
+  // 창이 넘어가면(활동이 진행돼 다음 장면) 그 창의 사진이나 새 흐트러진 구도에서 다시 시작한다
+  const [seenWin, setSeenWin] = useState(now);
+  if (seenWin !== now) { setSeenWin(now); setCrop(taken[now]?.crop ?? messyStart(act.key, now)); }
   const [flash, setFlash] = useState(0);
   const [dragging, setDragging] = useState(false);
+  /** 톡 누른 자리의 초점 표시 — 잠깐 떴다 사라진다 */
+  const [ring, setRing] = useState<{ x: number; y: number; n: number } | null>(null);
+  useEffect(() => { if (!ring) return; const id = window.setTimeout(() => setRing(null), 800); return () => window.clearTimeout(id); }, [ring]);
   const frameRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ id: number; sx: number; sy: number; x0: number; y0: number; w: number; h: number } | null>(null);
+  const dragRef = useRef<{ id: number; sx: number; sy: number; x0: number; y0: number; w: number; h: number; moved: boolean } | null>(null);
 
   const pose = poseFor(act.option);
   const friend = companions[0];
@@ -113,7 +137,7 @@ export function CameraOverlay({ act, progress, nowMs, companions, encounter, pre
     const el = frameRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    dragRef.current = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x0: crop.x, y0: crop.y, w: Math.max(1, r.width), h: Math.max(1, r.height) };
+    dragRef.current = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x0: crop.x, y0: crop.y, w: Math.max(1, r.width), h: Math.max(1, r.height), moved: false };
     el.setPointerCapture(e.pointerId);
     setDragging(true);
   };
@@ -125,6 +149,8 @@ export function CameraOverlay({ act, progress, nowMs, companions, encounter, pre
     const a = (-crop.rot * Math.PI) / 180;
     const dx = e.clientX - d.sx;
     const dy = e.clientY - d.sy;
+    if (Math.abs(dx) + Math.abs(dy) > 6) d.moved = true;
+    if (!d.moved) return;   // 아직 톡 누르기일 수 있다 — 손가락이 흔들린 만큼은 무시
     const lx = (dx * Math.cos(a) - dy * Math.sin(a)) / crop.scale;
     const ly = (dx * Math.sin(a) + dy * Math.cos(a)) / crop.scale;
     const x = round1(clamp(d.x0 + (lx / d.w) * 100, -PAN_MAX, PAN_MAX));
@@ -132,9 +158,19 @@ export function CameraOverlay({ act, progress, nowMs, companions, encounter, pre
     setCrop(c => (c.x === x && c.y === y ? c : { ...c, x, y }));
   };
   const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (dragRef.current?.id !== e.pointerId) return;
+    const d = dragRef.current;
+    if (d?.id !== e.pointerId) return;
     dragRef.current = null;
     setDragging(false);
+    // 톡 누르기(안 끌었다) = 초점: 캐릭터를 눌렀으면 캐릭터가 선명하고 배경이 흐려지고, 배경을 눌렀으면 반대 —
+    // 어디가 잘 나올지는 사용자가 정한다. 얼마나 흐릴지는 심도 슬라이더
+    if (!d.moved) {
+      const hit = document.elementFromPoint(e.clientX, e.clientY);
+      const near = !!hit?.closest('.cam-me, .cam-friend, .cam-met');
+      setCrop(c => ({ ...c, focus: near ? 'near' : 'far' }));
+      const r = frameRef.current?.getBoundingClientRect();
+      if (r) setRing({ x: e.clientX - r.left, y: e.clientY - r.top, n: (ring?.n ?? 0) + 1 });
+    }
   };
 
   // ── 셔터: 지금 창에만. 같은 창을 다시 찍으면 뒤가 이긴다 ──
@@ -162,12 +198,14 @@ export function CameraOverlay({ act, progress, nowMs, companions, encounter, pre
         <ShotStage {...stage} crop={crop} />
         <span className="cam-osd num">{hhmmIn(nowMs, act.tz)}</span>
         <div className="cam-vf" aria-hidden="true"><i /><i /><i /><i /></div>
+        <span className="cam-fchip" aria-live="polite">초점 · {(crop.focus ?? 'near') === 'far' ? '배경' : '캐릭터'}</span>
+        {ring && <i key={ring.n} className="cam-focus" style={{ left: ring.x, top: ring.y }} aria-hidden="true" />}
         {flash > 0 && <div key={flash} className="cam-flash" aria-hidden="true" />}
         {flash > 0 && <b key={`s${flash}`} className="cam-snap" aria-hidden="true">찰칵!</b>}
       </div>
       <p className="cam-hint">
-        <span>끌어서 자리 잡고, 아래에서 분위기까지 잡아 봐</span>
-        <Button tone="text" onClick={() => setCrop(CROP0)}>처음 자리로</Button>
+        <span>끌어서 자리 잡고, 톡 눌러 초점 맞추고</span>
+        <Button tone="text" onClick={() => setCrop(taken[now]?.crop ?? messyStart(act.key, now))}>처음으로</Button>
       </p>
 
       <div className="cam-ctl">
@@ -196,7 +234,7 @@ export function CameraOverlay({ act, progress, nowMs, companions, encounter, pre
           <label className="cam-sl">
             <span>심도</span>
             <input className="cam-range" type="range" min={0} max={1} step={0.05} value={crop.dof ?? 0} style={pctVar(crop.dof ?? 0, 0, 1)} onChange={e => setCrop(c => ({ ...c, dof: Number(e.target.value) }))} aria-label="심도 (배경 흐림)" />
-            <output className="num">{(crop.dof ?? 0) === 0 ? '선명' : `흐림 ${Math.round((crop.dof ?? 0) * 100)}%`}</output>
+            <output className="num">{(crop.dof ?? 0) === 0 ? '다 선명' : `흐림 ${Math.round((crop.dof ?? 0) * 100)}%`}</output>
           </label>
         </div>
         <div className="cam-shutter-wrap">

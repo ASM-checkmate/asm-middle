@@ -46,9 +46,19 @@
   transform: perspective(560px) rotateX(var(--pitch, 0deg)) rotate(var(--rot, 0deg)) scale(var(--cs, 1)) translate(var(--cx, 0), var(--cy, 0));
 }
 /* 각도에 따라 무대가 캐릭터와 다르게 움직인다(패럴랙스): 위에서 보면 바닥이, 아래에서 보면 천장이 더 들어온다.
-   심도(--dof 0~1)는 무대만 흐린다 — 캐릭터(와 옆의 동행)는 항상 선명해서 얕은 심도로 찍은 사진처럼 보인다 */
-.cam-stage .scene { position: absolute; inset: 0; transform: translateY(calc(var(--pitchn, 0) * -0.55%)); filter: blur(calc(var(--dof, 0) * 6px)); }
-.cam-thumb .cam-stage .scene, .cm-p.is-user .cam-stage .scene { filter: blur(calc(var(--dof, 0) * 2.4px)); }
+   심도(--dof 0~1)는 초점 밖을 흐린다 — 초점이 캐릭터(--bgblur 1)면 무대가, 배경(--fgblur 1)이면 캐릭터·동행이 흐려진다.
+   변수는 .cam-stage에 있고(ShotStage) 아래로 물려받는다.
+   배경(.cam-bg)은 프레임보다 넓다: 무대 SVG(390×844)를 세로 2배 상자에 slice로 채워 위아래가 남고, 같은 무대를 양옆에
+   거울처럼 뒤집어 한 장씩 더 붙여 가로 3배 — ±35 % 밀고 ±15° 돌려도 종이색 끝이 드러나지 않는다 */
+.cam-bg { position: absolute; inset: 0; transform: translateY(calc(var(--pitchn, 0) * -0.55%)); filter: blur(calc(var(--dof, 0) * var(--bgblur, 1) * 6px)); }
+.cam-bg .scene { position: absolute; top: -50%; bottom: -50%; height: 200%; width: 100%; inset-inline: auto; }
+.cam-bg .scene:nth-child(1) { left: -100%; transform: scaleX(-1); }
+.cam-bg .scene:nth-child(2) { left: 0; }
+.cam-bg .scene:nth-child(3) { left: 100%; transform: scaleX(-1); }
+.cam-stage .cam-me, .cam-stage .cam-friend, .cam-stage .cam-met { filter: blur(calc(var(--dof, 0) * var(--fgblur, 0) * 5px)); }
+.cam-thumb .cam-bg, .cm-p.is-user .cam-bg { filter: blur(calc(var(--dof, 0) * var(--bgblur, 1) * 2.4px)); }
+.cam-thumb .cam-stage .cam-me, .cam-thumb .cam-stage .cam-friend, .cam-thumb .cam-stage .cam-met,
+.cm-p.is-user .cam-stage .cam-me, .cm-p.is-user .cam-stage .cam-friend, .cm-p.is-user .cam-stage .cam-met { filter: blur(calc(var(--dof, 0) * var(--fgblur, 0) * 2px)); }
 .cam-stage::before, .cam-stage::after { content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none; }
 .cam-stage::before { background: rgb(38 32 84 / calc((1 - var(--light, 1)) * .42)); }
 .cam-stage::after { background: rgb(255 214 120 / calc((var(--light, 1) - 1) * .34)); mix-blend-mode: multiply; }
@@ -72,6 +82,14 @@
 .cam-vf i:nth-child(2) { top: 0; right: 0; border-left: 0; border-bottom: 0; }
 .cam-vf i:nth-child(3) { bottom: 0; left: 0; border-right: 0; border-top: 0; }
 .cam-vf i:nth-child(4) { bottom: 0; right: 0; border-left: 0; border-top: 0; }
+/* 초점: 톡 누른 자리에 노란 네모가 잠깐, 오른쪽 위에 "초점 · 캐릭터/배경" 칩 */
+.cam-fchip { position: absolute; top: 8px; right: 8px; z-index: 6; font-family: var(--display); font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--sun); color: var(--ink); border: 1.5px solid var(--ink); pointer-events: none; }
+.cam-focus {
+  position: absolute; z-index: 7; width: 52px; height: 52px; margin: -26px 0 0 -26px; border: 2.5px solid var(--sun); border-radius: 8px;
+  box-shadow: 0 0 0 1.5px var(--ink), inset 0 0 0 1.5px var(--ink); pointer-events: none; animation: cam-focus .8s ease-out both;
+}
+.cam-focus::before { content: ''; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: var(--sun); border: 1.5px solid var(--ink); }
+@keyframes cam-focus { 0% { transform: scale(1.5); opacity: 0; } 20% { transform: scale(1); opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
 /* 셔터: 하얀 플래시 + "찰칵!" — key를 바꿔 다시 마운트하면 애니메이션이 처음부터 돈다 */
 .cam-flash { position: absolute; inset: 0; z-index: 7; background: #fff; pointer-events: none; animation: cam-flash .55s ease-out both; }
 @keyframes cam-flash { 0% { opacity: 1; } 35% { opacity: .6; } 100% { opacity: 0; } }
@@ -191,6 +209,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cam, .cam-flash, .cam-snap, .cam-here, .cam-osd::before { animation: none !important; }
+  .cam, .cam-flash, .cam-snap, .cam-here, .cam-osd::before, .cam-focus { animation: none !important; }
   .cam-flash { display: none; }
 }

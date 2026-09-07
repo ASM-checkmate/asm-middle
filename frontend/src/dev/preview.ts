@@ -2,7 +2,7 @@
 //   timetable[&tz=][&hour=][&jetlag=1][&proposal=1][&travel=1][&sketch=1][&money=][&fatigue=][&mood=][&judge=pushback|refuse]   sleeping[&tz=]
 //   active:{placeType}[&tz=][&jetlag=1][&encounter=talked|seen][&sketch=1][&camera=1][&p=0.35]
 //   comic[&tz=][&jetlag=1][&friction=…][&shots=0,2][&sketch=1]   summary[&gap=1]   book
-//   *[&request=money|worry][&call=in|answered|refused][&chat=1]   moving:{walk|car|subway|train|plane|boat}[&p=0.35][&onboard=sleep|meal]
+//   *[&request=worry][&call=in|answered|refused][&chat=1]   moving:{walk|car|subway|train|plane|boat}[&p=0.35][&onboard=sleep|meal]
 // `tz` puts the character in a city of that zone (America/New_York → 뉴욕); `timetable&tz=` also fakes the whole day
 // around it (yesterday's flight from home landing this morning, the agent's picks for the rest), so the flight-covered
 // blocks, the local date title and the jet-lag chip can be screenshotted without living the trip.
@@ -21,7 +21,7 @@ import { suggestOptions } from '../sim/suggest';
 import { AGENTS, agentById } from '../sim/agents';
 import { makeComic } from '../sim/comic';
 import { shotsFor, winStarts } from '../sim/shots';
-import { INITIAL_STATUS, wonKo, type Status } from '../sim/status';
+import { INITIAL_STATUS, type Status } from '../sim/status';
 import { WORRY_CHOICES, type AgentRequest, type RequestKind } from '../sim/requests';
 import { callLines, lateText, type CallEvent } from '../sim/call';
 import { optionCost, review, type ReviewCtx } from '../sim/review';
@@ -87,7 +87,7 @@ export function parsePreview(search: string = typeof location !== 'undefined' ? 
   const call: CallPreview = cv === 'in' || cv === 'answered' || cv === 'refused' ? cv : null;
   const chat = q.get('chat') === '1';
   const rq = q.get('request');
-  const request: RequestKind | null = rq === 'money' || rq === 'worry' ? rq : null;
+  const request: RequestKind | null = rq === 'worry' ? rq : null;
   const onboardRaw = q.get('onboard');
   const onboard: Onboard = onboardRaw === 'sleep' || onboardRaw === 'meal' ? onboardRaw : null;
   const sketch = q.get('sketch') === '1';
@@ -158,10 +158,10 @@ function fakeShots(act: ScheduledActivity, wins: ShotWin[]): UserShot[] {
   const starts = winStarts(act);
   const span = Math.max(1, act.endAt - act.arriveAt);
   const CROP = [
-    { scale: 1.15, x: -8, y: 4, rot: -5, pitch: 8, light: 1.15, dof: 0.6 },
-    { scale: 1.6, x: 6, y: -6, rot: 3, pitch: -10, light: 0.75, dof: 0 },
-    { scale: 2.0, x: 0, y: 8, rot: -2, pitch: 0, light: 1.3, dof: 1 },
-    { scale: 1.3, x: -4, y: 0, rot: 9, pitch: 12, light: 0.6, dof: 0.35 },
+    { scale: 1.15, x: -8, y: 4, rot: -5, pitch: 8, light: 1.15, dof: 0.6, focus: 'near' as const },
+    { scale: 1.6, x: 6, y: -6, rot: 3, pitch: -10, light: 0.75, dof: 0.7, focus: 'far' as const },
+    { scale: 2.0, x: 0, y: 8, rot: -2, pitch: 0, light: 1.3, dof: 1, focus: 'near' as const },
+    { scale: 1.3, x: -4, y: 0, rot: 9, pitch: 12, light: 0.6, dof: 0.35, focus: 'far' as const },
   ];
   return wins.map(w => ({ actKey: act.key, win: w, at: starts[w] + span * 0.06, crop: { ...CROP[w] } }));
 }
@@ -491,11 +491,7 @@ const PREVIEW_GAP_MS = 11 * HOUR_MS + 8 * 60_000;
 /** Overlays forced by `?preview=summary|book` (fake content when the real book is empty). */
 /** `&request=` — 쪽지 하나를 강제로 띄운다 (ADR-0001 §1). */
 function fakeRequest(kind: RequestKind, now: number): AgentRequest {
-  const common = { at: now, dueAt: now + 2 * HOUR_MS, told: false };
-  if (kind === 'worry') {
-    return { ...common, id: 'preview:worry', kind, line: '오늘 너 좀 조용하네. 뭐 때문인지 하나만 골라줘.', choices: WORRY_CHOICES };
-  }
-  return { ...common, id: 'preview:money', kind, line: `이번 주 ${wonKo(12_400)} 남았어. 좀 아껴도 돼?`, choices: [{ id: 'save', label: '응, 아껴' }, { id: 'spend', label: '그냥 하고 싶은 거 해', isDefault: true }] };
+  return { at: now, dueAt: now + 2 * HOUR_MS, told: false, id: 'preview:worry', kind, line: '오늘 너 좀 조용하네. 뭐 때문인지 하나만 골라줘.', choices: WORRY_CHOICES };
 }
 
 /** `&call=` — 통화 하나를 강제로 띄운다. */

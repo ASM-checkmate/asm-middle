@@ -13,8 +13,8 @@ import { shotsFor, trimShots } from './shots';
 import { buildTimeline, currentDayKey, currentPlaceAt, emptyPlans, isBlockEditable, isBlockFree, phaseAt, returnDueAt, tzAt, type Days, type Encounters, type JourneyCache, type Plans } from './timeline';
 import { estimateJourney, journeyKey } from './journey';
 import { rng } from './rng';
-import { INITIAL_STATUS, applyDelta, foldStatus, validStatus, type Status } from './status';
-import { PUSH_COST, fallbackOption, review, type ReviewCtx } from './review';
+import { INITIAL_STATUS, TIGHT_MONEY, applyDelta, foldStatus, validStatus, type Status } from './status';
+import { PUSH_COST, cheapestFirst, fallbackOption, review, type ReviewCtx } from './review';
 import { WORRY_CHOICES, expire, nextRequest, trimRequests, type AgentRequest } from './requests';
 import { callLines, lateText, pickupRule, trimCalls, trimDueCalls, worryLines, type CallEvent, type DueCall } from './call';
 import { narrate } from './narrate';
@@ -149,7 +149,7 @@ const validShots = (raw: unknown): UserShot[] => {
     const c = x?.crop;
     return !!x && typeof x.actKey === 'string' && isWin(x.win) && Number.isFinite(x.at)
       && !!c && Number.isFinite(c.scale) && Number.isFinite(c.x) && Number.isFinite(c.y) && Number.isFinite(c.rot)
-      && (c.pitch === undefined || Number.isFinite(c.pitch)) && (c.light === undefined || Number.isFinite(c.light)) && (c.dof === undefined || Number.isFinite(c.dof));
+      && (c.pitch === undefined || Number.isFinite(c.pitch)) && (c.light === undefined || Number.isFinite(c.light)) && (c.dof === undefined || Number.isFinite(c.dof)) && (c.focus === undefined || c.focus === 'near' || c.focus === 'far');
   });
 };
 const persistedOf = (w: World): Persisted => ({ v: 5, days: w.days, anchor: w.anchor, journeys: w.journeys, regen: w.regen, encounters: w.encounters, requests: w.requests, calls: w.calls, messages: w.messages, dueCalls: w.dueCalls, shots: w.shots });
@@ -289,20 +289,26 @@ export function decide(dayKey: DayKey, w: World, horizon: number, now: number): 
       const hotel = id === 'night' && from.city !== homeCity ? hotelIn(from.city) : null;
       // 사용자가 말해 준 고민이 신선하면(하루 안) 에이전트가 그에 맞는 범주로 튼다 (ADR-0001 고민 듣기)
       const worry = w.memory.worry && start - w.memory.worry.at < DAY_MS ? WORRY_CATEGORY[w.memory.worry.key] : null;
+      // 블록 시작 시점의 상태 — 범주와 옵션을 고르는 근거 (sim/review.ts와 같은 문)
+      const status = foldStatus(w.anchor, timeline, start, w.memory);
+      // 돈이 빠듯하면 묻지 않는다 (오너 결정 2026-09-08): 밥 시간이 아니면 열에 일곱은 일하러 가고, 아니면 싼 데로 간다.
+      // r.next()는 빠듯할 때만 소비한다 — 넉넉한 날의 시드 순서(범주 뽑기)는 그대로다
+      const tight = status.money < TIGHT_MONEY;
+      const earn = tight && !p.category && !MEAL_BLOCKS.has(id) && !hotel && r.next() < 0.7;
       if (!p.category) p.category = MEAL_BLOCKS.has(id)
         ? 'meal'                                                           // 아침·점심·저녁은 밥 시간 (식당/브런치/카페는 취향대로 제안됨)
         : hotel ? 'rest'
-          : worry ?? r.pick(CATEGORIES.filter(c => c.id !== 'travel' && c.id !== 'meal')).id;
+          : earn ? 'work'
+            : worry ?? r.pick(CATEGORIES.filter(c => c.id !== 'travel' && c.id !== 'meal')).id;
       if (!p.options.length) p.options = suggestOptions(ctx(p.category));
       if (p.category === 'meal') p.options = rankMealOptions(p.options, w.memory);
       if (hotel && p.category === 'rest') p.options = [...p.options.filter(o => o.placeId === hotel.id), ...p.options.filter(o => o.placeId !== hotel.id)];
       // 에이전트의 자기 선택도 사용자의 확정과 **같은 문**을 지난다 (sim/review.ts):
       // 돈이 없으면 비싼 걸 안 고르고, 지쳤으면 운동을 안 고른다. 셋 다 막히면 집에서 쉰다.
-      const rctx: ReviewCtx = {
-        dayKey, status: foldStatus(w.anchor, timeline, start, w.memory), memory: w.memory,
-        from, blockId: id, blockStart: start, blockEnd: blockEndAt(dayStart, id),
-      };
-      const ok = p.options.find(o => !review(o, rctx));
+      const rctx: ReviewCtx = { dayKey, status, memory: w.memory, from, blockId: id, blockStart: start, blockEnd: blockEndAt(dayStart, id) };
+      // 빠듯하면 통과하는 것 중 가장 싼(일이면 가장 많이 버는) 것부터 — 밥도 집밥이 먼저 온다
+      const order = tight ? cheapestFirst(p.options, rctx) : p.options;
+      const ok = order.find(o => !review(o, rctx));
       if (ok) p.chosenId = ok.id;
       else {
         const fb = fallbackOption(id, w.memory);
@@ -311,6 +317,7 @@ export function decide(dayKey: DayKey, w: World, horizon: number, now: number): 
       }
       p.chosenBy = 'agent';
       p.status = 'confirmed';
+      p.frugal = tight ? (p.category === 'work' ? 'earn' : 'cheap') : undefined;
     }
     if (p.chosenId === p0.chosenId && p.category === p0.category && p.chosenBy === p0.chosenBy && p.status === p0.status && sameOptions(p.options, p0.options)) continue;
     plans = { ...plans, [id]: p }; days = { ...days, [dayKey]: plans }; changed = true;
@@ -547,7 +554,7 @@ export const useWorld = create<WorldState>((set, get) => {
   // 옛 저장본 정리 (ADR-0004): 조율 시절의 허락 쪽지와 결말 줄(`nego:`)은 버리고, 옛 고민 키('sleep'/'stuck')는
   // 메모리·약속한 전화·아직 답 안 한 고민 쪽지의 칩에서 걷어 낸다 (칩은 지금 여덟 가지로 갈아 끼운다)
   const requests0 = (Array.isArray(persisted?.requests) ? persisted.requests : [])
-    .filter(r => (r as { kind: string }).kind !== 'permission')
+    .filter(r => !['permission', 'money', 'decide'].includes((r as { kind: string }).kind))   // 옛 저장본의 허락·돈·일정 쪽지는 버린다
     .map(r => (r.kind === 'worry' && !r.answered && !r.decidedAlone ? { ...r, choices: WORRY_CHOICES } : r));
   const messages0 = (Array.isArray(persisted?.messages) ? persisted.messages : []).filter(m => !m.id.startsWith('nego:'));
   const dueCalls0 = (Array.isArray(persisted?.dueCalls) ? persisted.dueCalls : []).map(d => (d.worry !== undefined && !isWorryKey(d.worry) ? { ...d, worry: undefined } : d));

@@ -19,7 +19,7 @@ let n = 0;
 const check = (name, ok, detail = '') => { n++; console.log(`${ok ? '  ok ' : ' FAIL'} ${name}${ok ? '' : '  ← ' + detail}`); if (!ok) fails.push(name); };
 
 freezeClockAt(T0);
-const { LIMITS, PUSH_COST, fallbackOption, optionCost, review } = await import('../src/sim/review.ts');
+const { LIMITS, PUSH_COST, cheapestFirst, fallbackOption, optionCost, review } = await import('../src/sim/review.ts');
 const { INITIAL_STATUS } = await import('../src/sim/status.ts');
 const { suggestOptions } = await import('../src/sim/suggest.ts');
 const { placeById } = await import('../src/sim/places.ts');
@@ -147,6 +147,28 @@ console.log('\n── 에이전트의 자기 선택 ──');
 const started = S().plans[S().phase.currentBlockId ?? 'morning'];
 check('시작된 블록은 에이전트가 확정해 둔다', !started || started.status === 'confirmed' || started.status === 'empty', started?.status);
 check('fallbackOption은 집에서 쉬기', fallbackOption('am', memory).placeId === memory.homePlaceId, '');
+
+// 돈이 빠듯하면 묻지 않고 알아서 아낀다 (오너 결정 2026-09-08)
+console.log('\n── 빠듯할 때 ──');
+const ordered = cheapestFirst([meal[0], freeWalk], ctxOf(rich));
+check('싼 것부터 — 공짜 산책이 식사보다 앞', ordered[0].id === 'z', JSON.stringify(ordered.map(o => o.id)));
+const work = opts('work');
+check('일 옵션은 돈을 번다 (비용이 음수)', work.length > 0 && optionCost(work[0], ctxOf(rich)).cost < 0, JSON.stringify(work.map(o => [o.title, optionCost(o, ctxOf(rich)).cost])));
+check('돈은 쪽지로 묻지 않는다', !S().requests.some(r => r.kind === 'money'), JSON.stringify(S().requests.map(r => r.kind)));
+// 스토어에서: 지갑이 5,000원인 채로 저녁 블록이 시작되면 에이전트가 알아서 아끼거나 벌러 간다
+const { activityLog } = await import('../src/sim/actlog.ts');
+useWorld.setState({ anchor: { ...S().anchor, status: { ...INITIAL_STATUS, money: 5_000 } } });
+// 친구가 미리 채운 블록(chosenBy 'friend')이나 사용자가 정한 블록은 에이전트가 안 고르니, 아직 빈 블록을 하나 고른다
+const freeId = ['pm', 'night', 'evening', 'am', 'lunch'].find(id => S().plans[id].chosenBy === null && S().plans[id].status === 'empty');
+check('빈 블록이 하나 있다', !!freeId, JSON.stringify(Object.fromEntries(Object.entries(S().plans).map(([k, p]) => [k, p.chosenBy]))));
+if (freeId) {
+  S().jumpTo(blockStartAt(dayStart, freeId) + 1000);
+  const ev = S().plans[freeId];
+  check('빠듯하면 알아서 아끼거나 벌러 간다 (frugal)', ev.chosenBy === 'agent' && (ev.frugal === 'earn' || ev.frugal === 'cheap'), JSON.stringify([freeId, ev.category, ev.chosenBy, ev.frugal]));
+  const evAct = S().timeline.find(a => a.dayKey === S().today && a.blockIds[0] === freeId);
+  const lines = evAct ? activityLog(evAct, evAct.departAt + 2).map(l => l.text) : [];
+  check('출발 줄에 이유가 찍힌다', lines.some(l => /지갑|아끼|일하러|벌러|싼 데|돈/.test(l)), JSON.stringify(lines));
+}
 
 console.log(`\n${n - fails.length}/${n} checks passed`);
 if (fails.length) { console.log('FAILED: ' + fails.join(', ')); process.exit(1); }

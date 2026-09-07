@@ -122,6 +122,8 @@ export interface BlockPlan {
    * 에이전트가 그 3장 안에서 review 문으로 고른다(chosenBy 'agent'). 카드 경로로 돌아오면 지워진다.
    */
   sketch?: string;
+  /** 돈이 빠듯해서 에이전트가 알아서 아꼈다(`cheap`: 싼 데로) 또는 벌러 갔다(`earn`: work). 묻지 않고 한다 — 출발 줄에 이유만 찍힌다 */
+  frugal?: 'cheap' | 'earn';
 }
 
 export interface Leg {
@@ -161,6 +163,8 @@ export interface ScheduledActivity {
   outcome?: Outcome;
   /** 아침에 그린 그림 — buildTimeline이 plan.sketch를 복사 (활동 로그 첫 줄·만화 헤더가 act만 받으므로) */
   sketch?: string;
+  /** 지갑이 얇아서 알아서 아꼈다/벌러 갔다 — buildTimeline이 plan.frugal을 복사 (활동 로그의 출발 줄) */
+  frugal?: 'cheap' | 'earn';
 }
 
 // ─── 사진 (ADR-0004 오너 결정 7) ─────────────────────────────────────────────
@@ -170,9 +174,10 @@ export type ShotWin = 0 | 1 | 2 | 3;
  * 사용자가 찍은 한 장 (추가전용 이벤트, 같은 actKey+win은 뒤가 이긴다).
  * crop.x/y는 촬영 뷰포트 자기 크기 대비 % (translate(x%, y%)), scale=확대(1.0~2.2), rot=기울임(deg, -15~15),
  * pitch=각도(위/아래에서 보는 앵글, deg, -18~18, 없으면 0), light=조도(밝기 배율 0.55~1.45, 없으면 1),
- * dof=심도(0 = 전부 선명 … 1 = 배경 최대 흐림, 캐릭터는 항상 선명, 없으면 0).
+ * dof=심도(0 = 전부 선명 … 1 = 초점 밖이 최대 흐림, 없으면 0), focus=초점(near: 캐릭터가 선명하고 배경이 흐림 ·
+ * far: 배경이 선명하고 캐릭터가 흐림 — 톡 눌러서 정한다, 없으면 near).
  */
-export interface ShotCrop { scale: number; x: number; y: number; rot: number; pitch?: number; light?: number; dof?: number }
+export interface ShotCrop { scale: number; x: number; y: number; rot: number; pitch?: number; light?: number; dof?: number; focus?: 'near' | 'far' }
 export interface UserShot { actKey: string; win: ShotWin; at: number; crop: ShotCrop }
 /** 에이전트가 대충 찍은 흔적 (오너 결정 14: 에이전트 컷은 거의 항상 하나 이상). */
 export type PanelFlaw = 'blur' | 'dark' | 'overzoom' | 'cut' | 'tilt';

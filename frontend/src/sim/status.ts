@@ -40,6 +40,8 @@ export const SLEEP_RECOVERY: StatusDelta = { fatigue: -46, mood: 6 };
 const MOOD_DRIFT = 4;
 /** `work` 범주의 시급. 돈을 버는 유일한 범주다. */
 const WAGE_PER_HOUR = 12_000;
+/** 지갑이 이 아래면 빠듯하다 — 에이전트는 묻지 않고 알아서 아끼거나(싼 데로) 벌러 간다(work). 쪽지로 묻지 않는다 (오너 결정 2026-09-08). */
+export const TIGHT_MONEY = 30_000;
 /** 한 번에 세는 밤의 상한 (긴 공백을 한 번에 재생할 때 회복이 무한정 쌓이지 않게). */
 const MAX_NIGHTS = 7;
 

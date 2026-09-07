@@ -30,7 +30,9 @@ export type NarratableEvent =
   /** 혼자 도착했다 — 기분 한 줄 (ADR-0004 오너 결정 6: 도착 알림 대신, 보고 있을 때 한 번). 부탁은 하지 않는다 */
   | { t: 'arrive-say' }
   /** 그림으로 넘긴 계획을 블록 시작 때 자기 기준으로 골랐다 — 활동 로그 첫 줄 (ADR-0004 오너 결정 8: 규칙 기반이라 그림을 못 알아본다) */
-  | { t: 'sketch-pick' };
+  | { t: 'sketch-pick' }
+  /** 돈이 빠듯해 알아서 아꼈다(cheap) / 벌러 갔다(earn) — 묻지 않고 하고, 출발 줄에 이유만 남긴다 (오너 결정 2026-09-08) */
+  | { t: 'frugal'; mode: 'cheap' | 'earn' };
 
 export interface NarrateCtx {
   /** 캐릭터 이름 (문구에 쓰이진 않지만 시드에 섞인다) */
@@ -129,6 +131,18 @@ const SKETCH_PICK: string[] = [
   '뭘 그린 건지 모르겠어서 그냥 내 취향대로',
 ];
 
+/** 지갑이 얇은 날의 출발 줄 — 아끼는 쪽 / 벌러 가는 쪽 */
+const FRUGAL_CHEAP: string[] = [
+  '지갑이 얇아서 오늘은 싼 데로',
+  '돈 아끼는 날. 가까운 데로 간다',
+  '남은 돈 보고 조용한 데 골랐어',
+];
+const FRUGAL_EARN: string[] = [
+  '돈이 없어서 오늘은 일하러 간다',
+  '지갑 좀 채워야겠다. 일하러!',
+  '놀 돈이 없네. 벌러 간다',
+];
+
 const FORCED: string[] = [
   '알겠어. 갔다 올게.',
   '…그래, 가자.',
@@ -176,5 +190,7 @@ export function narrate(ev: NarratableEvent, ctx: NarrateCtx): string {
       return fit(r.pick(ARRIVE_SAY));
     case 'sketch-pick':
       return fit(r.pick(SKETCH_PICK));
+    case 'frugal':
+      return fit(r.pick(ev.mode === 'earn' ? FRUGAL_EARN : FRUGAL_CHEAP));
   }
 }

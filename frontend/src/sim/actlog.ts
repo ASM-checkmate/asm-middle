@@ -75,6 +75,8 @@ export function activityLog(act: ScheduledActivity, now: number): LogLine[] {
   // 그림으로 정한 블록: 출발 시각에 "못 알아봐서 내 맘대로 골랐어"가 첫 줄로 찍힌다 (ADR-0004 오너 결정 8).
   // 대사는 narrate() 하나를 지난다 (ADR-0001) — 이름은 시드에 안 섞이므로 비워 둔다
   if (act.sketch) out.push({ at: act.departAt, text: narrate({ t: 'sketch-pick' }, { name: '', seed: `log:${act.key}:sketch` }) });
+  // 돈이 빠듯해 알아서 아끼거나 일하러 간 날: 출발 줄에 이유가 찍힌다 — 묻지 않고 그냥 한다 (오너 결정 2026-09-08)
+  if (act.frugal) out.push({ at: act.departAt + 1, text: narrate({ t: 'frugal', mode: act.frugal }, { name: '', seed: `log:${act.key}:frugal` }) });
 
   out.push({ at: act.arriveAt, text: pick(ARRIVE[type] ?? ARRIVE_DEFAULT, `log:${act.key}:arrive`) });
 

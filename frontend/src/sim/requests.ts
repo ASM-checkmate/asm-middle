@@ -1,6 +1,5 @@
 import type { DayKey, Memory, ScheduledActivity } from './types';
 import type { Status } from './status';
-import { wonKo } from './status';
 import { rng } from './rng';
 
 // ─── 요청 (docs/adr/0001-agentness.md §1) ───────────────────────────────────
@@ -8,10 +7,9 @@ import { rng } from './rng';
 // 쪽지(여기)는 마감이 있고, 답이 없으면 **에이전트가 혼자 정하고 나중에 통보한다.**
 // 무시된 요청은 폼에 쌓이는 게 아니라 이야기가 된다 — 이게 "관계의 역전"의 핵심이다.
 
-// 쪽지는 마음이 오가는 것만이다 — 돈 걱정, 고민. 일을 시키는 부탁(일정 골라 달라, 사진 찍어 달라)은 쪽지로도 문자로도
-// 하지 않는다 (오너 결정 2026-09-07). 빈 블록은 시작 순간 에이전트가 그냥 고른다.
+// 쪽지는 마음이 오가는 것만이다 — 지금은 고민을 묻는 것 하나. 일을 시키는 부탁(일정 골라 달라, 사진 찍어 달라)은 쪽지로도
+// 문자로도 하지 않고(오너 결정 2026-09-07), 돈이 빠듯한 것도 묻지 않는다 — 알아서 아끼거나 벌러 간다 (store.decide, 2026-09-08).
 export type RequestKind =
-  | 'money'       // "이번 주 빠듯한데 좀 아껴도 돼?"
   | 'worry';      // "오늘 왜 그래? 하나만 골라줘" (고민 듣기 PR에서 켜진다)
 
 export interface RequestChoice {
@@ -43,9 +41,6 @@ export interface AgentRequest {
   told?: boolean;
 }
 
-/** 지갑이 이 아래로 떨어지면 돈 얘기를 꺼낸다. */
-export const MONEY_WORRY = 30_000;
-
 /** 고민을 묻는 말. 먼저 묻는 쪽은 언제나 에이전트고, 칩이 기본 대답이다 (자유 텍스트는 sim/chat.ts). */
 const WORRY_LINES = [
   '오늘 너 좀 조용하네. 뭐 때문인지 하나만 골라줘.',
@@ -63,10 +58,6 @@ export const WORRY_CHOICES: RequestChoice[] = [
   { id: 'none', label: '아무것도 아냐', isDefault: true },
 ];
 
-const MONEY_LINES = [
-  '이번 주 {money} 남았어. 좀 아껴도 돼?',
-  '지갑이 {money}야. 당분간 싼 데로 갈까?',
-];
 
 /** 아직 답을 안 한, 마감도 안 지난 요청들 — 오래된 것부터 (카드는 이 순서로 하나씩 뜬다, ADR-0004 오너 결정 10). */
 export const pendingOf = (rs: AgentRequest[], now: number) =>
@@ -86,28 +77,14 @@ export interface RequestCtx {
 /**
  * 지금 에이전트가 물어볼 게 있으면 하나 만든다. 없으면 null.
  * 결정론적이다 — 시드가 `req:${today}:${kind}`라 같은 하루엔 같은 문장이 나온다.
- * 상한은 없다 (ADR-0004 오너 결정 10) — 중복만 id로 막는다 (돈·고민은 하루 한 번).
+ * 상한은 없다 (ADR-0004 오너 결정 10) — 중복만 id로 막는다 (고민은 하루 한 번).
  *
  * @param rs 지금까지의 요청들 (중복을 여기서 본다)
  * @param ctx 지금 상태
  * @returns 새 요청 하나, 없으면 null
  */
 export function nextRequest(rs: AgentRequest[], ctx: RequestCtx): AgentRequest | null {
-  // ① 돈이 바닥나 간다 — 상태가 판단의 근거로 나서는 첫 자리
-  const moneyId = `${ctx.today}:money`;
-  if (ctx.status.money < MONEY_WORRY && !rs.some(r => r.id === moneyId)) {
-    const r = rng(`req:${ctx.today}:money`);
-    return {
-      id: moneyId, kind: 'money', at: ctx.now, dueAt: ctx.now + 6 * 3600_000,
-      line: r.pick(MONEY_LINES).replace('{money}', wonKo(ctx.status.money)),
-      choices: [
-        { id: 'save', label: '응, 아껴' },
-        { id: 'spend', label: '그냥 하고 싶은 거 해', isDefault: true },
-      ],
-    };
-  }
-
-  // ② 기분이 가라앉았다 — 에이전트가 먼저 묻는다 (하루 한 번)
+  // 기분이 가라앉았다 — 에이전트가 먼저 묻는다 (하루 한 번)
   const worryId = `${ctx.today}:worry`;
   if (ctx.status.mood < 40 && !rs.some(r => r.id === worryId)) {
     const r = rng(`req:${ctx.today}:worry`);
@@ -140,7 +117,6 @@ export function expire(rs: AgentRequest[], now: number): AgentRequest[] {
 /** 혼자 정하고 나서 하는 말. 요약 시트와 통화가 이걸 쓴다. */
 export function toldLine(r: AgentRequest): string {
   switch (r.kind) {
-    case 'money': return '답이 없어서 일단 아껴 썼어.';
     case 'worry': return '말 안 해줘서 그냥 조용한 데 있었어.';
   }
 }

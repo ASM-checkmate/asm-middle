@@ -84,6 +84,10 @@ export function optionCost(o: ActivityOption, ctx: ReviewCtx): { cost: number; p
   return { cost: costOf(o.category, place, journey.legs, stayMin), place, oneWayMin, stayMin };
 }
 
+/** 돈이 빠듯할 때의 순서 — 싼 것(일이면 많이 버는 것)부터. 에이전트가 스스로 고를 때만 쓴다: 묻지 않고 그냥 아낀다. */
+export const cheapestFirst = (options: ActivityOption[], ctx: ReviewCtx): ActivityOption[] =>
+  [...options].sort((a, b) => optionCost(a, ctx).cost - optionCost(b, ctx).cost);
+
 /**
  * 에이전트가 이 계획을 받아들일지 판단한다. 순수 함수 — 같은 상태·같은 옵션이면 언제나 같은 답이다.
  *

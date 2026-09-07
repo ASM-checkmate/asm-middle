@@ -452,6 +452,33 @@ function travelOptions(ctx: SuggestCtx, r: R, softUsed: Set<string>): ActivityOp
   return out;
 }
 
+// ─── 모델이 지은 카드 (ADR-0010) ───────────────────────────────────────────
+/** 백엔드 PlanOption과 같은 모양 (sim/llm.ts). 여기서는 타입만 복사해 의존을 끊는다. */
+export interface PlanCard { placeId: string; title: string; reason: string; emoji: string }
+
+/**
+ * 모델이 지은 카드들을 규칙 카드와 같은 `ActivityOption`으로 만든다. 없는 장소는 버리고, 예고(forecast)는 규칙과
+ * 같은 시드로 단다 — 예고는 에이전트 자신의 예측이지 모델의 말이 아니다 (ADR-0001).
+ *
+ * @param cards 모델의 카드들 (같은 범주)
+ * @param category 그 카드들의 범주
+ * @param dateKey 날짜 키 (예고 시드)
+ * @param blockId 블록 (id 접두·예고 시드)
+ * @returns 규칙 카드와 구분되는 id(`llm`)를 단 옵션들. 장소가 하나도 안 남으면 빈 배열
+ */
+export function optionsFromCards(cards: PlanCard[], category: Category, dateKey: string, blockId: BlockId): ActivityOption[] {
+  const out: ActivityOption[] = [];
+  const seen = new Set<string>();
+  for (const c of cards) {
+    let p: Place;
+    try { p = placeById(c.placeId); } catch { continue; }
+    if (seen.has(p.id)) continue;
+    seen.add(p.id);
+    out.push({ id: `${blockId}-llm${out.length}-${p.id}`, title: c.title, reason: c.reason, emoji: c.emoji || p.emoji, placeId: p.id, category, forecast: forecastFor(p, `${dateKey}:${blockId}`) });
+  }
+  return out;
+}
+
 // ─── main ─────────────────────────────────────────────────────────────────
 const mealOrder = (i: { types: string[] }) => i.types.includes('restaurant') ? 0 : i.types.includes('cafe') ? 1 : i.types.includes('home') || i.types.includes('friend_home') ? 3 : 2;
 

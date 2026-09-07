@@ -5,6 +5,8 @@ import { replyFor } from './reply.ts';
 import { readSketch } from './sketch.ts';
 import { ThinPlanError, planTrip } from './trip.ts';
 import { NoApiKeyError } from './search.ts';
+import { planBlocks } from './plan.ts';
+import { PLAN_BLOCKS, PLAN_CATEGORIES, TRIP_PLACE_TYPES, type PlanRequest } from './contract.ts';
 
 // ─── theworld 백엔드 (docs/adr/0006-backend-and-llm.md) ──────────────────────
 // 지금은 LLM 관문 하나다. 시뮬레이션은 아직 프론트에 있고, 여기는 "말을 짓는" 일만 받는다.
@@ -18,6 +20,9 @@ const MODELS: Record<Tier, string> = {
 const cfg = configFromEnv();
 /** 여행지 추출 (ADR-0009). 모델은 요청의 tier를 따르되 TRIP_MODEL이 있으면 그것으로 고정한다. */
 const tripConfig = (tier: Tier) => ({ model: process.env.TRIP_MODEL || MODELS[tier], modelTimeoutMs: Number(process.env.TRIP_MODEL_TIMEOUT_MS ?? 90_000) });
+/** 하루 계획 (ADR-0010): 블록 하나·하루 전체의 제한 시간. */
+const PLAN_ONE_TIMEOUT_MS = Number(process.env.PLAN_ONE_TIMEOUT_MS ?? 20_000);
+const PLAN_DAY_TIMEOUT_MS = Number(process.env.PLAN_DAY_TIMEOUT_MS ?? 120_000);
 /** 허용 origin. 기본 `*`는 편의용 — 검색 키를 서버가 쓰므로 아무 탭이나 한도를 쓸 수 있다. 개발 서버 주소로 좁히는 걸 권한다. */
 const CORS_ORIGIN = process.env.CORS_ORIGIN ?? '*';
 const MAX_BODY = 512 * 1024;   // 240px PNG dataURL이 실린다
@@ -89,6 +94,50 @@ function validateTrip(b: unknown): TripPlanRequest | string {
   return { tier: o.tier, city };
 }
 
+/** 계획 요청이 계약대로인지. 크기 상한(장소 120·블록 6)을 넘는 건 자른다. */
+function validatePlan(b: unknown): PlanRequest | string {
+  if (!b || typeof b !== 'object') return 'body must be an object';
+  const o = b as Record<string, unknown>;
+  if (o.tier !== 'small' && o.tier !== 'good') return 'tier must be small|good';
+  const a = o.agent as Record<string, unknown> | undefined;
+  if (!a || typeof a.name !== 'string') return 'agent.name required';
+  const strs = (v: unknown, cap = 12) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').map(s => s.slice(0, 40)).slice(0, cap) : []);
+  const day = o.day as Record<string, unknown> | undefined;
+  if (!day || typeof day.dateKey !== 'string' || typeof day.weekday !== 'string') return 'day.dateKey/weekday required';
+  const city = o.city as Record<string, unknown> | undefined;
+  if (!city || typeof city.key !== 'string' || typeof city.nameKo !== 'string') return 'city.key/nameKo required';
+  const st = o.status as Record<string, unknown> | undefined;
+  const num = (v: unknown, fb: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : fb);
+  const places = (Array.isArray(o.places) ? o.places : []).map(p => p as Record<string, unknown>)
+    .filter(p => typeof p.id === 'string' && typeof p.name === 'string' && (TRIP_PLACE_TYPES as readonly string[]).concat('home', 'friend_home', 'office', 'school').includes(p.type as string))
+    .slice(0, 120)
+    .map(p => ({ id: p.id as string, name: (p.name as string).slice(0, 40), type: p.type as PlanRequest['places'][number]['type'], area: typeof p.area === 'string' ? p.area.slice(0, 20) : '' }));
+  if (!places.length) return 'places must be a non-empty array';
+  const ids = new Set(places.map(p => p.id));
+  const blocks = (Array.isArray(o.blocks) ? o.blocks : []).map(x => x as Record<string, unknown>)
+    .filter(x => (PLAN_BLOCKS as readonly string[]).includes(x.id as string))
+    .slice(0, 6)
+    .map(x => ({
+      id: x.id as PlanRequest['blocks'][number]['id'],
+      category: (PLAN_CATEGORIES as readonly string[]).includes(x.category as string) ? (x.category as PlanRequest['blocks'][number]['category']) : null,
+      from: typeof x.from === 'string' ? x.from.slice(0, 40) : '',
+      avoid: strs(x.avoid, 12).filter(id => ids.has(id)),
+      ...(Array.isArray(x.previous) ? { previous: strs(x.previous, 6) } : {}),
+    }));
+  if (!blocks.length) return 'blocks must have 1-6 known block ids';
+  return {
+    tier: o.tier,
+    agent: { name: a.name.slice(0, 20), traits: strs(a.traits), likes: strs(a.likes), dislikes: strs(a.dislikes) },
+    day: { dateKey: day.dateKey.slice(0, 10), weekday: day.weekday.slice(0, 4) },
+    city: { key: city.key.slice(0, 40), nameKo: city.nameKo.slice(0, 20), home: city.home === true },
+    status: { money: num(st?.money, 0), fatigue: Math.max(0, Math.min(100, num(st?.fatigue, 30))), mood: Math.max(0, Math.min(100, num(st?.mood, 60))) },
+    worry: typeof o.worry === 'string' && (WORRY_KEYS as readonly string[]).includes(o.worry) ? (o.worry as PlanRequest['worry']) : null,
+    visited: strs(o.visited, 10),
+    places,
+    blocks,
+  };
+}
+
 async function handle(req: IncomingMessage, res: ServerResponse) {
   const url = new URL(req.url ?? '/', 'http://x');
   if (req.method === 'OPTIONS') return json(res, 204, null);
@@ -126,6 +175,21 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       return json(res, 200, out);
     } catch (e) {
       console.warn(`[sketch] failed: ${(e as Error).message}`);
+      return json(res, 502, { error: (e as Error).message });
+    }
+  }
+  if (req.method === 'POST' && url.pathname === '/api/plan/options') {
+    let parsed: unknown;
+    try { parsed = JSON.parse(await readBody(req)); } catch (e) { return json(res, 400, { error: `bad json: ${(e as Error).message}` }); }
+    const v = validatePlan(parsed);
+    if (typeof v === 'string') return json(res, 400, { error: v });
+    try {
+      // 블록 하나면 카드 고르는 몇 초, 하루면 넉넉히 — 프론트의 기다림도 그에 맞춘다 (docs/CONTRACT.md)
+      const out = await planBlocks(v, MODELS[v.tier], cfg, v.blocks.length === 1 ? PLAN_ONE_TIMEOUT_MS : PLAN_DAY_TIMEOUT_MS);
+      console.log(`[plan] ${out.model} ${out.ms}ms ${v.city.key} ${v.blocks.map(b => `${b.id}:${b.category ?? '?'}`).join(',')} → ${out.blocks.map(b => `${b.id}:${b.category}[${b.options.map(o => o.title).join(' | ')}]`).join(' ; ') || 'nothing'}`);
+      return json(res, 200, out);
+    } catch (e) {
+      console.warn(`[plan] failed: ${(e as Error).message}`);
       return json(res, 502, { error: (e as Error).message });
     }
   }

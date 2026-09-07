@@ -136,3 +136,54 @@ export interface TripPlanResponse {
   model: string;
   ms: number;
 }
+
+// ─── 하루 계획 (ADR-0010) ─────────────────────────────────────────────────────
+// 블록마다 "무엇을 할지" 카드 3장을 모델이 짓는다. 프론트 sim/types.ts의 Category·BlockId **복사**.
+
+export type BlockId = 'sleep' | 'morning' | 'am' | 'lunch' | 'pm' | 'evening' | 'night';
+/** 모델이 고를 수 있는 범주 — 잠·여행은 규칙이 맡는다. */
+export type PlanCategory = 'meal' | 'play' | 'exercise' | 'study' | 'work' | 'rest';
+export const PLAN_CATEGORIES: readonly PlanCategory[] = ['meal', 'play', 'exercise', 'study', 'work', 'rest'];
+export const PLAN_BLOCKS: readonly BlockId[] = ['morning', 'am', 'lunch', 'pm', 'evening', 'night'];
+
+/** 그 도시에서 갈 수 있는 장소 하나 (프론트 Place의 일부). */
+export interface PlanPlace { id: string; name: string; type: PlaceType; area: string }
+
+/** 계획을 지어 달라는 블록 하나. */
+export interface PlanBlockRequest {
+  id: BlockId;
+  /** 정해진 범주. null이면 모델이 고른다 */
+  category: PlanCategory | null;
+  /** 그 블록이 시작할 때 있는 곳 (장소 이름) */
+  from: string;
+  /** 오늘 다른 블록에 이미 잡힌 장소 id — 피한다 */
+  avoid: string[];
+  /** "다른 제안 보기": 방금 보여 준 카드 제목들 — 다른 걸 낸다 */
+  previous?: string[];
+}
+
+export interface PlanRequest {
+  tier: Tier;
+  agent: { name: string; traits: string[]; likes: string[]; dislikes: string[] };
+  /** "2026-09-08", "화요일" */
+  day: { dateKey: string; weekday: string };
+  /** 지금 있는 도시 — 카탈로그는 이 도시의 장소들 */
+  city: { key: string; nameKo: string; home: boolean };
+  status: { money: number; fatigue: number; mood: number };
+  worry: WorryKey | null;
+  /** 최근 간 곳 이름들 (오래된 것부터) */
+  visited: string[];
+  /** 갈 수 있는 장소 (≤120). 모델은 이 id만 쓴다 */
+  places: PlanPlace[];
+  /** 1~6개 */
+  blocks: PlanBlockRequest[];
+}
+
+export interface PlanOption { placeId: string; title: string; reason: string; emoji: string }
+export interface PlanBlock { id: BlockId; category: PlanCategory; options: PlanOption[] }
+export interface PlanResponse {
+  /** 요청한 블록 중 제대로 지어진 것만. 빠진 블록은 프론트가 규칙으로 채운다 */
+  blocks: PlanBlock[];
+  model: string;
+  ms: number;
+}

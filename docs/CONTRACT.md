@@ -129,3 +129,45 @@ Ollama Web Search 3회 → 로컬 모델이 JSON으로 추출 → Nominatim 지�
 오류: `400` 계약 위반, `422` 얇은 팩(장소 6개 미만·호텔 없음·허브 없음), `502` 검색·모델·지오코딩
 실패, `503` 서버에 `OLLAMA_API_KEY`가 없음. 프론트는 어느 쪽이든 "찾아보려 했는데 잘 안 됐어" 한 줄을
 남기고 만다.
+
+## POST /api/plan/options
+
+블록마다 "무엇을 할지" 카드 3장을 모델이 짓는다 (ADR-0010). 장소는 프론트가 보낸 카탈로그의 id만
+쓸 수 있고(스키마 enum), 범주가 정해진 블록은 그 안에서, 비어 있으면 모델이 범주도 고른다. 언제 시작하고
+어디를 거쳐 가는지, 돈·피로에 막히는지는 여전히 프론트 규칙(`review`·`timeline`)이 본다.
+
+프론트는 두 가지로 부른다. **하루**: 하루가 시작될 때(또는 tier를 켤 때) 오늘의 빈 블록들을 한 번에 —
+결과는 `llmPlans[today]`에 저장되고 블록이 시작하면 `decide()`가 규칙 카드 대신 쓴다. **블록 하나**: 사용자가
+범주를 고르면 그 블록·범주의 카드를 — 그동안 "제안을 준비하는 중…"이 뜨고, 15초 안에 안 오면 규칙 카드.
+
+요청
+
+```json
+{ "tier": "small" | "good",
+  "agent": { "name": "모모", "traits": ["느긋한"], "likes": ["카페"], "dislikes": ["줄 서기"] },
+  "day": { "dateKey": "2026-09-08", "weekday": "화요일" },
+  "city": { "key": "seoul", "nameKo": "서울", "home": true },
+  "status": { "money": 620000, "fatigue": 22, "mood": 58 },
+  "worry": null | "work" | …,
+  "visited": ["경의선숲길"],
+  "places": [ { "id": "layered-yeonnam", "name": "카페 레이어드 연남", "type": "cafe", "area": "연남동" }, … ],
+  "blocks": [ { "id": "am", "category": null, "from": "우리 집", "avoid": ["tuktuk-noodle"] },
+              { "id": "lunch", "category": "meal", "from": "우리 집", "avoid": [], "previous": ["툭툭누들에서 팟타이"] } ] }
+```
+
+*   `places`는 그 도시의 활동 장소(역·공항·항구·친구 집 제외), 최대 120개.
+*   `blocks`는 1~6개 (`morning`~`night`). `category`는 `meal|play|exercise|study|work|rest` 또는 null(모델이 고른다).
+    `avoid`는 오늘 다른 블록에 이미 잡힌 장소, `previous`는 "다른 제안 보기"에서 방금 보여 준 제목들.
+
+응답 (200)
+
+```json
+{ "blocks": [ { "id": "am", "category": "study",
+                "options": [ { "placeId": "mapo-central-library", "title": "마포중앙도서관에서 책 읽기", "reason": "조용한 자리 좋아함", "emoji": "📚" }, … ] } ],
+  "model": "qwen3.5:9b", "ms": 6100 }
+```
+
+*   요청한 블록 중 제대로 지어진 것만 온다(카드 2~3장). 빠진 블록은 프론트가 규칙으로 채운다.
+*   `title`은 24자, `reason`은 30자 안. 범주에 안 맞는 장소 유형(식사에 헬스장)은 서버가 뺀다.
+
+오류: `400` 계약 위반, `502` Ollama 오류·제한 시간(블록 하나 20초, 하루 120초). 프론트는 규칙 카드를 쓴다.

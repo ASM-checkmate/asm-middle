@@ -17,6 +17,9 @@ cp .env.example .env           # 필요하면 모델·포트 바꾸기 (.env는 
 npm run dev                    # http://localhost:8787
 ```
 
+**하루 계획**(`/api/plan/options`, ADR-0010)은 블록마다 카드 3장을 모델이 짓는다 — 하루 시작 때 한 번, 그리고
+사용자가 범주를 고를 때마다. 키가 필요 없고, 서버가 없으면 지금처럼 규칙 카드다.
+
 **여행지 찾기**(`/api/trip/plan`, ADR-0009)는 Ollama Web Search 키가 있어야 한다. ollama.com 무료
 계정을 만들고 https://ollama.com/settings/keys 에서 키를 받아 `.env`의 `OLLAMA_API_KEY`에 넣는다.
 한도는 공개돼 있지 않다("개인용으로 넉넉한 무료 티어", 유료 Cloud는 더 높음) — 서버가 도시당 한 번만

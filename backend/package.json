@@ -5,11 +5,11 @@
   "type": "module",
   "engines": { "node": ">=24" },
   "scripts": {
-    "dev": "node --watch src/server.ts",
-    "start": "node src/server.ts",
+    "dev": "node --env-file-if-exists=.env --watch src/server.ts",
+    "start": "node --env-file-if-exists=.env src/server.ts",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "oxlint",
-    "test": "node scripts/reply.test.mjs && node scripts/sketch.test.mjs"
+    "test": "node scripts/reply.test.mjs && node scripts/sketch.test.mjs && node scripts/trip.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

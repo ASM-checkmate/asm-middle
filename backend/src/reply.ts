@@ -15,9 +15,13 @@ export const REPLY_SCHEMA = {
     text: { type: ['string', 'null'] },
     worry: { type: ['string', 'null'], enum: [...WORRY_KEYS, null] },
     callMe: { type: 'boolean' },
+    trip: { type: ['string', 'null'] },
   },
-  required: ['text', 'worry', 'callMe'],
+  required: ['text', 'worry', 'callMe', 'trip'],
 } as const;
+
+/** trip(도시 이름)의 최대 길이. */
+export const MAX_TRIP = 30;
 
 const WORRY_KO: Record<WorryKey, string> = { work: '일', people: '사람', body: '몸', money: '돈', focus: '집중', blue: '기분', bored: '심심함' };
 
@@ -44,7 +48,8 @@ export function buildPrompt(req: ReplyRequest): { system: string; user: string }
     '- 사용자가 지쳤다·힘들다·우울하다고 하면: 무슨 일인지 놀라서 묻고 "이따가 전화할게"라고 약속한다. worry에 갈래를 적는다 (work=일·공부, people=사람·관계, body=몸·피곤, money=돈, focus=집중, blue=그냥 우울, bored=심심).',
     '- 사용자가 전화해 달라고 하면 callMe=true, "지금 걸게"라고 답한다.',
     '- 답하지 않는 게 자연스러우면 (추임새뿐이거나 이미 끝난 얘기) text를 null로 둔다.',
-    '- JSON으로만 답한다: {"text": string|null, "worry": string|null, "callMe": boolean}',
+    '- 사용자가 어디로 여행 가자고 하면 ("교토 가자", "파리 가고 싶다") trip에 도시 이름만 한국어로 적는다 ("교토"). 답장은 "오 좋다, 찾아볼게" 정도로 짧게 — 아직 모르는 장소·일정을 지어내지 않는다. 도시가 없거나 여행 얘기가 아니면 trip은 null.',
+    '- JSON으로만 답한다: {"text": string|null, "worry": string|null, "callMe": boolean, "trip": string|null}',
   ].filter(l => l !== '').join('\n');
 
   const line = (m: { from: 'me' | 'agent'; text: string }) => `${m.from === 'me' ? '사용자' : agent.name}: ${m.text}`;
@@ -60,10 +65,10 @@ export function buildPrompt(req: ReplyRequest): { system: string; user: string }
  * 모델이 낸 JSON을 계약대로 다듬는다. 형식이 어긋나면 **답장 없음**으로 본다 (틀린 말보다 침묵이 낫다).
  *
  * @param raw 모델 출력
- * @returns text·worry·callMe. 파싱 실패면 `{ text: null, worry: null, callMe: false }`
+ * @returns text·worry·callMe·trip. 파싱 실패면 `{ text: null, worry: null, callMe: false, trip: null }`
  */
-export function parseReply(raw: string): Pick<ReplyResponse, 'text' | 'worry' | 'callMe'> {
-  const none = { text: null, worry: null, callMe: false };
+export function parseReply(raw: string): Pick<ReplyResponse, 'text' | 'worry' | 'callMe' | 'trip'> {
+  const none = { text: null, worry: null, callMe: false, trip: null };
   let j: unknown;
   try { j = JSON.parse(raw); } catch { return none; }
   if (!j || typeof j !== 'object') return none;
@@ -74,7 +79,10 @@ export function parseReply(raw: string): Pick<ReplyResponse, 'text' | 'worry' | 
     if (!text) text = null;
   }
   const worry = typeof o.worry === 'string' && (WORRY_KEYS as readonly string[]).includes(o.worry) ? (o.worry as WorryKey) : null;
-  return { text, worry, callMe: o.callMe === true };
+  // 도시 이름만 — 모델이 "교토으로"·"교토까지"처럼 조사를 붙이면 뗀다. 한 글자 조사("로"·"에")는 안 뗀다 — 오슬로가 오슬이 된다
+  let trip: string | null = typeof o.trip === 'string' ? o.trip.replace(/\s+/g, ' ').trim().replace(/(으로|까지|에는|에서)$/, '').trim() : null;
+  if (trip !== null && (!trip || trip.length > MAX_TRIP)) trip = null;
+  return { text, worry, callMe: o.callMe === true, trip };
 }
 
 /**

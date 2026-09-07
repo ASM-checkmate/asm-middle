@@ -41,6 +41,8 @@ export interface ReplyResponse {
   worry: WorryKey | null;
   /** 전화를 걸어 달라는 말로 들었다 */
   callMe: boolean;
+  /** 어디로 여행 가자는 말로 들었으면 그 도시 이름 (한국어, ≤30자). 아니면 null (ADR-0009) */
+  trip: string | null;
   /** 실제로 쓴 모델 */
   model: string;
   /** 걸린 시간 (ms) */
@@ -74,6 +76,63 @@ export interface SketchReadResponse {
   category: SketchCategory | null;
   /** 그림이 무엇으로 보였는지 한국어 한 조각 ("컵", "자전거"). 못 봤으면 빈 문자열 */
   seen: string;
+  model: string;
+  ms: number;
+}
+
+// ─── 여행지 찾기 (ADR-0009) ───────────────────────────────────────────────────
+
+/** 프론트 sim/types.ts의 PlaceType **복사**. */
+export type PlaceType =
+  | 'home' | 'friend_home' | 'cafe' | 'restaurant' | 'park' | 'gym' | 'school' | 'library' | 'cinema'
+  | 'mall' | 'river' | 'beach' | 'museum' | 'arcade' | 'bar' | 'office' | 'station' | 'airport' | 'port'
+  | 'temple' | 'market' | 'hotel' | 'stadium' | 'mountain' | 'island';
+/** 웹에서 찾은 장소가 가질 수 있는 유형 — 집·친구 집·일터·학교는 여행지에 없다. */
+export const TRIP_PLACE_TYPES: readonly PlaceType[] = [
+  'cafe', 'restaurant', 'park', 'gym', 'library', 'cinema', 'mall', 'river', 'beach', 'museum', 'arcade', 'bar',
+  'station', 'airport', 'port', 'temple', 'market', 'hotel', 'stadium', 'mountain', 'island',
+];
+
+/** 프론트 sim/types.ts의 Place **복사** (ownerFriendId 없음). */
+export interface TripPlace {
+  id: string;
+  name: string;
+  type: PlaceType;
+  lng: number;
+  lat: number;
+  area: string;
+  city: string;
+  country: string;
+  emoji: string;
+  reachBy?: 'boat' | 'plane' | 'train';
+}
+
+/** 프론트 sim/types.ts의 CityInfo **복사**. */
+export interface CityInfo {
+  key: string;
+  nameKo: string;
+  nameEn?: string;
+  country: string;
+  tz: string;
+  stayNights: number;
+  hubs: { station?: string; airport?: string; port?: string; intlAirport?: string; hasSubway?: boolean };
+}
+
+/** "이 도시의 장소를 찾아 달라"는 요청. */
+export interface TripPlanRequest {
+  tier: Tier;
+  /** 도시 이름 (한국어든 영어든, 1~40자) */
+  city: string;
+}
+
+/** 도시 팩 — 프론트가 그대로 places.ts에 등록한다. */
+export interface TripPlanResponse {
+  city: CityInfo;
+  /** 허브(공항·역·항구)와 호텔을 포함한 장소들. 전부 `city === city.key` */
+  places: TripPlace[];
+  /** 근거가 된 검색 결과 URL */
+  sources: string[];
+  cached: boolean;
   model: string;
   ms: number;
 }

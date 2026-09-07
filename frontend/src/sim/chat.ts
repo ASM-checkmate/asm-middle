@@ -332,3 +332,34 @@ export function replyToAll(texts: string[], ctx: ChatCtx): ChatReply {
 
 /** 한 줄짜리 묶음. `replyToAll`과 같다. */
 export const replyTo = (text: string, ctx: ChatCtx): ChatReply => replyToAll([text], ctx);
+
+// ─── 여행지 찾은 뒤 (ADR-0009) ────────────────────────────────────────────────
+
+/** 찾은 뒤에 말을 꺼내기까지 (sim ms). 답장 규칙과 같은 리듬 — 즉답이면 봇처럼 읽힌다. */
+const TRIP_SAY_MS: [number, number] = [20_000, 90_000];
+
+/**
+ * "교토 가자" 뒤에 에이전트가 덧붙이는 한 줄. 찾았으면 장소 이름 둘을 대고, 못 찾았으면 그렇다고 하고,
+ * 이미 아는 도시면 바로 좋다고 한다. 순수 함수 — 시각은 `replyToAll`과 같은 규칙(받을 수 있으면 금방,
+ * 아니면 막힌 게 끝난 뒤).
+ *
+ * @param kind found(찾았다) · failed(못 찾았다) · known(이미 아는 도시)
+ * @param ctx 지금 상태 (`seed`는 그 묶음의 키)
+ * @param city 도시 이름 (한국어)
+ * @param names 찾은 장소 이름들 (found일 때 둘까지 쓴다)
+ * @returns 한 줄과 지금부터 도착까지의 시간
+ */
+export function tripFollowUp(kind: 'found' | 'failed' | 'known', ctx: ChatCtx, city: string, names: string[] = []): { text: string; delayMs: number } {
+  const r = rng(`trip:${ctx.seed}:${kind}`);
+  const { ok } = pickupRule(ctx.phase);
+  const end = blockEndsAt(ctx.phase);
+  const delayMs = ok ? r.int(...TRIP_SAY_MS) : end !== null ? Math.max(end - ctxNow(ctx), 0) + r.int(...AFTER_BLOCK_MS) : LATE_READ_MS;
+  const [a, b] = names;
+  const pair = a && b ? `${a}랑 ${b}` : a ?? '';
+  const text = kind === 'found'
+    ? (pair ? r.pick([`${city} 찾아봤어. ${pair} 가고 싶다. 다음 여행 칸에 넣어 둘게`, `${city} 좀 봤는데 ${pair} 괜찮아 보여. 여행 칸 열리면 거기로`]) : `${city} 찾아봤어. 다음 여행 칸에 넣어 둘게`)
+    : kind === 'failed'
+      ? r.pick([`${city} 찾아보려 했는데 잘 안 됐어. 나중에 다시 말해줘`, `${city}는 아직 잘 모르겠다. 다음에 다시 얘기하자`])
+      : r.pick([`${city}? 나도 가고 싶었어. 다음 여행은 거기로 하자`, `오 ${city} 좋지. 여행 칸 열리면 거기 넣어 둘게`]);
+  return { text: text.slice(0, MAX_LEN + 20), delayMs };
+}

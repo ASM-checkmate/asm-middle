@@ -47,12 +47,15 @@
 { "text": "ㅋㅋ 뭐야 한꺼번에. 나 지금 카페야, 커피 마시는 중" | null,
   "worry": null | "work" | …,
   "callMe": false,
+  "trip": null | "교토",
   "model": "qwen3.5:9b", "ms": 2310 }
 ```
 
 *   `text: null`은 읽고 답하지 않는다는 뜻(읽씹). 프론트는 규칙 답장을 지운다 — 단, 규칙이 이미
     전화를 약속한 묶음이면 규칙 답장을 남긴다.
 *   `worry`·`callMe`는 규칙이 못 알아들은 것을 모델이 알아들었을 때만 프론트가 뒤처리한다.
+*   `trip`은 사용자가 어디로 여행 가자고 했을 때 그 도시 이름(한국어, ≤30자). 프론트는 아는 도시면
+    소원만 적고, 모르는 도시면 `/api/trip/plan`을 부른다 (ADR-0009). 답장이 이미 떴어도 유효하다.
 
 오류: `400` 계약 위반, `502` Ollama 오류·제한 시간(`LLM_TIMEOUT_MS`, 기본 25초). 프론트는
 어느 쪽이든 규칙 기반 답장을 그대로 쓴다.
@@ -89,3 +92,40 @@
 *   `seen`은 무엇으로 봤는지 한국어 한 조각(≤12자). 출발 줄에 끼워진다.
 
 오류: `400` 계약 위반, `502` Ollama 오류·제한 시간. 프론트는 못 읽은 것으로 본다.
+
+## POST /api/trip/plan
+
+"교토 가자"의 교토를 웹에서 찾아 **도시 팩**(도시 정보 + 실제 장소들)으로 돌려준다 (ADR-0009).
+Ollama Web Search 3회 → 로컬 모델이 JSON으로 추출 → Nominatim 지오코딩 → 조립. 프론트는 팩을
+`sim/places.ts`에 등록할 뿐이고, 여행 카드·이동·도착지의 하루는 규칙 엔진이 그대로 만든다.
+**1~2분** 걸린다. 같은 도시는 서버가 파일에 캐시해 두 번째부터 즉시다.
+
+요청
+
+```json
+{ "tier": "small" | "good", "city": "교토" }
+```
+
+*   `city`는 1~40자. 한국어든 영어든. 추출 모델은 `tier`를 따른다 (서버의 `TRIP_MODEL`이 있으면 그것으로 고정).
+
+응답 (200)
+
+```json
+{ "city": { "key": "kyoto", "nameKo": "교토", "nameEn": "Kyoto", "country": "JP", "tz": "Asia/Tokyo",
+            "stayNights": 2,
+            "hubs": { "airport": "kyoto-kansai-international-airport", "intlAirport": "kyoto-kansai-international-airport",
+                      "station": "kyoto-kyoto-station", "hasSubway": true } },
+  "places": [ { "id": "kyoto-kiyomizu-dera", "name": "기요미즈데라", "type": "temple", "lng": 135.785, "lat": 34.9949,
+                "area": "히가시야마", "city": "kyoto", "country": "JP", "emoji": "⛩️" }, … ],
+  "sources": ["https://…"],
+  "cached": false, "model": "qwen3.5:9b", "ms": 48210 }
+```
+
+*   `places`는 프론트 `Place`와 같은 모양. 허브(공항·역·항구)와 호텔 1개를 포함하고, 전부
+    `city === city.key`다. `hubs`의 id는 `places` 안에 있다.
+*   국내 도시인데 역이 없으면 장소마다 `reachBy: "plane"`이 붙는다.
+*   `key`는 붙박이 13개 도시와 겹치지 않는다 — 프론트가 아는 도시("도쿄")는 애초에 부르지 않는다.
+
+오류: `400` 계약 위반, `422` 얇은 팩(장소 6개 미만·호텔 없음·허브 없음), `502` 검색·모델·지오코딩
+실패, `503` 서버에 `OLLAMA_API_KEY`가 없음. 프론트는 어느 쪽이든 "찾아보려 했는데 잘 안 됐어" 한 줄을
+남기고 만다.

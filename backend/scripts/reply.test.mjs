@@ -25,7 +25,7 @@ check('이번 묶음 세 줄이 다 들어간다', ['사용자: 야', '사용자
 check('최근 대화가 없으면 그 칸이 없다', !buildPrompt({ ...req, recent: [] }).user.includes('[최근 대화]'), '');
 
 console.log('\n── 파서 ──');
-check('정상 JSON', JSON.stringify(parseReply('{"text":"나 카페야. 커피 마시는 중","worry":null,"callMe":false}')) === JSON.stringify({ text: '나 카페야. 커피 마시는 중', worry: null, callMe: false }), '');
+check('정상 JSON', JSON.stringify(parseReply('{"text":"나 카페야. 커피 마시는 중","worry":null,"callMe":false}')) === JSON.stringify({ text: '나 카페야. 커피 마시는 중', worry: null, callMe: false, trip: null }), '');
 check('null text는 읽씹', parseReply('{"text":null,"worry":null,"callMe":false}').text === null, '');
 check('줄바꿈은 한 줄로', parseReply('{"text":"나 카페야\\n커피 마시는 중","worry":null,"callMe":false}').text === '나 카페야 커피 마시는 중', parseReply('{"text":"나 카페야\\n커피 마시는 중","worry":null,"callMe":false}').text);
 check('너무 길면 자른다', parseReply(`{"text":"${'가'.repeat(200)}","worry":null,"callMe":false}`).text.length <= MAX_REPLY + 1, '');

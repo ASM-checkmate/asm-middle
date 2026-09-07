@@ -3,8 +3,11 @@ import { useWorld } from '../sim/store';
 import { BLOCKS, hhmmIn } from '../sim/blocks';
 import { DAY_MS, HOUR_MS, ownerTz } from '../sim/tz';
 import { cityNameKo, cityOfTz } from '../sim/places';
+import type { LlmTier } from '../sim/llm';
 
 const SCALES = [1, 10, 60, 600];
+/** 답장을 짓는 모델 단계 (sim/llm.ts). off = 규칙 기반. */
+const LLM_TIERS: LlmTier[] = ['off', 'small', 'good'];
 /** Mid-block and "waiting gap" times (activities wrap ~17 min before a block ends, so :45 is the timetable state). */
 const MIDS: [number, number, string][] = [[3, 0, '03:00'], [8, 0, '08:00'], [10, 30, '10:30'], [13, 0, '13:00'], [16, 0, '16:00'], [19, 0, '19:00'], [22, 0, '22:00']];
 const GAPS: [number, number, string][] = [[8, 45, '08:45'], [8, 58, '08:58'], [11, 45, '11:45'], [13, 45, '13:45'], [17, 45, '17:45'], [19, 45, '19:45'], [23, 45, '23:45']];
@@ -43,6 +46,8 @@ export function DevPanel() {
   const jumpToHour = useWorld(s => s.jumpToHour);
   const jumpBy = useWorld(s => s.jumpBy);
   const resetDay = useWorld(s => s.resetDay);
+  const llmTier = useWorld(s => s.llmTier);
+  const setLlmTier = useWorld(s => s.setLlmTier);
   const [open, setOpen] = useState(false);
 
   return (
@@ -81,6 +86,10 @@ export function DevPanel() {
           <div className="dev-row">
             <span className="dev-k">jump</span>
             {JUMPS.map(([ms, l]) => <button key={l} type="button" className="dev-b" onClick={() => jumpBy(ms)}>{l}</button>)}
+          </div>
+          <div className="dev-row">
+            <span className="dev-k">llm</span>
+            {LLM_TIERS.map(t => <button key={t} type="button" className={`dev-b ${t === llmTier ? 'is-on' : ''}`} onClick={() => setLlmTier(t)}>{t}</button>)}
           </div>
           <div className="dev-row">
             <span className="dev-k">day</span>

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useWorld } from '../sim/store';
-import { buildThread, MAX_LEN, type ThreadItem } from '../sim/chat';
+import { buildThread, isUnread, MAX_LEN, type ThreadItem } from '../sim/chat';
 import { fmtDur, type CallEvent } from '../sim/call';
 import { toldLine, type AgentRequest } from '../sim/requests';
 import { hhmmIn } from '../sim/tz';
@@ -14,6 +14,7 @@ import { dayStamp, phaseLabel } from './util';
  * 통화가 대화 안에 기록으로 남는 것이 핵심이다 — 카카오톡의 보이스톡 기록과 같은 자리에서,
  * "몇 시에 전화가 왔고 몇 분 통화했는가"가 대화의 시간 순서에 그대로 꽂힌다.
  * **부재중은 시각만 남는다** (ADR-0001) — 펼쳐도 나올 내용이 없다.
+ * 내 말에는 에이전트가 읽을 때까지 "1"이 붙는다 (ADR-0005). 읽고 답이 없으면 그게 읽씹이다 — 따로 표시하지 않는다.
  */
 export function ChatOverlay({ tz, onClose }: { tz: string; onClose: () => void }) {
   const now = useWorld(s => s.now);
@@ -56,7 +57,7 @@ export function ChatOverlay({ tz, onClose }: { tz: string; onClose: () => void }
         {rows.map(({ it, sep }) => (
           <li key={it.id} className="chat-li">
             {sep && <div className="chat-day"><span>{sep}</span></div>}
-            <Row item={it} tz={tz} open={open === it.id} onToggle={() => setOpen(open === it.id ? null : it.id)} onAnswer={answer} />
+            <Row item={it} tz={tz} now={now} open={open === it.id} onToggle={() => setOpen(open === it.id ? null : it.id)} onAnswer={answer} />
           </li>
         ))}
         {!items.length && <li className="chat-empty">아직 아무 말도 없어요.<br />먼저 말을 걸어 보세요.</li>}
@@ -94,21 +95,24 @@ function MyHead() {
 }
 
 /** 한 줄. 자유 대화 · 쪽지 · 통화 기록이 각각 다른 모양이다. */
-function Row({ item, tz, open, onToggle, onAnswer }: {
+function Row({ item, tz, now, open, onToggle, onAnswer }: {
   item: ThreadItem;
   tz: string;
+  now: number;
   open: boolean;
   onToggle: () => void;
   onAnswer: (id: string, choiceId: string) => void;
 }) {
-  const t = <span className="chat-t num">{hhmmIn(item.at, tz)}</span>;
-
   if (item.kind === 'msg') {
     const mine = item.msg.from === 'me';
     return (
       <div className={`chat-row ${mine ? 'is-me' : ''}`}>
         <p className="chat-say">{item.msg.text}</p>
-        {t}
+        <span className="chat-t num">
+          {/* 카카오톡의 "1" — 에이전트가 읽으면 사라진다. 사라졌는데 답이 없으면 읽씹이다 */}
+          {isUnread(item.msg, now) && <b className="chat-unread" aria-label="아직 안 읽음">1</b>}
+          {hhmmIn(item.at, tz)}
+        </span>
       </div>
     );
   }

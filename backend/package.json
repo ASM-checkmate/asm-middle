@@ -1,0 +1,19 @@
+{
+  "name": "theworld-backend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "dev": "node --watch src/server.ts",
+    "start": "node src/server.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "oxlint",
+    "test": "node scripts/reply.test.mjs && node scripts/sketch.test.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "oxlint": "^1.79.0",
+    "typescript": "~6.0.2"
+  }
+}

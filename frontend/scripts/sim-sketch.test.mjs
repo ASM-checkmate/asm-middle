@@ -92,6 +92,78 @@ check('메모리를 고쳐도 그림 블록은 풀리지 않는다 (releaseAgent
 check('다시 그리기는 덮어쓴다', (S().sketchBlock('am', SKETCH + 'A'), S().plans.am.sketch === SKETCH + 'A' && S().plans.am.status === 'sketched'), S().plans.am.status);
 S().sketchBlock('am', SKETCH);
 
+// ── 그림을 읽어 두면 그대로 고른다 (ADR-0007) ──────────────────────────────
+console.log('\n── 그림 읽기 ──');
+{
+  const opts = S().plans.am.options;
+  const target = opts[opts.length - 1];   // 시드가 첫 장을 고르기 쉬우니 마지막 장으로 차이를 낸다
+  S().applySketchRead(S().today, 'am', SKETCH + 'X', { optionId: target.id, seen: '컵', model: 'x', ms: 1 });
+  check('그림이 바뀐 뒤 온 결과는 버린다', S().plans.am.sketchRead === undefined, JSON.stringify(S().plans.am.sketchRead));
+  S().applySketchRead(S().today, 'am', SKETCH, { optionId: 'no-such-option', seen: '컵', model: 'x', ms: 1 });
+  check('없는 옵션 id는 null로 적는다', S().plans.am.sketchRead?.optionId === null && S().plans.am.sketchRead.seen === '컵', JSON.stringify(S().plans.am.sketchRead));
+  S().applySketchRead(S().today, 'am', SKETCH, { optionId: target.id, seen: '컵', model: 'x', ms: 1 });
+  check('읽은 결과가 계획에 적힌다', S().plans.am.sketchRead?.optionId === target.id, JSON.stringify(S().plans.am.sketchRead));
+  check('저장본에도 남는다', saved().days[S().today].am.sketchRead?.optionId === target.id, '');
+  check('시간표 상태는 그대로 sketched (비밀)', S().plans.am.status === 'sketched' && S().plans.am.chosenId === null, S().plans.am.status);
+  S().setCategory('am', 'meal');
+  check('카드로 돌아가면 읽은 결과도 지워진다', S().plans.am.sketchRead === undefined && S().plans.am.sketch === undefined, JSON.stringify(S().plans.am.sketchRead));
+  S().setCategory('am', 'play');
+  S().sketchBlock('am', SKETCH);
+  const opts2 = S().plans.am.options;
+  const target2 = opts2[opts2.length - 1];
+  S().applySketchRead(S().today, 'am', SKETCH, { optionId: target2.id, seen: '컵', model: 'x', ms: 1 });
+  const amStart0 = blockStartAt(dayStartIn(T0, 'Asia/Seoul'), 'am');
+  S().jumpTo(amStart0 + 1000);
+  const chosen = S().plans.am;
+  const { review } = await import('../src/sim/review.ts');
+  const passes = chosen.chosenId === target2.id;
+  check('시작하면 읽은 옵션을 고른다 (검문을 통과하면)', passes || chosen.chosenBy === 'agent', JSON.stringify([chosen.chosenId, target2.id]));
+  const actSeen = S().timeline.find(a => a.dayKey === S().today && a.blockIds[0] === 'am');
+  if (passes) {
+    check('타임라인에 판정이 실린다 (seen)', actSeen?.sketchVerdict?.kind === 'seen' && actSeen.sketchVerdict.seen === '컵', JSON.stringify(actSeen?.sketchVerdict));
+    const logSeen = activityLog(actSeen, actSeen.arriveAt);
+    check('출발 줄이 "컵 그린 거지?" 계열이다', /컵/.test(logSeen[0].text) && !/못 알아|모르겠|내 맘대로|취향대로/.test(logSeen[0].text), logSeen[0].text);
+  } else {
+    console.log('  (읽은 옵션이 검문에 막혀 시드로 골랐다 — 알아본 문구 검사는 건너뜀)');
+  }
+  void review;
+  // near: 범주는 맞는데 그 카드가 없다
+  S().jumpTo(T0);
+  S().setCategory('am', 'play');
+  S().sketchBlock('am', SKETCH);
+  S().applySketchRead(S().today, 'am', SKETCH, { optionId: null, seen: '자전거', category: 'play', model: 'x', ms: 1 });
+  S().jumpTo(amStart0 + 1000);
+  const near = S().plans.am;
+  check('범주가 맞고 카드가 없으면 near — 범주 안에서 고른다', near.sketchVerdict?.kind === 'near' && near.category === 'play' && near.chosenBy === 'agent', JSON.stringify([near.sketchVerdict, near.category]));
+  const actNear = S().timeline.find(a => a.dayKey === S().today && a.blockIds[0] === 'am');
+  check('출발 줄이 "자전거 … 비슷한" 계열', /자전거/.test(activityLog(actNear, actNear.arriveAt)[0].text) && !/못 알아|취향대로/.test(activityLog(actNear, actNear.arriveAt)[0].text), activityLog(actNear, actNear.arriveAt)[0].text);
+  // clash: 골라 둔 범주(놀기)와 그림(밥)이 어긋난다 → 둘 다 아닌 범주로 내 맘대로 (ADR-0008)
+  S().jumpTo(T0);
+  S().setCategory('am', 'play');
+  S().sketchBlock('am', SKETCH);
+  S().applySketchRead(S().today, 'am', SKETCH, { optionId: null, seen: '피자', category: 'meal', model: 'x', ms: 1 });
+  S().jumpTo(amStart0 + 1000);
+  const clash = S().plans.am;
+  check('어긋나면 clash — 골라 둔 범주도 그림의 범주도 아닌 걸로', clash.sketchVerdict?.kind === 'clash' && clash.category !== 'play' && clash.category !== 'meal' && clash.chosenBy === 'agent', JSON.stringify([clash.sketchVerdict, clash.category]));
+  check('판정에 골라 뒀던 범주가 남는다', clash.sketchVerdict?.askedCategory === 'play', JSON.stringify(clash.sketchVerdict));
+  const actClash = S().timeline.find(a => a.dayKey === S().today && a.blockIds[0] === 'am');
+  const clashLine = activityLog(actClash, actClash.arriveAt)[0].text;
+  check('출발 줄에 "놀기"와 "피자"가 같이 나온다', /놀기/.test(clashLine) && /피자/.test(clashLine), clashLine);
+  check('만화·활동에 그림은 그대로 실린다', actClash.sketch === SKETCH, '');
+  // 여행으로 읽힌 그림은 어긋남이 아니다
+  S().jumpTo(T0);
+  S().setCategory('am', 'play');
+  S().sketchBlock('am', SKETCH);
+  S().applySketchRead(S().today, 'am', SKETCH, { optionId: null, seen: '비행기', category: 'travel', model: 'x', ms: 1 });
+  S().jumpTo(amStart0 + 1000);
+  check('여행 그림은 clash가 아니라 near', S().plans.am.sketchVerdict?.kind === 'near' && S().plans.am.category === 'play', JSON.stringify(S().plans.am.sketchVerdict));
+  // 되돌려서 아래 기존 검사(못 알아본 경로)를 그대로 지난다
+  S().jumpTo(T0);
+  S().setCategory('am', 'play');
+  S().sketchBlock('am', SKETCH);
+  check('되돌린 뒤 sketched · 읽은 결과·판정 없음', S().plans.am.status === 'sketched' && S().plans.am.sketchRead === undefined && S().plans.am.sketchVerdict === undefined, S().plans.am.status);
+}
+
 // ── 블록이 시작하면 에이전트가 고른다 ──────────────────────────────────────────
 console.log('\n── 시작 ──');
 const amStart = blockStartAt(dayStartIn(T0, 'Asia/Seoul'), 'am');
@@ -106,6 +178,7 @@ check('타임라인 활동에 그림이 실린다', !!act && act.sketch === SKET
 if (act) {
   const log = activityLog(act, act.arriveAt);
   check('활동 로그 첫 줄은 출발 시각의 "그림은 못 알아봐서" 계열', log.length >= 2 && log[0].at === act.departAt && /그림|그린/.test(log[0].text), JSON.stringify(log.slice(0, 2)));
+  check('못 읽은 그림의 판정은 unread', act.sketchVerdict?.kind === 'unread', JSON.stringify(act.sketchVerdict));
   check('두 번째 줄이 도착 줄이다', log[1].at === act.arriveAt, JSON.stringify(log[1]));
   check('같은 활동이면 같은 문장', activityLog(act, act.arriveAt)[0].text === log[0].text, '');
   const plain = activityLog({ ...act, sketch: undefined }, act.arriveAt);

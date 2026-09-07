@@ -31,6 +31,14 @@ export type NarratableEvent =
   | { t: 'arrive-say' }
   /** 그림으로 넘긴 계획을 블록 시작 때 자기 기준으로 골랐다 — 활동 로그 첫 줄 (ADR-0004 오너 결정 8: 규칙 기반이라 그림을 못 알아본다) */
   | { t: 'sketch-pick' }
+  /** 그림을 알아보고 그대로 골랐다 — 활동 로그 첫 줄 (ADR-0007). `seen`은 무엇으로 봤는지 ("컵") */
+  | { t: 'sketch-seen'; seen: string }
+  /** 범주는 맞는데 딱 그 카드가 없어 비슷한 걸로 (ADR-0008) */
+  | { t: 'sketch-near'; seen: string }
+  /** 골라 둔 범주와 그림이 어긋나서 내 맘대로 했다 (ADR-0008, 오너 결정) */
+  | { t: 'sketch-clash'; seen: string; asked: string }
+  /** 알아봤지만 돈·피로에 막혀 딴 데로 갔다 (ADR-0008) */
+  | { t: 'sketch-blocked'; seen: string }
   /** 돈이 빠듯해 알아서 아꼈다(cheap) / 벌러 갔다(earn) — 묻지 않고 하고, 출발 줄에 이유만 남긴다 (오너 결정 2026-09-08) */
   | { t: 'frugal'; mode: 'cheap' | 'earn' };
 
@@ -131,6 +139,32 @@ const SKETCH_PICK: string[] = [
   '뭘 그린 건지 모르겠어서 그냥 내 취향대로',
 ];
 
+/** 그림을 알아봤을 때의 출발 줄 — {seen}에 본 것이 들어간다 */
+const SKETCH_SEEN: string[] = [
+  '{seen} 그린 거지? 알아봤어. 이걸로 간다',
+  '그림 봤어. {seen} 맞지? 오케이',
+  '{seen}! 딱 봐도 알겠더라. 갔다 올게',
+];
+
+/** 범주는 맞는데 그 카드가 없을 때 */
+const SKETCH_NEAR: string[] = [
+  '{seen} 그린 거 봤어. 딱 그건 없어서 비슷한 데로 갔어',
+  '{seen}이지? 카드엔 없길래 그 근처로 골랐어',
+  '{seen} 알아봤는데 그건 못 찾아서, 비슷한 걸로',
+];
+/** 골라 둔 범주와 그림이 어긋날 때 — 그냥 내 맘대로 (오너 결정 2026-09-07) */
+const SKETCH_CLASH: string[] = [
+  '{asked}라더니 {seen}을 그려? 헷갈려서 그냥 내가 하고 싶은 거 했어',
+  '{asked}랑 {seen}이랑 뭐야 ㅋㅋ 몰라, 오늘은 내 맘대로',
+  '{asked}인지 {seen}인지 모르겠어서 그냥 하고 싶은 거 하러 감',
+];
+/** 알아봤지만 검문에 막혔을 때 */
+const SKETCH_BLOCKED: string[] = [
+  '{seen} 맞지? 근데 오늘은 무리라 딴 데 갔어. 미안',
+  '{seen}인 건 알겠는데 지금은 좀 그래서 다른 데로',
+  '{seen} 그린 거 알아. 근데 오늘은 안 되겠더라',
+];
+
 /** 지갑이 얇은 날의 출발 줄 — 아끼는 쪽 / 벌러 가는 쪽 */
 const FRUGAL_CHEAP: string[] = [
   '지갑이 얇아서 오늘은 싼 데로',
@@ -190,6 +224,14 @@ export function narrate(ev: NarratableEvent, ctx: NarrateCtx): string {
       return fit(r.pick(ARRIVE_SAY));
     case 'sketch-pick':
       return fit(r.pick(SKETCH_PICK));
+    case 'sketch-seen':
+      return fit(r.pick(SKETCH_SEEN).replace('{seen}', ev.seen));
+    case 'sketch-near':
+      return fit(r.pick(SKETCH_NEAR).replace('{seen}', ev.seen));
+    case 'sketch-clash':
+      return fit(r.pick(SKETCH_CLASH).replaceAll('{seen}', ev.seen).replaceAll('{asked}', ev.asked));
+    case 'sketch-blocked':
+      return fit(r.pick(SKETCH_BLOCKED).replace('{seen}', ev.seen));
     case 'frugal':
       return fit(r.pick(ev.mode === 'earn' ? FRUGAL_EARN : FRUGAL_CHEAP));
   }

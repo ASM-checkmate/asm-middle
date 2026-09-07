@@ -1,7 +1,8 @@
-import type { PlaceType, ScheduledActivity } from './types';
+import type { PlaceType, ScheduledActivity, SketchVerdict } from './types';
+import { categoryDef } from './blocks';
 import { costOf } from './status';
 import { rng } from './rng';
-import { narrate } from './narrate';
+import { narrate, type NarratableEvent } from './narrate';
 
 // ─── 활동 로그 (docs/adr/0001-agentness.md — 결과가 아니라 과정의 관찰) ────────
 // 완성된 그림을 사후에 받는 것보다 지금 뭘 하고 있는지가 조금씩 보이는 편이 강하다.
@@ -57,6 +58,17 @@ const MIDDLE: Partial<Record<PlaceType, string[]>> = {
 };
 const MIDDLE_DEFAULT = ['가만히 있음', '주변 구경', '시간 감', '잠깐 앉음', '생각 정리'];
 
+/** 그림 판정 → narrate 갈래. 판정이 없으면(옛 저장본·서버 없음) 못 알아본 것으로 본다. */
+function sketchEvent(v: SketchVerdict | undefined): NarratableEvent {
+  switch (v?.kind) {
+    case 'seen': return { t: 'sketch-seen', seen: v.seen };
+    case 'near': return { t: 'sketch-near', seen: v.seen };
+    case 'clash': return { t: 'sketch-clash', seen: v.seen, asked: categoryDef(v.askedCategory ?? 'play').label };
+    case 'blocked': return { t: 'sketch-blocked', seen: v.seen };
+    default: return { t: 'sketch-pick' };
+  }
+}
+
 /** "14:32" — 캐릭터의 현지 시각은 화면이 붙인다. 여기선 ms만 준다. */
 const pick = (list: string[], seed: string) => rng(seed).pick(list);
 
@@ -74,7 +86,8 @@ export function activityLog(act: ScheduledActivity, now: number): LogLine[] {
 
   // 그림으로 정한 블록: 출발 시각에 "못 알아봐서 내 맘대로 골랐어"가 첫 줄로 찍힌다 (ADR-0004 오너 결정 8).
   // 대사는 narrate() 하나를 지난다 (ADR-0001) — 이름은 시드에 안 섞이므로 비워 둔다
-  if (act.sketch) out.push({ at: act.departAt, text: narrate({ t: 'sketch-pick' }, { name: '', seed: `log:${act.key}:sketch` }) });
+  // 그림을 어떻게 다뤘는지가 첫 줄이다 (ADR-0007·0008): 알아봤으면 그렇게, 어긋났으면 내 맘대로 했다고, 못 봤으면 고백
+  if (act.sketch) out.push({ at: act.departAt, text: narrate(sketchEvent(act.sketchVerdict), { name: '', seed: `log:${act.key}:sketch` }) });
   // 돈이 빠듯해 알아서 아끼거나 일하러 간 날: 출발 줄에 이유가 찍힌다 — 묻지 않고 그냥 한다 (오너 결정 2026-09-08)
   if (act.frugal) out.push({ at: act.departAt + 1, text: narrate({ t: 'frugal', mode: act.frugal }, { name: '', seed: `log:${act.key}:frugal` }) });
 

@@ -15,13 +15,26 @@ import { rng } from './rng';
 //    시각으로 합칠 뿐이라, 같은 사건이 두 군데에 저장되지 않는다.
 //  · **에이전트는 항상 답하지 않는다.** 자고 있거나 도서관이면 답이 늦게 온다 (`pickupRule`).
 //    답이 늦는 것이 "진짜 자기 하루를 산다"를 파는 가장 싼 방법이다.
+//  · **읽는 것과 답하는 것은 다른 사건이다** (docs/adr/0005-read-receipts.md). 내 말에는 에이전트가
+//    읽는 시각이 따로 달리고, 읽기 전까지 "1"이 붙는다(안읽씹). 읽고도 답하지 않는 갈래가 있다(읽씹).
+//    연달아 보낸 말은 한 번에 읽고 한 번에 답한다 — 줄마다 봇처럼 받아치지 않는다.
 
 /** 한 번에 보낼 수 있는 길이. 길어지면 대화가 아니라 편지가 된다. */
 export const MAX_LEN = 60;
-/** 답할 수 있을 때의 답장 지연 (sim ms) — 즉답이면 봇처럼 읽힌다. */
-const REPLY_MS = 1_400;
-/** 못 받는 상황일 때의 답장 지연 (sim ms). 나중에 "아까 못 봤어"로 온다. */
-const LATE_REPLY_MS = 26 * 60_000;
+/** 받을 수 있을 때 읽기까지 (sim ms). 폰을 손에 쥐고 있는 것도 아니다. */
+const READ_MS: [number, number] = [4_000, 30_000];
+/** 읽고 나서 답을 치기까지 (sim ms). 즉답이면 봇처럼 읽힌다. */
+const THINK_MS: [number, number] = [4_000, 14_000];
+/** 못 받는 상황인데 언제 끝나는지 모를 때 읽기까지 (sim ms). 나중에 "아까 못 봤어"로 온다. */
+const LATE_READ_MS = 26 * 60_000;
+/** 막힌 상황이 끝난 뒤 폰을 다시 보기까지 (sim ms). */
+const AFTER_BLOCK_MS: [number, number] = [60_000, 5 * 60_000];
+/** 지쳤다는 말은 자다가도 이 안에 본다 — 이 한 갈래만 상황을 안 탄다. */
+const URGENT_READ_MS = 4 * 60_000;
+/** 놀거나 운동하는 중이면 힐끗 읽고 답은 이만큼 뒤에 (sim ms). 읽씹처럼 보이다가 답이 온다. */
+const BUSY_REPLY_MS: [number, number] = [3 * 60_000, 9 * 60_000];
+/** 기분이 이보다 낮으면 인사·애정 표현은 읽고 답하지 않는다. */
+const SULK_MOOD = 35;
 /** "이따가 전화할게"의 이따가 (sim ms). */
 export const WORRY_CALL_MS = 38 * 60_000;
 /** 채팅에서 전화를 부르면 이만큼 뒤에 벨이 울린다 (sim ms). */
@@ -32,6 +45,29 @@ export interface ChatMsg {
   at: number;
   from: 'me' | 'agent';
   text: string;
+  /** 에이전트가 읽는 시각 (내 말에만). 없으면 이미 읽은 것으로 본다 (읽음 표시가 생기기 전의 줄). */
+  readAt?: number;
+  /** 같이 읽히고 같이 답을 받는 묶음 — 묶음의 첫 말 id (내 말에만). 답장 id는 `${batch}:r`. */
+  batch?: string;
+}
+
+/** 아직 에이전트가 안 읽은 내 말인가 — 말풍선 옆의 "1". */
+export const isUnread = (m: ChatMsg, now: number) => m.from === 'me' && m.readAt !== undefined && m.readAt > now;
+
+/**
+ * 새 말이 들어갈 묶음. 아직 답이 도착하지 않은 묶음이 있으면 거기 붙고, 없으면 새 묶음이다.
+ * "도착하지 않은 답"에는 아직 안 읽은 말도, 읽었지만 답이 오는 중인 것도 포함된다.
+ *
+ * @param msgs 저장된 실 (답장은 미래 시각을 달고 있다)
+ * @param now 지금
+ * @returns 열린 묶음의 id, 없으면 null
+ */
+export function openBatch(msgs: ChatMsg[], now: number): string | null {
+  const last = [...msgs].reverse().find(m => m.from === 'me');
+  if (!last?.batch) return null;
+  const reply = msgs.find(m => m.id === `${last.batch}:r`);
+  const unread = msgs.some(m => m.batch === last.batch && isUnread(m, now));
+  return unread || (reply !== undefined && reply.at > now) ? last.batch : null;
 }
 
 /**
@@ -71,7 +107,10 @@ export const trimMessages = (ms: ChatMsg[], before: number) => ms.filter(m => m.
 // 규칙 기반이다. 자유 텍스트를 진짜로 이해하는 자리는 여기 하나뿐이라, LLM이 들어오면
 // `replyTo()` 하나만 갈아끼우면 된다 (narrate/suggest/comic과 같은 계약).
 
-export type Intent = 'tired' | 'where' | 'what' | 'howru' | 'call' | 'come' | 'love' | 'sorry' | 'greet' | 'unknown';
+export type Intent = 'tired' | 'where' | 'what' | 'howru' | 'call' | 'come' | 'love' | 'sorry' | 'greet' | 'ack' | 'unknown';
+
+/** 답을 바라지 않는 추임새 — "ㅋㅋ", "ㅇㅇ", "응". 이것만 오면 읽고 만다 (사람도 그런다). */
+const ACK_RE = /^[\s~!?.,ㅋㅎㅠㅜ♥\p{Extended_Pictographic}]*(?:(?:ㅇㅇ|ㅇㅋ|응|웅|엉|어|넹|넵|네|옹|오|아|음|흠|그래|그럼|굿|ok|okay|오케이?|알겠어|알았어|ㄱㄱ|ㅂㅂ|잘\s*자|굿밤|굿나잇)[\s~!?.,ㅋㅎㅠㅜ♥\p{Extended_Pictographic}]*)*$/iu;
 
 /** 순서가 규칙이다 — 앞의 것이 이긴다. 지친다는 말이 제일 먼저다. */
 const INTENTS: [Intent, RegExp][] = [
@@ -89,7 +128,7 @@ const INTENTS: [Intent, RegExp][] = [
 /** 그 말이 무슨 말인지. 못 알아들으면 `unknown` — 모르는 걸 아는 척하지 않는다. */
 export function intentOf(text: string): Intent {
   for (const [id, re] of INTENTS) if (re.test(text)) return id;
-  return 'unknown';
+  return ACK_RE.test(text) ? 'ack' : 'unknown';
 }
 
 /** 지쳤다는 말 안에서 무엇 때문인지 짚어 본다. 못 짚으면 몸으로 본다 (제일 안전한 오독). */
@@ -126,13 +165,18 @@ export interface ChatCtx {
   status: Status;
   /** 캐릭터 이름 — 시드에만 섞인다 */
   name: string;
-  /** 그 메시지의 키 */
+  /** 그 묶음의 키 (묶음에 말이 더 붙으면 키도 바뀐다) */
   seed: string;
+  /** 지금 (sim ms). 막힌 상황이 끝나는 시각까지 얼마나 남았는지 셈한다. 없으면 막힌 게 지금 끝나는 걸로 본다. */
+  now?: number;
 }
 
 export interface ChatReply {
-  text: string;
-  /** 지금부터 몇 ms 뒤에 도착하는가 (sim ms) */
+  /** 지금부터 읽기까지 (sim ms). 이 전까지 내 말 옆에 "1"이 붙어 있다. */
+  readMs: number;
+  /** 답장 한 줄. 없으면 읽고 답하지 않는다 (읽씹). */
+  text?: string;
+  /** 지금부터 답장이 도착하기까지 (sim ms). 읽씹이면 `readMs`와 같다. */
   delayMs: number;
   /** 고민으로 들었다면 그 갈래 — 스토어가 메모리에 적고 전화를 예약한다 */
   worry?: WorryKey;
@@ -144,8 +188,8 @@ export interface ChatReply {
 const doingOf = (title: string, placeName: string) =>
   title.replace(placeName, '').replace(/^[\s,·]*(에서|에|까지|로|의)?\s*/, '').trim() || title;
 
-/** 지금 어디서 뭘 하는지 한 조각. 답장 대부분이 이걸 쓴다. */
-function whereOf(phase: Phase): { where: string; doing: string } {
+/** 지금 어디서 뭘 하는지 한 조각. 답장 대부분이 이걸 쓰고, LLM 프롬프트(sim/llm.ts)도 이걸 받는다. */
+export function whereOf(phase: Phase): { where: string; doing: string } {
   switch (phase.kind) {
     case 'sleeping': return { where: '집', doing: '자는 중' };
     case 'waiting': return { where: phase.at.name, doing: '쉬는 중' };
@@ -155,6 +199,35 @@ function whereOf(phase: Phase): { where: string; doing: string } {
   }
 }
 
+/** "집이야" / "카페야" — 받침이 있으면 '이야'. */
+const iya = (w: string) => {
+  const c = w.charCodeAt(w.length - 1);
+  return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 !== 0 ? `${w}이야` : `${w}야`;
+};
+
+/** 못 받는 상황이 언제 끝나는지. 모르면 null — 그때는 그냥 한참 뒤에 본다. */
+function blockEndsAt(phase: Phase): number | null {
+  switch (phase.kind) {
+    case 'sleeping': return phase.until;
+    case 'moving': return phase.act.arriveAt;
+    case 'active': return phase.act.endAt;
+    default: return null;
+  }
+}
+
+/**
+ * 컨텍스트의 "지금". phase의 미래 시각(잠 깨는 시각 등)에서 읽기까지를 셈하는 데 쓴다.
+ * 스토어가 `now`를 실어 주면 그걸 쓰고, 없으면(단위 검사) 막힌 것이 지금 끝나는 걸로 본다.
+ */
+const ctxNow = (ctx: ChatCtx) => ctx.now ?? blockEndsAt(ctx.phase) ?? 0;
+
+/** 놀거나 운동하는 중 — 폰은 보지만 답은 미룬다. */
+const absorbed = (phase: Phase) =>
+  phase.kind === 'active' && (phase.act.option.category === 'play' || phase.act.option.category === 'exercise');
+
+/** 못 받은 이유 한 조각 — LLM에게 "아까는 ~ 못 봤다"로 넘긴다 (sim/llm.ts). */
+export const LATE_WHY: Record<string, string> = { sleeping: '자느라', onboard: '이동 중이라', quiet: '조용히 해야 하는 데라', meal: '밥 먹느라' };
+
 /** 못 받는 상황이면 늦게 답하면서 먼저 사과한다. */
 const LATE_PREFIX: Record<string, string> = {
   sleeping: '아 미안 자고 있었어.',
@@ -163,56 +236,99 @@ const LATE_PREFIX: Record<string, string> = {
   meal: '밥 먹느라 늦게 봤다 ㅋㅋ',
 };
 
-/**
- * 내가 보낸 말에 에이전트가 뭐라고 답하는가. **여기가 규칙 기반의 유일한 자리다** —
- * LLM이 들어오면 이 함수만 갈아끼운다.
- *
- * @param text 내가 친 말
- * @param ctx 지금 상태
- * @returns 답장 한 줄과 그게 도착하는 데 걸리는 시간. 고민으로 들었으면 `worry`가 실린다.
- */
-export function replyTo(text: string, ctx: ChatCtx): ChatReply {
-  const r = rng(`chat:${ctx.seed}`);
-  const { ok, block } = pickupRule(ctx.phase);
-  const { where, doing } = whereOf(ctx.phase);
-  const intent = intentOf(text);
-  const late = !ok;
-  const delayMs = late ? LATE_REPLY_MS : REPLY_MS;
-  const say = (s: string) => ({ text: late ? `${LATE_PREFIX[block ?? 'quiet']} ${s}` : s, delayMs });
+/** 여러 줄을 한 번에 봤을 때 앞에 붙는 한마디. */
+const MANY_PREFIX = ['ㅋㅋ 뭐야 한꺼번에', '어 이제 봤다', '오 많이 보냈네 ㅋㅋ', '헐 폭탄'];
 
+/** 답이 있는 물음 중 두 번째로 답해 줄 수 있는 것 — 첫 답에 짧게 덧붙인다. */
+const SECONDARY: ReadonlySet<Intent> = new Set(['where', 'what', 'howru']);
+
+/** 물음 하나에 대한 답. 상황이 같으면 같은 시드로 같은 문장. */
+function answer(intent: Intent, ctx: ChatCtx, r: ReturnType<typeof rng>, short: boolean): string {
+  const { where, doing } = whereOf(ctx.phase);
   switch (intent) {
-    case 'tired': {
-      const worry = worryOf(text);
-      // 지쳤다는 말에는 늦게라도 반드시 전화를 약속한다 — 이 한 갈래만 상황을 안 탄다
-      return { text: reactToWorry(worry, ctx.seed), delayMs: late ? Math.min(delayMs, 4 * 60_000) : delayMs, worry };
-    }
-    case 'call':
-      return ok
-        ? { ...say(r.pick(['오케이 지금 걸게!', '어 걸어. 받아.', '기다려 봐 지금 건다'])), callMe: true }
-        : { text: `${LATE_PREFIX[block ?? 'quiet']} 나중에 내가 걸게.`, delayMs: Math.min(delayMs, 8 * 60_000) };
-    case 'where':
-      return say(`나 지금 ${where}야`);
-    case 'what':
-      return say(ctx.phase.kind === 'sleeping' ? '자고 있었지 ㅋㅋ' : `${doing}. ${where}에서.`);
-    case 'howru': {
-      if (ctx.status.fatigue > 65) return say('솔직히 좀 피곤해. 그래도 할 만해.');
-      if (ctx.status.mood < 40) return say('음… 그냥 그래. 너는?');
-      return say(r.pick(['나야 좋지! 너는?', '괜찮아. 오늘 나쁘지 않았어.', '좋아 좋아. 너는 어때?']));
-    }
-    case 'come':
-      return say(ctx.phase.kind === 'sleeping' ? '나 집이야. 자고 있었어 ㅋㅋ' : `지금 ${where}인데, 끝나면 갈게`);
-    case 'love':
-      return say(r.pick(['ㅋㅋㅋ 갑자기 왜 그래', '나도 나도', '이런 말 자주 해줘']));
-    case 'sorry':
-      return say(r.pick(['괜찮아 진짜로', '뭐가 미안해 ㅋㅋ', '됐어 그런 거로']));
-    case 'greet':
-      return say(r.pick([`어 왔어? 나 ${where}야`, '안녕! 뭐 해?', '오 안녕']));
+    case 'where': return `나 지금 ${iya(where)}`;
+    case 'what': return ctx.phase.kind === 'sleeping' ? '자고 있었지 ㅋㅋ' : short ? (/중$/.test(doing) ? doing : `${doing} 중`) : `${doing}. ${where}에서.`;
+    case 'howru':
+      if (ctx.status.fatigue > 65) return short ? '좀 피곤하고' : '솔직히 좀 피곤해. 그래도 할 만해.';
+      if (ctx.status.mood < 40) return short ? '그냥 그래' : '음… 그냥 그래. 너는?';
+      return short ? '나야 좋지' : r.pick(['나야 좋지! 너는?', '괜찮아. 오늘 나쁘지 않았어.', '좋아 좋아. 너는 어때?']);
+    case 'come': return ctx.phase.kind === 'sleeping' ? '나 집이야. 자고 있었어 ㅋㅋ' : `지금 ${where}인데, 끝나면 갈게`;
+    case 'love': return r.pick(['ㅋㅋㅋ 갑자기 왜 그래', '나도 나도', '이런 말 자주 해줘']);
+    case 'sorry': return r.pick(['괜찮아 진짜로', '뭐가 미안해 ㅋㅋ', '됐어 그런 거로']);
+    case 'greet': return r.pick([`어 왔어? 나 ${iya(where)}`, '안녕! 뭐 해?', '오 안녕']);
+    case 'call': return r.pick(['오케이 지금 걸게!', '어 걸어. 받아.', '기다려 봐 지금 건다']);
+    case 'tired': case 'ack': return '';   // 위에서 따로 다룬다
     case 'unknown':
       // 모르면 모른다고 한다. 아는 척하는 답이 제일 빨리 들킨다.
-      return say(r.pick([
+      return r.pick([
         `무슨 말인지 잘 모르겠다 ㅋㅋ 나는 지금 ${where}에 있어`,
         `음… 그게 무슨 말이야? 나 지금 ${doing}이야`,
         '어… 잘 모르겠어. 이따 전화로 말해줘',
-      ]));
+      ]);
   }
 }
+
+/**
+ * 연달아 보낸 말들에 에이전트가 뭐라고 답하는가. **여기가 규칙 기반의 유일한 자리다** —
+ * LLM이 들어오면 이 함수만 갈아끼운다.
+ *
+ * 읽는 시각과 답하는 시각이 따로 나온다. 못 받는 상황이면 그게 끝난 뒤에 읽고, 읽고도 답이
+ * 없는 갈래(추임새만 왔을 때 · 기분이 바닥일 때의 인사)가 있다. 여러 줄이면 제일 급한 것에
+ * 답하고, 물음이 하나 더 있으면 짧게 덧붙인다. 못 알아들은 줄은 알아들은 줄이 있으면 넘긴다.
+ *
+ * @param texts 한 묶음으로 온 내 말들 (보낸 순서)
+ * @param ctx 지금 상태
+ * @returns 읽기까지·답하기까지의 시간과 답장. `text`가 없으면 읽씹이다. 고민으로 들었으면 `worry`가 실린다.
+ */
+export function replyToAll(texts: string[], ctx: ChatCtx): ChatReply {
+  const r = rng(`chat:${ctx.seed}`);
+  const { ok, block } = pickupRule(ctx.phase);
+  const late = !ok;
+
+  // 읽기: 받을 수 있으면 금방, 아니면 막힌 게 끝난 뒤 (끝을 모르면 한참 뒤)
+  const end = blockEndsAt(ctx.phase);
+  const readMs = ok ? r.int(...READ_MS)
+    : end !== null ? Math.max(end - ctxNow(ctx), 0) + r.int(...AFTER_BLOCK_MS)
+    : LATE_READ_MS;
+  const thinkMs = r.int(...THINK_MS);
+  const prefix = late ? `${LATE_PREFIX[block ?? 'quiet']} ` : '';
+  const many = texts.length >= 3 && r.next() < 0.6 ? `${r.pick(MANY_PREFIX)} ` : '';
+
+  // 줄마다 뜻을 보고 급한 순서(INTENTS 순)로 세운다
+  const order = (i: Intent) => { const k = INTENTS.findIndex(([id]) => id === i); return k < 0 ? INTENTS.length + (i === 'ack' ? 1 : 0) : k; };
+  const intents = [...new Set(texts.map(intentOf))].sort((a, b) => order(a) - order(b));
+  const primary = intents[0];
+
+  // 읽씹 ① 추임새만 왔다
+  if (primary === 'ack') return { readMs, delayMs: readMs };
+  // 읽씹 ② 기분이 바닥인데 인사·애정 표현·모를 말 — 읽고 만다
+  if (ctx.status.mood < SULK_MOOD && (primary === 'greet' || primary === 'love' || primary === 'unknown')) return { readMs, delayMs: readMs };
+
+  const say = (text: string, delayMs = readMs + thinkMs): ChatReply => ({ readMs, text, delayMs });
+
+  if (primary === 'tired') {
+    // 지쳤다는 말에는 자다가도 반드시 전화를 약속한다 — 이 한 갈래만 상황을 안 탄다
+    const tiredText = texts.find(t => intentOf(t) === 'tired') ?? texts[0];
+    const worry = worryOf(tiredText);
+    const readUrgent = Math.min(readMs, URGENT_READ_MS);
+    return { readMs: readUrgent, text: reactToWorry(worry, ctx.seed), delayMs: readUrgent + thinkMs, worry };
+  }
+  if (primary === 'call') {
+    return ok
+      ? { ...say(answer('call', ctx, r, false)), callMe: true }
+      : { readMs, text: `${LATE_PREFIX[block ?? 'quiet']} 나중에 내가 걸게.`, delayMs: Math.min(readMs, 8 * 60_000) + thinkMs };
+  }
+
+  // 알아들은 줄이 있으면 못 알아들은 줄은 넘긴다
+  const known = intents.filter(i => i !== 'unknown' && i !== 'ack');
+  const main = known[0] ?? primary;
+  const second = known.find(i => i !== main && SECONDARY.has(i));
+  let text = answer(main, ctx, r, false);
+  if (second) text = `${text.replace(/[.!?]*$/, '')}. ${answer(second, ctx, r, true)}`;
+  // 놀거나 운동 중이면 힐끗 보고 답은 나중에 — 한동안 읽씹처럼 보인다
+  const delayMs = ok && absorbed(ctx.phase) ? readMs + r.int(...BUSY_REPLY_MS) : readMs + thinkMs;
+  return say(`${prefix}${many}${text}`, delayMs);
+}
+
+/** 한 줄짜리 묶음. `replyToAll`과 같다. */
+export const replyTo = (text: string, ctx: ChatCtx): ChatReply => replyToAll([text], ctx);

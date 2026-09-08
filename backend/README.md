@@ -17,7 +17,7 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home 
 JDK가 없으면 Gradle 툴체인이 내려받는다(settings.gradle.kts의 foojay). 프런트 개발 서버(Vite)는 `/api`를 `BACKEND_URL`(기본 `http://localhost:8080`)로 프록시하므로 둘을 같이 띄우면 된다 — `.claude/launch.json`의 `theworld-backend`(8080)·`theworld-dev`(5173).
 서버가 없어도 앱은 뜬다(오프라인, 상단 회색 점 "혼자 생각 중").
 
-LLM 기능(답장·그림 읽기·여행)은 Ollama가 있어야 한다: `brew install ollama && ollama pull qwen3.5:9b` (good 단계는 `qwen3.8:27b`). 여행지 찾기(`/api/trip/plan`)는 Ollama Web Search 키 `OLLAMA_API_KEY`가 있어야 하고, 없으면 503으로 답한다.
+LLM 기능(답장·그림 읽기·여행·하루 계획·말로 하는 통화의 턴·예열)은 Ollama가 있어야 한다: `brew install ollama && ollama pull qwen3.5:9b` (good 단계는 `qwen3.8:27b`). 여행지 찾기(`/api/trip/plan`)는 Ollama Web Search 키 `OLLAMA_API_KEY`가 있어야 하고, 없으면 503으로 답한다.
 
 확인:
 

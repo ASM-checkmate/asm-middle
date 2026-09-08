@@ -49,7 +49,7 @@ ADR-0006으로 답장, ADR-0007로 그림 읽기, ADR-0009로 여행지 찾기�
 
 ## 영향
 
-*   `docs/CONTRACT.md`에 `POST /api/plan/options`. `backend/src/plan.ts`, `.env`에 `PLAN_ONE_TIMEOUT_MS`·
+*   `docs/CONTRACT.md`에 `POST /api/plan/options`. `backend/src/plan.ts`(→ Spring 이식 뒤 `backend/src/main/java/world/theworld/server/llm/Plan*`, ADR-0012), `.env`에 `PLAN_ONE_TIMEOUT_MS`·
     `PLAN_DAY_TIMEOUT_MS`.
 *   `World`·저장본(`theworld.world.v5`, 버전 그대로 — 옛 저장본은 빈 것으로 읽는다)에 `llmPlans`.
     `Persisted`의 다른 키와 함께 5일 창으로 지워진다.

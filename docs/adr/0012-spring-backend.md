@@ -5,6 +5,11 @@
 
 ## 배경
 
+*(2026-09-08 저녁 추가) 호준의 Node 백엔드에 그 사이 붙은 하루 계획(ADR-0010)·말로 하는 통화의 턴과 예열(ADR-0011)도 같은
+원칙으로 옮겼다 — `llm/Plan*`·`llm/Call*`·`WarmController`. Ollama 호출은 이제 **항상 스트리밍**으로 받아 모으고(`OllamaClient.Cancel`),
+`ModelLane`이 하루 계획·여행지처럼 낮은 우선순위 생성을 모아 두었다가 통화 턴이 오면 끊는다(503 `yielded to call`).
+음성 서비스 `voice/`(파이썬)는 백엔드 밖에 그대로 둔다.*
+
 ADR-0006으로 생긴 `backend/`는 Ollama 앞의 관문 하나였다 — 답장·그림 읽기·여행지 찾기의 **말과 데이터**만 지어
 주고, 세계 상태(`theworld.world.v5`)·메모리·앨범·장소 팩은 전부 브라우저 localStorage에 있었다. 기기를 바꾸면
 다른 세계고, 브라우저 데이터를 지우면 하루가 사라진다. FRIENDS_SPEC §4는 "서버가 붙으면 NPC 풀 자리에 실제

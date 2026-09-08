@@ -17,10 +17,8 @@ public final class PlanDtos {
   /** 지어 달라 할 수 있는 블록 — 수면은 없다. */
   public static final List<String> PLAN_BLOCKS = List.of("morning", "am", "lunch", "pm", "evening", "night");
   /** 카탈로그에 올 수 있는 장소 유형 — 여행지 유형에 집·친구 집·일터·학교를 더한 것 (server.ts validatePlan). */
-  public static final List<String> PLAN_PLACE_TYPES = List.of(
-    "cafe", "restaurant", "park", "gym", "library", "cinema", "mall", "river", "beach", "museum", "arcade", "bar",
-    "station", "airport", "port", "temple", "market", "hotel", "stadium", "mountain", "island",
-    "home", "friend_home", "office", "school");
+  public static final List<String> PLAN_PLACE_TYPES = java.util.stream.Stream.concat(
+    world.theworld.server.trip.TripDtos.TRIP_PLACE_TYPES.stream(), java.util.stream.Stream.of("home", "friend_home", "office", "school")).toList();
   /** 카드 제목의 최대 길이 ("레이어드에서 커피 한 잔"). 프론트 카드 한 줄. */
   public static final int MAX_TITLE = 24;
   /** 이유의 최대 길이 ("지난주에 갔던 곳, 창가 자리 좋았음"). */

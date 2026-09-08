@@ -12,7 +12,7 @@ import world.theworld.server.llm.PlanDtos.PlanRequest;
 import world.theworld.server.llm.PlanDtos.PlanResponse;
 
 /**
- * POST /api/plan/options (docs/CONTRACT.md, ADR-0010; 옛 Node 백엔드 server.ts(커밋 2808024):248-269). 400 계약 위반, 502 Ollama 오류·제한 시간,
+ * POST /api/plan/options (docs/CONTRACT.md, ADR-0010; 옛 Node 백엔드 server.ts(커밋 2808024):244-265). 400 계약 위반, 502 Ollama 오류·제한 시간,
  * 503 통화에 양보. 사용자는 필터가 확인하지만 여기서는 쓰지 않는다 — 계획은 요청에 실린 것만으로 짓는다.
  */
 @RestController

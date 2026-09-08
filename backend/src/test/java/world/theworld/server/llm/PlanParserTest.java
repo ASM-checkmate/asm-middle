@@ -12,7 +12,7 @@ import world.theworld.server.llm.PlanDtos.PlanRequest;
 class PlanParserTest {
   private final PlanRequest req = PlanFixtures.planReq();
 
-  /** plan.test.mjs:40-58 — 범주에 안 맞는 유형·카탈로그 밖·정해진 범주와 다른 범주·중복·긴 글·이모지 아닌 것·요청에 없는 블록. */
+  /** plan.test.mjs:44-58 — 범주에 안 맞는 유형·카탈로그 밖·정해진 범주와 다른 범주·중복·긴 글·이모지 아닌 것·요청에 없는 블록. */
   private static final String RAW = "{\"blocks\":["
     + "{\"id\":\"am\",\"category\":\"study\",\"options\":["
     + "{\"placeId\":\"mapo-central-library\",\"title\":\"마포중앙도서관에서 책 읽기\",\"reason\":\"조용한 자리 좋아함\",\"emoji\":\"📚\"},"

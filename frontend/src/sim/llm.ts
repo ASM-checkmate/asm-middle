@@ -4,7 +4,7 @@ import type { Status } from './status';
 import { pickupRule } from './call';
 import { hhmmIn, weekdayKoIn } from './tz';
 import { LATE_WHY, whereOf, type ChatMsg } from './chat';
-import { api } from './api';
+import { api, authHeaders } from './api';
 
 // ─── LLM 관문 (docs/adr/0006-backend-and-llm.md · BACKEND-CONTRACT §3.2) ─────────────────────────────
 // 백엔드(backend/)에 "이 묶음에 뭐라고 답할지"만 묻는다. **언제 읽고 언제 답할지는 여전히 sim/chat.ts의 규칙**이고,
@@ -170,7 +170,7 @@ export async function fetchSketchRead(req: SketchReadRequest, timeoutMs = SKETCH
 
 /** 모델을 미리 올려 둔다 (ADR-0011). 벨이 울릴 때·대화 실을 열 때 — 첫마디가 모델 로드를 기다리지 않게. 실패는 조용히. */
 export function warmModel(tier: Exclude<LlmTier, 'off'>) {
-  void fetch('/api/warm', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tier }), signal: AbortSignal.timeout(60_000) }).catch(() => {});
+  void fetch('/api/warm', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ tier }), signal: AbortSignal.timeout(60_000) }).catch(() => {});
 }
 
 // ─── 여행지 찾기 (ADR-0009) ───────────────────────────────────────────────────
@@ -258,7 +258,7 @@ export function planRequestOf(blocks: PlanBlockRequest[], s: { memory: Memory; s
  */
 export async function fetchPlan(req: PlanRequest, timeoutMs: number, signal?: AbortSignal): Promise<PlanResponse | null> {
   try {
-    const res = await fetch('/api/plan/options', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req), signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs) });
+    const res = await fetch('/api/plan/options', { method: 'POST', headers: authHeaders(), body: JSON.stringify(req), signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs) });
     if (!res.ok) return null;
     const j = (await res.json()) as PlanResponse;
     return Array.isArray(j.blocks) ? j : null;

@@ -58,7 +58,7 @@
 
 ## 영향
 
-*   `voice/`(파이썬, `.venv`는 gitignore), `backend/src/call.ts`, `POST /api/call/turn`(ndjson 스트림),
+*   `voice/`(파이썬, `.venv`는 gitignore), `backend/src/call.ts`(→ Spring 이식 뒤 `backend/src/main/java/world/theworld/server/llm/Call*`, ADR-0012), `POST /api/call/turn`(ndjson 스트림),
     `frontend/src/sim/{voice,callvoice}.ts`, `CallOverlay`의 말 통화 모드, `vite.config.ts`의 `/voice` 프록시.
     계약은 `docs/CONTRACT.md`.
 *   `CallEvent.voice`(말로 한 통화). `lines`에 "나: …"가 섞인다. 저장 형식 버전은 그대로.

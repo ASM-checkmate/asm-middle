@@ -64,10 +64,10 @@ public class CallController {
       done.put("done", true);
       done.put("model", model);
       done.put("ms", ms);
-      line(out, done);
-      // INFO에는 크기만 — 들은 말과 한 말의 원문은 DEBUG에만 (ReplyService와 같은 규칙)
+      // INFO에는 크기만 — 들은 말과 한 말의 원문은 DEBUG에만 (ReplyService와 같은 규칙). done 줄을 쓰기 전에 남긴다 — 마지막 문장 뒤에 끊겨도 기록은 남게
       log.info("[call] {} {}ms {} user={} → {} sentence(s)", model, ms, req.why(), req.user() == null ? "null" : req.user().length() + " chars", lines.size());
       if (log.isDebugEnabled()) log.debug("[call] {} → {}", req.user() == null ? "null" : "\"" + req.user() + "\"", lines);
+      line(out, done);
     } catch (UncheckedIOException e) {
       // 프론트가 요청을 닫았다(끼어들기) — Ollama도 멈추고 조용히 끝낸다 (server.ts:232, 239)
       cancel.cancel();

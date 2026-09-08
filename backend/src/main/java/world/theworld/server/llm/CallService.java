@@ -18,9 +18,9 @@ import world.theworld.server.llm.ReplyPrompt.Prompt;
  */
 @Service
 public class CallService {
-  /** 통화 생성 온도 (call.ts:101) — 답장(0.9)보다 조금 차분하게. */
+  /** 통화 생성 온도 (call.ts:105) — 답장(0.9)보다 조금 차분하게. */
   public static final double TEMPERATURE = 0.8;
-  /** 한 턴 제한 시간 (call.ts:93 timeoutMs 기본값). 토큰 사이의 침묵에 걸린다. */
+  /** 한 턴 제한 시간 (call.ts:97 timeoutMs 기본값). 토큰 사이의 침묵에 걸린다. */
   public static final long TIMEOUT_MS = 20_000;
 
   private final OllamaClient ollama;

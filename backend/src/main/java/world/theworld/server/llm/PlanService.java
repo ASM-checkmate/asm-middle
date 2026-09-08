@@ -25,7 +25,7 @@ import world.theworld.server.llm.ReplyPrompt.Prompt;
 @Service
 public class PlanService {
   private static final Logger log = LoggerFactory.getLogger(PlanService.class);
-  /** 생성 옵션 (plan.ts:139) — 답장보다 차분하게, 최대 토큰은 블록 수에 비례 (`120 + 260 * blocks`). */
+  /** 생성 옵션 (plan.ts:171) — 답장보다 차분하게, 최대 토큰은 블록 수에 비례 (`120 + 260 * blocks`). */
   public static final double TEMPERATURE = 0.7;
   public static final int NUM_PREDICT_BASE = 120;
   public static final int NUM_PREDICT_PER_BLOCK = 260;
@@ -60,7 +60,7 @@ public class PlanService {
     Prompt p = PlanPrompt.build(req);
     List<String> blockIds = req.blocks().stream().map(PlanBlockRequest::id).filter(PLAN_BLOCKS::contains).toList();
     List<String> placeIds = req.places().stream().map(PlanPlace::id).toList();
-    // 블록 하나면 카드 고르는 몇 초, 하루면 넉넉히 (server.ts:258)
+    // 블록 하나면 카드 고르는 몇 초, 하루면 넉넉히 (server.ts:255)
     long timeoutMs = req.blocks().size() == 1 ? props.plan().oneTimeoutMs() : props.plan().dayTimeoutMs();
     // 낮은 우선순위 — 통화 턴이 오면 끊긴다 (ModelLane, ADR-0011 결정 6)
     Cancel cancel = lane.lowPriority();

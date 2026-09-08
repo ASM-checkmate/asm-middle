@@ -37,6 +37,14 @@ export function currentUser(): User | null {
     return raw ? parseUser(JSON.parse(raw)) : null;
   } catch { return null; }
 }
+/**
+ * 보호 경로에 붙일 헤더 — `api()`를 거치지 않고 `fetch`를 직접 쓰는 곳(스트리밍 통화 턴·예열·하루 계획)용.
+ * 사용자가 없으면 `X-User-Id` 없이 가고 서버가 401로 답한다 — 그 호출들은 실패를 조용히 삼키고 규칙으로 돈다.
+ */
+export function authHeaders(): Record<string, string> {
+  const u = currentUser();
+  return u ? { 'content-type': 'application/json', 'X-User-Id': u.userId } : { 'content-type': 'application/json' };
+}
 /** 사용자를 버린다 (로그아웃·401). 로컬 저장본은 sync.clearLocalDocs가 따로 비운다. */
 export function logout() { try { storage()?.removeItem(USER_KEY); } catch { /* ignore */ } }
 const saveUser = (u: User) => { try { storage()?.setItem(USER_KEY, JSON.stringify(u)); } catch { /* ignore */ } };

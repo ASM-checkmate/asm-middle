@@ -16,7 +16,7 @@ import world.theworld.server.llm.PlanDtos.PlanStatus;
 public final class PlanFixtures {
   private PlanFixtures() {}
 
-  /** plan.test.mjs:9-31 — am 블록에는 previous 키가 없다(null), lunch에는 있다. */
+  /** plan.test.mjs:9-30 — am 블록에는 previous 키가 없다(null), lunch에는 있다. */
   public static PlanRequest planReq() {
     return new PlanRequest("small",
       new Agent("모모", List.of("느긋한", "호기심 많은"), List.of("그림 그리기", "카페"), List.of("줄 서기")),

@@ -5,6 +5,7 @@ import { hhmmIn } from './tz';
 import { whereOf } from './chat';
 import type { LlmTier } from './llm';
 import { VoiceSession } from './voice';
+import { authHeaders } from './api';
 
 // ─── 말로 하는 통화의 턴 (docs/adr/0011-voice-call.md) ───────────────────────
 // 귀·입(sim/voice.ts)과 말 짓기(백엔드 /api/call/turn)를 잇는다.
@@ -58,7 +59,7 @@ export function callTurnRequestOf(call: CallEvent, transcript: { from: 'me' | 'a
 export async function streamCallTurn(req: CallTurnRequest, onSentence: (s: string) => void, signal: AbortSignal): Promise<string[]> {
   const out: string[] = [];
   try {
-    const res = await fetch('/api/call/turn', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req), signal });
+    const res = await fetch('/api/call/turn', { method: 'POST', headers: authHeaders(), body: JSON.stringify(req), signal });
     if (!res.ok || !res.body) return out;
     const reader = res.body.getReader();
     const dec = new TextDecoder();

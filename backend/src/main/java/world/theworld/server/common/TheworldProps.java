@@ -13,6 +13,7 @@ public record TheworldProps(
   @DefaultValue Ollama ollama,
   @DefaultValue Models models,
   @DefaultValue Trip trip,
+  @DefaultValue Plan plan,
   @DefaultValue Search search,
   @DefaultValue Nominatim nominatim,
   @DefaultValue Docs docs
@@ -25,6 +26,8 @@ public record TheworldProps(
   public record Models(@DefaultValue("qwen3.5:9b") String small, @DefaultValue("qwen3.8:27b") String good) {}
   /** 여행 파이프라인(ADR-0009) — 비어 있으면 tier 모델, 데드라인 100초, 스니펫 예산 22k. */
   public record Trip(@DefaultValue("") String model, @DefaultValue("90000") long modelTimeoutMs, @DefaultValue("100000") long deadlineMs, @DefaultValue("22000") int snippetsMaxChars) {}
+  /** 하루 계획(ADR-0010) — 블록 하나 20초, 하루 120초 (옛 Node 백엔드 server.ts PLAN_ONE/DAY_TIMEOUT_MS). */
+  public record Plan(@DefaultValue("20000") long oneTimeoutMs, @DefaultValue("120000") long dayTimeoutMs) {}
   /** Ollama 웹 검색 키 — 비어 있으면 /api/trip/plan은 503. */
   public record Search(@DefaultValue("") String apiKey) {}
   /** Nominatim 지오코딩 — 전역 1.1초 간격. */

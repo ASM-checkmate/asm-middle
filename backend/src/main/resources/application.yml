@@ -40,6 +40,9 @@ theworld:
     model-timeout-ms: ${TRIP_MODEL_TIMEOUT_MS:90000}
     deadline-ms: ${TRIP_DEADLINE_MS:100000}
     snippets-max-chars: ${TRIP_SNIPPETS_MAX_CHARS:22000}
+  plan:
+    one-timeout-ms: ${PLAN_ONE_TIMEOUT_MS:20000}
+    day-timeout-ms: ${PLAN_DAY_TIMEOUT_MS:120000}
   search:
     api-key: ${OLLAMA_API_KEY:}
   nominatim:

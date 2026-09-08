@@ -23,7 +23,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 class BodyLimitFilterTest {
   private static final TheworldProps PROPS = new TheworldProps(
     new TheworldProps.Cors("http://localhost:5173"), new TheworldProps.Ollama("http://127.0.0.1:9", 25_000), new TheworldProps.Models("s", "g"),
-    new TheworldProps.Trip("", 90_000, 100_000, 22_000), new TheworldProps.Search(""), new TheworldProps.Nominatim("http://127.0.0.1:9", "", 0),
+    new TheworldProps.Trip("", 90_000, 100_000, 22_000), new TheworldProps.Plan(20_000, 120_000), new TheworldProps.Search(""), new TheworldProps.Nominatim("http://127.0.0.1:9", "", 0),
     new TheworldProps.Docs(4_194_304));
 
   /** Content-Length를 알리지 않는 요청 (Transfer-Encoding: chunked) — MockHttpServletRequest는 본문이 있으면 길이를 알려 주므로 덮는다. */

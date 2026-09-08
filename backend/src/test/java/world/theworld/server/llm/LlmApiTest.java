@@ -40,6 +40,17 @@ class LlmApiTest extends ApiTest {
     expect("/api/chat/reply", null, REPLY_OK, 401, "unauthorized");
     expect("/api/sketch/read", null, SKETCH_OK, 401, "unauthorized");
     expect("/api/trip/plan", null, "{\"tier\":\"small\",\"city\":\"교토\"}", 401, "unauthorized");
+    expect("/api/warm", null, "{\"tier\":\"small\"}", 401, "unauthorized");
+  }
+
+  @Test
+  void warmWithoutOllamaIs502() throws Exception {
+    Session s = newUser();
+    MvcResult r = call(HttpMethod.POST, "/api/warm", s, "{\"tier\":\"good\"}").andReturn();
+    assertThat(r.getResponse().getStatus()).isEqualTo(502);
+    assertThat(json(r).get("error").asText()).startsWith("ollama: ");
+    // 본문이 없거나 tier가 이상해도 small로 — 계약 위반이 아니다 (server.ts:217-219)
+    assertThat(call(HttpMethod.POST, "/api/warm", s, "{}").andReturn().getResponse().getStatus()).isEqualTo(502);
   }
 
   @Test

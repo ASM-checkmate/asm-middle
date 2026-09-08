@@ -48,6 +48,7 @@ public final class LlmFixtures {
       new TheworldProps.Ollama(ollamaUrl, 25_000),
       new TheworldProps.Models("qwen3.5:9b", "qwen3.8:27b"),
       new TheworldProps.Trip("", 90_000, deadlineMs, 22_000),
+      new TheworldProps.Plan(20_000, 120_000),
       new TheworldProps.Search(apiKey),
       new TheworldProps.Nominatim(nominatimUrl, "", 0),
       new TheworldProps.Docs(4_194_304));

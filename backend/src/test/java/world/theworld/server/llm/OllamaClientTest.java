@@ -45,7 +45,7 @@ class OllamaClientTest {
     assertThat(out).isEqualTo("{}");
     JsonNode b = bodies.get(0);
     assertThat(b.get("model").asText()).isEqualTo("m");
-    assertThat(b.get("stream").asBoolean()).isFalse();
+    assertThat(b.get("stream").asBoolean()).isTrue();   // 항상 스트리밍으로 받아 모은다 (ADR-0011 결정 6) — 끊으면 다음 토큰에서 멈춘다
     assertThat(b.get("think").asBoolean()).isFalse();
     assertThat(b.get("keep_alive").asText()).isEqualTo("30m");
     assertThat(b.get("options").get("temperature").asDouble()).isEqualTo(0.9);
@@ -107,5 +107,92 @@ class OllamaClientTest {
   @Test
   void installedModels() {
     assertThat(client().installedModels()).containsExactly("qwen3.5:9b", "llava:7b");
+  }
+
+  // ── 스트리밍 (call.test.mjs '스트리밍', ollama.ts chatJson) ──
+
+  /** Ollama의 ndjson 스트림을 흉내 낸다 — 토큰이 조각조각, 줄 경계와 무관하게 나뉘어 온다. */
+  private void streamContext(String path, List<String> tokens, long gapMs) {
+    server.createContext(path, ex -> {
+      bodies.add(LlmFixtures.OM.readTree(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
+      ex.getResponseHeaders().add("content-type", "application/x-ndjson");
+      ex.sendResponseHeaders(200, 0);
+      try (var out = ex.getResponseBody()) {
+        StringBuilder all = new StringBuilder();
+        for (String t : tokens) all.append("{\"message\":{\"content\":").append(LlmFixtures.OM.writeValueAsString(t)).append("},\"done\":false}\n");
+        all.append("{\"message\":{\"content\":\"\"},\"done\":true}\n");
+        String body = all.toString();
+        int[] cuts = { 0, 40, 95, body.length() };
+        for (int i = 1; i < cuts.length; i++) {
+          out.write(body.substring(cuts[i - 1], Math.min(cuts[i], body.length())).getBytes(StandardCharsets.UTF_8));
+          out.flush();
+          if (gapMs > 0) { try { Thread.sleep(gapMs); } catch (InterruptedException ignored) { } }
+        }
+      } catch (java.io.IOException ignored) { /* 클라이언트가 끊었다 */ }
+    });
+  }
+
+  @Test
+  void streamDeliversDeltasInOrderAndAccumulates() {
+    server.removeContext("/api/chat");
+    streamContext("/api/chat", List.of("어… ", "그랬", "구나. ", "많이 ", "힘들었겠다", "! "), 0);
+    List<String> got = new java.util.ArrayList<>();
+    client().chatStream("m", "s", "u", null, null, 0.8, 90, 1_000, null, got::add);
+    assertThat(String.join("|", got)).isEqualTo("어… |그랬|구나. |많이 |힘들었겠다|! ");
+    assertThat(bodies.get(0).has("format")).isFalse();   // 스키마 없이 자유 텍스트 (통화)
+    assertThat(bodies.get(0).get("stream").asBoolean()).isTrue();
+    assertThat(client().chatJson("m", "s", "u", Map.of("type", "object"), null, 0.9, 160, 1_000)).isEqualTo("어… 그랬구나. 많이 힘들었겠다! ");
+  }
+
+  @Test
+  void streamErrorLineIsAnError() {
+    reply = "{\"error\":\"model 'm' not found\"}\n";
+    assertThatThrownBy(() -> client().chatStream("m", "s", "u", null, null, 0.8, 90, 1_000, null, s -> { })).isInstanceOf(OllamaException.class).hasMessage("ollama: model 'm' not found");
+  }
+
+  @Test
+  void cancelStopsTheStreamAndKeepsWhatArrived() throws Exception {
+    server.removeContext("/api/chat");
+    streamContext("/api/chat", List.of("하나. ", "둘. ", "셋. ", "넷. ", "다섯. ", "여섯. "), 300);
+    OllamaClient.Cancel cancel = new OllamaClient.Cancel();
+    List<String> got = new java.util.ArrayList<>();
+    java.util.concurrent.CountDownLatch first = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.atomic.AtomicReference<Throwable> err = new java.util.concurrent.atomic.AtomicReference<>();
+    Thread t = new Thread(() -> {
+      try { client().chatStream("m", "s", "u", null, null, 0.8, 90, 5_000, cancel, s -> { got.add(s); first.countDown(); }); }
+      catch (Throwable e) { err.set(e); }
+    });
+    t.start();
+    assertThat(first.await(3, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+    cancel.cancel();
+    t.join(3_000);
+    assertThat(t.isAlive()).isFalse();
+    assertThat(err.get()).isInstanceOf(OllamaCancelledException.class);
+    assertThat(got).isNotEmpty().hasSizeLessThan(6);   // 끊긴 뒤의 조각은 오지 않는다
+    assertThat(cancel.cancelled()).isTrue();
+  }
+
+  @Test
+  void cancelledBeforeStartNeverCalls() {
+    OllamaClient.Cancel cancel = new OllamaClient.Cancel();
+    cancel.cancel();
+    assertThatThrownBy(() -> client().chatJson("m", "s", "u", Map.of(), null, 0.9, 160, 1_000, cancel)).isInstanceOf(OllamaCancelledException.class);
+    assertThat(bodies).isEmpty();
+  }
+
+  // ── 예열 (ollama.ts warmModel) ──
+
+  @Test
+  void warmPostsGenerateWithEmptyPrompt() {
+    server.createContext("/api/generate", ex -> {
+      bodies.add(LlmFixtures.OM.readTree(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
+      LlmFixtures.respond(ex, 200, "{\"model\":\"m\",\"done\":true}");
+    });
+    client().warm("m");
+    JsonNode b = bodies.get(0);
+    assertThat(b.get("model").asText()).isEqualTo("m");
+    assertThat(b.get("prompt").asText()).isEmpty();
+    assertThat(b.get("keep_alive").asText()).isEqualTo("30m");
+    assertThatThrownBy(() -> new OllamaClient("http://127.0.0.1:9", 1_000, LlmFixtures.OM).warm("m")).isInstanceOf(OllamaException.class);
   }
 }

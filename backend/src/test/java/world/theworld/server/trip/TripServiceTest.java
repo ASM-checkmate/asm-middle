@@ -36,7 +36,7 @@ class TripServiceTest {
     final CountDownLatch entered = new CountDownLatch(1);
     volatile long lastTimeout;
     FakeOllama() { super("http://127.0.0.1:9", 1_000, LlmFixtures.OM); }
-    @Override public String chatJson(String model, String system, String user, Map<String, Object> schema, List<String> images, double temperature, int numPredict, long timeoutMs) {
+    @Override public String chatJson(String model, String system, String user, Map<String, Object> schema, List<String> images, double temperature, int numPredict, long timeoutMs, OllamaClient.Cancel cancel) {
       calls.incrementAndGet();
       lastTimeout = timeoutMs;
       assertThat(temperature).isEqualTo(0.2);
@@ -207,7 +207,7 @@ class TripServiceTest {
     // 결함 3: 프롬프트 예산이 아주 작아 [2]·[3]이 빠지면 src 2·3 장소는 초안에서 사라진다
     Rig r = new Rig("key", 100_000);
     TheworldProps tiny = new TheworldProps(new TheworldProps.Cors("x"), new TheworldProps.Ollama("http://127.0.0.1:9", 1_000), new TheworldProps.Models("s", "g"),
-      new TheworldProps.Trip("fixed-model", 90_000, 100_000, 200), new TheworldProps.Search("key"), new TheworldProps.Nominatim("http://127.0.0.1:9", "", 0), new TheworldProps.Docs(1));
+      new TheworldProps.Trip("fixed-model", 90_000, 100_000, 200), new TheworldProps.Plan(20_000, 120_000), new TheworldProps.Search("key"), new TheworldProps.Nominatim("http://127.0.0.1:9", "", 0), new TheworldProps.Docs(1));
     TripService svc = new TripService(r.ollama, r.search, r.geo, r.cache, tiny, r.clock::get);
     assertThatThrownBy(() -> svc.plan(new TripPlanRequest("good", "교토"))).isInstanceOf(ThinPlanException.class).hasMessageStartingWith("only 5 places");
     assertThat(svc.modelFor("good")).isEqualTo("fixed-model");

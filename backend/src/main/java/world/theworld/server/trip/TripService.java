@@ -16,6 +16,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import world.theworld.server.common.ApiException;
 import world.theworld.server.common.TheworldProps;
+import world.theworld.server.llm.ModelLane;
+import world.theworld.server.llm.OllamaCancelledException;
 import world.theworld.server.llm.OllamaClient;
 import world.theworld.server.trip.TripAssembler.Assembled;
 import world.theworld.server.trip.TripDtos.DraftHub;
@@ -53,15 +55,21 @@ public class TripService {
   private final TripCache cache;
   private final TheworldProps props;
   private final LongSupplier clock;
+  private final ModelLane lane;
   private final ConcurrentHashMap<String, CompletableFuture<TripPlanResponse>> inflight = new ConcurrentHashMap<>();
 
   @Autowired
-  public TripService(OllamaClient ollama, SearchClient search, NominatimClient geocoder, TripCache cache, TheworldProps props) {
-    this(ollama, search, geocoder, cache, props, System::currentTimeMillis);
+  public TripService(OllamaClient ollama, SearchClient search, NominatimClient geocoder, TripCache cache, TheworldProps props, ModelLane lane) {
+    this(ollama, search, geocoder, cache, props, System::currentTimeMillis, lane);
   }
 
-  /** 시계를 직접 — 데드라인 테스트용. */
+  /** 시계를 직접 — 데드라인 테스트용. 차선은 제 것을 쓴다. */
   public TripService(OllamaClient ollama, SearchClient search, NominatimClient geocoder, TripCache cache, TheworldProps props, LongSupplier clock) {
+    this(ollama, search, geocoder, cache, props, clock, new ModelLane());
+  }
+
+  public TripService(OllamaClient ollama, SearchClient search, NominatimClient geocoder, TripCache cache, TheworldProps props, LongSupplier clock, ModelLane lane) {
+    this.lane = lane;
     this.ollama = ollama;
     this.search = search;
     this.geocoder = geocoder;
@@ -122,7 +130,12 @@ public class TripService {
       String model = modelFor(req.tier());
       Built p = TripPrompt.build(req.city(), hits, props.trip().snippetsMaxChars());
       long modelTimeout = Math.max(1, Math.min(props.trip().modelTimeoutMs(), deadline - clock.getAsLong()));
-      String raw = ollama.chatJson(model, p.system(), p.user(), TripPrompt.TRIP_SCHEMA, null, TEMPERATURE, NUM_PREDICT, modelTimeout);
+      // 낮은 우선순위 — 통화 턴이 오면 끊긴다 (ModelLane, ADR-0011 결정 6). 끊기면 503 'yielded to call'
+      OllamaClient.Cancel cancel = lane.lowPriority();
+      String raw;
+      try { raw = ollama.chatJson(model, p.system(), p.user(), TripPrompt.TRIP_SCHEMA, null, TEMPERATURE, NUM_PREDICT, modelTimeout, cancel); }
+      catch (OllamaCancelledException e) { throw new ApiException(503, "yielded to call"); }
+      finally { lane.release(cancel); }
       TripDraft draft = TripDraftParser.parse(raw, p.included());
       if (draft == null) throw new ApiException(502, "model output unusable for " + req.city());
       log.info("[trip] {} draft {} {} {} places (hotel {}) hubs {}", req.city(), draft.key(), draft.country(), draft.places().size(),

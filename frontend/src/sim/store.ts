@@ -1,12 +1,12 @@
 import { create } from 'zustand';
-import type { ActivityOption, Anchor, BlockId, BlockPlan, Category, Friend, Comic, DayKey, DaySummaryItem, Journey, Memory, Phase, RemoteCache, ScheduledActivity, ShotWin, UserShot } from './types';
+import type { ActivityOption, Anchor, BlockId, BlockPlan, Category, Friend, Comic, DayKey, DaySummaryItem, Journey, LlmDayPlan, LlmPlans, Memory, Phase, RemoteCache, ScheduledActivity, ShotWin, UserShot } from './types';
 import { splitDayKey } from './types';
 import type { WorryKey } from './types';
 import { BLOCK_ORDER, CATEGORIES, blockEndAt, blockSlotIn, blockStartAt } from './blocks';
 import { DAY_MS, HOUR_MS, addDaysKey, compareDayKeys, dayEndOfKey, dayKeyIn, dayStartIn, dayStartOfKey, isValidTz, ownerTz } from './tz';
 import { isRealClock, loadClock, saveClock, simNow, withScale, jumpedTo, resetClock, type ClockState } from './clock';
-import { PLACES, cityKeyOfName, cityNameKo, placeById, registerCity, tzOf } from './places';
-import { suggestOptions, withStayDays } from './suggest';
+import { PLACES, cityKeyOfName, cityNameKo, hasPlace, placeById, registerCity, tzOf } from './places';
+import { optionsFromCards, suggestOptions, withStayDays } from './suggest';
 import { AGENTS, agentActivityAt, agentById, agentNames, agentOfFriend, companionCtx, friendOf, isRemoteId, remoteAgents, setRemoteCache, type Agent } from './agents';
 import { appearanceOf, arrivedKeys, emptyRemote, friendOfRemote, mergeRemote, pendingSlots, pruneRemote, publishWindow, remoteFriendIds, remoteHomeId, timelineSig, validRemote } from './remote';
 import { makeComic } from './comic';
@@ -20,7 +20,7 @@ import { WORRY_CHOICES, expire, nextRequest, trimRequests, type AgentRequest } f
 import { callLines, lateText, pickupRule, trimCalls, trimDueCalls, worryLines, type CallEvent, type DueCall } from './call';
 import { narrate } from './narrate';
 import { MAX_LEN, WORRY_CALL_MS, ASK_CALL_MS, askCallInMs, openBatch, reactToWorry, replyToAll, tripFollowUp, trimMessages, type ChatMsg } from './chat';
-import { fetchSketchRead, fetchTripPlan, getTier, requestOf, scheduleReply, setTier, sketchRequestOf, type LlmTier, type ReplyResponse, type SketchReadResponse } from './llm';
+import { fetchPlan, fetchSketchRead, fetchTripPlan, getTier, planRequestOf, requestOf, scheduleReply, setTier, sketchRequestOf, type LlmTier, type PlanBlockRequest, type PlanCategory, type ReplyResponse, type SketchReadResponse } from './llm';
 import { addFriendRemote, checkHealth, onLocalSave, publishAgent, publishSchedule, refreshRemote, subscribeSync, syncArmed, syncSnapshot, type BackendStatus, type DocName, type SyncInfo } from './sync';
 
 /** Seed memory: the first launch starts from 모모; onboarding (`updateMemory`) overwrites name/likes/traits. */
@@ -43,9 +43,9 @@ export type MemoryPatch = Partial<Pick<Memory, 'name' | 'likes' | 'dislikes' | '
 /** "다른 제안 보기" counter per day and block. */
 export type Regen = Record<DayKey, Partial<Record<BlockId, number>>>;
 /** The pure inputs of the timeline — the bundle the helpers below pass around. `remote`는 진짜 사람 에이전트 캐시 (§3.4, 없으면 null). */
-export interface World { days: Days; anchor: Anchor; memory: Memory; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; remote?: RemoteCache | null }
-/** v5 그대로 — `shots`(ADR-0004)·`remote`(BACKEND-CONTRACT §3.4)는 optional 필드라 옛 저장본은 빈 값으로 읽는다 (버전을 올리지 않는다). */
-interface Persisted { v: 5; days: Days; anchor: Anchor; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; remote?: RemoteCache }
+export interface World { days: Days; anchor: Anchor; memory: Memory; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; llmPlans: LlmPlans; remote?: RemoteCache | null }
+/** v5 그대로 — `shots`(ADR-0004)·`llmPlans`(ADR-0010)·`remote`(BACKEND-CONTRACT §3.4)는 optional 필드라 옛 저장본은 빈 값으로 읽는다 (버전을 올리지 않는다). */
+interface Persisted { v: 5; days: Days; anchor: Anchor; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; llmPlans?: LlmPlans; remote?: RemoteCache }
 
 const WORLD_KEY = 'theworld.world.v5';   // + 대화 실 (ADR-0002). 옛 판은 한 번만 읽어 올린다
 const WORLD_KEY_V4 = 'theworld.world.v4';  // legacy: days + anchor(+status), 대화 실 없음 (ADR-0001)
@@ -174,11 +174,28 @@ const validShots = (raw: unknown): UserShot[] => {
       && (c.pitch === undefined || Number.isFinite(c.pitch)) && (c.light === undefined || Number.isFinite(c.light)) && (c.dof === undefined || Number.isFinite(c.dof)) && (c.focus === undefined || c.focus === 'near' || c.focus === 'far');
   });
 };
-const persistedOf = (w: World): Persisted => ({ v: 5, days: w.days, anchor: w.anchor, journeys: w.journeys, regen: w.regen, encounters: w.encounters, requests: w.requests, calls: w.calls, messages: w.messages, dueCalls: w.dueCalls, shots: w.shots, ...(w.remote ? { remote: w.remote } : {}) });
+const persistedOf = (w: World): Persisted => ({ v: 5, days: w.days, anchor: w.anchor, journeys: w.journeys, regen: w.regen, encounters: w.encounters, requests: w.requests, calls: w.calls, messages: w.messages, dueCalls: w.dueCalls, shots: w.shots, llmPlans: w.llmPlans, ...(w.remote ? { remote: w.remote } : {}) });
 const horizonFor = (t: number) => t + HORIZON_MS;
 const build = (w: World, t: number) => buildTimeline(w.anchor, w.days, w.memory, w.journeys, horizonFor(t), w.encounters);
 
 /** Places already chosen (or proposed) in the other blocks today, so suggestions vary across the day. */
+/** 저장된 하루 계획을 검증한다 — 장소가 사라졌으면(찾아 온 도시를 잊음) 그 블록은 버린다. */
+const validLlmPlans = (v: unknown): LlmPlans => {
+  const out: LlmPlans = {};
+  if (!v || typeof v !== 'object') return out;
+  for (const [dayKey, day] of Object.entries(v as Record<string, unknown>)) {
+    if (!day || typeof day !== 'object') continue;
+    const clean: LlmDayPlan = {};
+    for (const [id, b] of Object.entries(day as Record<string, { category?: unknown; options?: unknown; at?: unknown }>)) {
+      if (!BLOCK_ORDER.includes(id as BlockId) || !b || !CATEGORIES.some(c => c.id === b.category) || !Array.isArray(b.options)) continue;
+      const options = (b.options as ActivityOption[]).filter(o => o && typeof o.id === 'string' && typeof o.placeId === 'string' && hasPlace(o.placeId));
+      if (options.length) clean[id as BlockId] = { category: b.category as Category, options, at: typeof b.at === 'number' ? b.at : 0 };
+    }
+    if (Object.keys(clean).length) out[dayKey] = clean;
+  }
+  return out;
+};
+
 const usedPlaceIds = (plans: Plans, except: BlockId) => {
   const ids = new Set<string>();
   for (const id of BLOCK_ORDER) {
@@ -321,12 +338,14 @@ export function decide(dayKey: DayKey, w: World, horizon: number, now: number): 
       // r.next()는 빠듯할 때만 소비한다 — 넉넉한 날의 시드 순서(범주 뽑기)는 그대로다
       const tight = status.money < TIGHT_MONEY;
       const earn = tight && !p.category && !MEAL_BLOCKS.has(id) && !hotel && r.next() < 0.7;
+      // 모델이 미리 지어 둔 계획 (ADR-0010) — 빈 블록에서만, 그리고 밥·숙소·돈·고민 같은 규칙이 먼저다. 없으면 시드로
+      const llm = !p.category && !p.options.length ? w.llmPlans[dayKey]?.[id] : undefined;
       if (!p.category) p.category = MEAL_BLOCKS.has(id)
         ? 'meal'                                                           // 아침·점심·저녁은 밥 시간 (식당/브런치/카페는 취향대로 제안됨)
         : hotel ? 'rest'
           : earn ? 'work'
-            : worry ?? r.pick(CATEGORIES.filter(c => c.id !== 'travel' && c.id !== 'meal')).id;
-      if (!p.options.length) p.options = suggestOptions(ctx(p.category));
+            : worry ?? llm?.category ?? r.pick(CATEGORIES.filter(c => c.id !== 'travel' && c.id !== 'meal')).id;
+      if (!p.options.length) p.options = llm && llm.category === p.category && llm.options.every(o => hasPlace(o.placeId)) ? llm.options : suggestOptions(ctx(p.category));
       if (p.category === 'meal') p.options = rankMealOptions(p.options, w.memory);
       if (hotel && p.category === 'rest') p.options = [...p.options.filter(o => o.placeId === hotel.id), ...p.options.filter(o => o.placeId !== hotel.id)];
       // 에이전트의 자기 선택도 사용자의 확정과 **같은 문**을 지난다 (sim/review.ts):
@@ -410,7 +429,7 @@ function prune(w: World, now: number, onAct: (a: ScheduledActivity) => void): Wo
   const old = Object.keys(w.days).filter(k => dayStartOfKey(k) < cutoff).sort(compareDayKeys);
   if (!old.length && w.anchor.t >= cutoff) return w;
   let { anchor } = w;
-  const days = { ...w.days }, regen = { ...w.regen };
+  const days = { ...w.days }, regen = { ...w.regen }, llmPlans = { ...w.llmPlans };
   for (const k of old) {
     const dayEnd = dayEndOfKey(k);
     const acts = buildTimeline(anchor, days, w.memory, w.journeys, dayEnd, w.encounters);
@@ -421,10 +440,10 @@ function prune(w: World, now: number, onAct: (a: ScheduledActivity) => void): Wo
     anchor = last
       ? { placeId: last.place.id, tz: last.tz, t: Math.max(dayEnd, blockSlotIn(last.comicUntil - 1, last.tz).end), status }
       : { ...anchor, t: Math.max(anchor.t, dayEnd), status };
-    delete days[k]; delete regen[k];
+    delete days[k]; delete regen[k]; delete llmPlans[k];
   }
   if (anchor.t < cutoff) anchor = { ...anchor, t: cutoff };   // nothing is planned in between (those days are gone)
-  return { ...w, anchor, days, regen };
+  return { ...w, anchor, days, regen, llmPlans };
 }
 
 /**
@@ -493,6 +512,10 @@ export interface WorldState {
   sync: SyncInfo;
   /** 진짜 사람 에이전트 캐시 (BACKEND-CONTRACT §3.4). world 저장본에 실린다. 오프라인이면 null — NPC 풀 그대로 */
   remote: RemoteCache | null;
+  /** 모델이 미리 지어 둔 하루 계획 (ADR-0010). `days`와 같은 키. */
+  llmPlans: LlmPlans;
+  /** 하루 계획을 백엔드에 묻는 중 */
+  planBusy: boolean;
   /** 대화 실을 마지막으로 본 시각 — 안 읽은 줄 배지가 이걸 쓴다 */
   chatSeen: number;
   /** 혼잣말 한 줄 (ADR-0001 §1의 1단계). 대가 없이 지나가고, 잠깐 떴다 사라진다. */
@@ -531,6 +554,13 @@ export interface WorldState {
   callAgent: () => void;
   /** 걸려온 전화를 받는다 / 안 받는다. */
   answerCall: (accept: boolean) => void;
+  /**
+   * 말로 하는 통화가 붙었다 (ADR-0011): 규칙 대사를 비우고 `voice`를 켠다. 그 뒤 오간 말은 `appendCallLine`으로 쌓인다.
+   * 세션이 못 붙으면 부르지 않는다 — 규칙 대사가 그대로 뜬다.
+   */
+  beginVoiceCall: () => void;
+  /** 통화 중 오간 한 줄. 내 말은 "나: "를 앞에 붙여 같은 `lines`에 쌓는다 (대화 실이 그대로 펼친다). */
+  appendCallLine: (from: 'me' | 'agent', text: string) => void;
   /** 통화 화면을 닫는다 (기록은 남는다 — 받았던 통화라면 통화 시간까지). */
   endCall: () => void;
   /** 대화창에서 한 마디 보낸다. 답장은 상황에 따라 바로 오거나 한참 뒤에 온다 (sim/chat.ts). */
@@ -552,6 +582,16 @@ export interface WorldState {
    * @param batch 그 말이 속한 묶음 id — 후속 줄 id(`${batch}:trip`)와 시드에 쓴다
    */
   planTrip: (city: string, batch: string) => Promise<void>;
+  /**
+   * 오늘의 빈 블록들을 백엔드 모델에게 미리 짓게 한다 (ADR-0010). 결과는 `llmPlans[today]`에 저장되고, 블록이 시작할 때
+   * `decide()`가 규칙 카드 대신 쓴다. tier가 off거나 이미 묻는 중이거나 빈 블록이 없으면 아무것도 안 한다.
+   */
+  planDay: () => Promise<void>;
+  /**
+   * 물어본 카드가 도착했다. 그 블록이 아직 같은 범주로 비어 있으면(사용자가 안 바꿨고 시작 안 했으면) 채운다.
+   * 모델 카드가 없으면(실패·늦음) 규칙 카드로 채운다.
+   */
+  applyPlanCards: (dayKey: DayKey, id: BlockId, category: Category, cards: ActivityOption[]) => void;
   /** 혼잣말을 지운다 (뜬 지 몇 초 뒤 화면이 부른다). */
   dismissSay: () => void;
   /**
@@ -603,7 +643,7 @@ export interface WorldState {
 const comicCache = new Map<string, Comic>();
 const summaryOf = (acts: ScheduledActivity[], comicOf: (a: ScheduledActivity) => Comic): DaySummaryItem[] =>
   [...acts].sort((a, b) => a.endAt - b.endAt).slice(-SUMMARY_CAP).map(a => ({ blockId: a.blockIds[0], act: a, comic: comicOf(a) }));
-const worldOf = (s: WorldState): World => ({ days: s.days, anchor: s.anchor, memory: s.memory, journeys: s.journeys, regen: s.regen, encounters: s.encounters, requests: s.requests, calls: s.calls, messages: s.messages, dueCalls: s.dueCalls, shots: s.shots, remote: s.remote });
+const worldOf = (s: WorldState): World => ({ days: s.days, anchor: s.anchor, memory: s.memory, journeys: s.journeys, regen: s.regen, encounters: s.encounters, requests: s.requests, calls: s.calls, messages: s.messages, dueCalls: s.dueCalls, shots: s.shots, llmPlans: s.llmPlans, remote: s.remote });
 /** Where the character is right before block `id` of today (the previous activity's place, else the anchor's). */
 const placeBefore = (s: WorldState, id: BlockId) => currentPlaceAt(blockStartAt(dayStartOfKey(s.today), id) - 1, s.timeline, s.anchor);
 
@@ -641,7 +681,7 @@ export const useWorld = create<WorldState>((set, get) => {
     .map(r => (r.kind === 'worry' && !r.answered && !r.decidedAlone ? { ...r, choices: WORRY_CHOICES } : r));
   const messages0 = (Array.isArray(persisted?.messages) ? persisted.messages : []).filter(m => !m.id.startsWith('nego:'));
   const dueCalls0 = (Array.isArray(persisted?.dueCalls) ? persisted.dueCalls : []).map(d => (d.worry !== undefined && !isWorryKey(d.worry) ? { ...d, worry: undefined } : d));
-  let w: World = { days: validDays(persisted?.days), anchor: validAnchor(persisted?.anchor, now, memory), memory, journeys: persisted?.journeys ?? {}, regen: persisted?.regen ?? {}, encounters, requests: requests0, calls: Array.isArray(persisted?.calls) ? persisted.calls : [], messages: messages0, dueCalls: dueCalls0, shots, remote };
+  let w: World = { days: validDays(persisted?.days), anchor: validAnchor(persisted?.anchor, now, memory), memory, journeys: persisted?.journeys ?? {}, regen: persisted?.regen ?? {}, encounters, requests: requests0, calls: Array.isArray(persisted?.calls) ? persisted.calls : [], messages: messages0, dueCalls: dueCalls0, shots, llmPlans: validLlmPlans(persisted?.llmPlans), remote };
   const gapActs: ScheduledActivity[] = [];
   const remember = (a: ScheduledActivity) => { settleLocal(a); if (a.endAt > lastSeen && a.endAt <= now) gapActs.push(a); };
   w = prune(w, now, remember);
@@ -838,8 +878,11 @@ export const useWorld = create<WorldState>((set, get) => {
       const today = currentDayKey(t, build(w, t), w.anchor.tz);
       if (book !== s.book) save(BOOK_KEY, book);
       if (memory !== s.memory) save(MEMORY_KEY, memory);
-      set({ days: w.days, anchor: w.anchor, regen: w.regen, book, memory, encounters, shots, today, selectedBlock: null });
+      set({ days: w.days, anchor: w.anchor, regen: w.regen, llmPlans: w.llmPlans, book, memory, encounters, shots, today, selectedBlock: null });
       persist();
+      recompute(t);
+      void get().planDay();   // 새 하루 — 모델이 빈 블록들을 미리 짓는다 (ADR-0010)
+      return;
     }
     recompute(t);
   };
@@ -932,9 +975,26 @@ export const useWorld = create<WorldState>((set, get) => {
     return out;
   };
 
+  /** 진행 중인 하루 계획 요청 — 통화가 붙으면 끊는다 (Ollama는 한 번에 하나라, 20~60초짜리 계획이 통화 첫마디 앞을 막는다) */
+  let planCtl: AbortController | null = null;
+  /** 블록 하나·범주 하나의 카드를 백엔드에 묻는다 (ADR-0010). 늦거나 실패하면 규칙 카드로 채운다 — 같은 자리를 두 번 채우지 않는다. */
+  const CARDS_WAIT_MS = 15_000;
+  const askCards = (id: BlockId, category: PlanCategory, previous?: string[]) => {
+    const s = get();
+    if (s.llmTier === 'off') return;
+    const dayKey = s.today;
+    const from = placeBefore(s, id);
+    const req = planRequestOf([{ id, category, from: from.name, avoid: usedPlaceIds(s.plans, id), ...(previous?.length ? { previous } : {}) }], { memory: s.memory, status: s.status, now: s.now, tz: s.tz, dateKey: splitDayKey(dayKey).dateKey }, s.llmTier, from.city);
+    void fetchPlan(req, CARDS_WAIT_MS).then(r => {
+      const b = r?.blocks.find(x => x.id === id);
+      const cards = b && b.category === category ? optionsFromCards(b.options, category, splitDayKey(dayKey).dateKey, id) : [];
+      get().applyPlanCards(dayKey, id, category, cards);
+    });
+  };
+
   const st: WorldState = {
     clock, now, anchor: w.anchor, days: w.days, today, tz: initialPhase.tz, memory, agents: [...remoteAgents(), ...AGENTS], encounters, status: initialStatus, requests: w.requests, calls: w.calls, activeCall: null, onboarded,
-    messages: w.messages, dueCalls: w.dueCalls, chatOpen: false, chatSeen: load<number>(CHAT_SEEN_KEY, now), llmTier: getTier(), tripBusy: null, say: null,
+    messages: w.messages, dueCalls: w.dueCalls, chatOpen: false, chatSeen: load<number>(CHAT_SEEN_KEY, now), llmTier: getTier(), tripBusy: null, llmPlans: w.llmPlans, planBusy: false, say: null,
     backend: sync0.backend, sync: sync0.sync, remote: w.remote ?? null,
     shots: w.shots, sketchOpen: null, cameraOpen: false,
     plans: w.days[today], journeys: w.journeys, regen: w.regen, book,
@@ -978,9 +1038,12 @@ export const useWorld = create<WorldState>((set, get) => {
     },
     setCategory: (id, c) => {
       const s = get();
-      const options = suggestOptions({ dateKey: s.today, blockId: id, category: c, memory: s.memory, from: placeBefore(s, id), regenSalt: s.regen[s.today]?.[id], usedPlaceIds: usedPlaceIds(s.plans, id), companions: companionCtx(s.memory, id, s.today, dayStartOfKey(s.today)) });
+      // 모델이 켜져 있고 모델이 지을 수 있는 범주면 카드를 비워 두고 묻는다 ("제안을 준비하는 중…"). 아니면 지금처럼 규칙 카드
+      const ask = s.llmTier !== 'off' && c !== 'travel' && c !== 'sleep';
+      const options = ask ? [] : suggestOptions({ dateKey: s.today, blockId: id, category: c, memory: s.memory, from: placeBefore(s, id), regenSalt: s.regen[s.today]?.[id], usedPlaceIds: usedPlaceIds(s.plans, id), companions: companionCtx(s.memory, id, s.today, dayStartOfKey(s.today)) });
       // 주인이 다른 걸로 바꾸면 동행은 취소된다 (친구는 혼자 간다) — the block becomes the owner's again. 그림도 지운다 (카드 경로로 복귀)
       setPlans({ ...s.plans, [id]: { ...s.plans[id], category: c, options, chosenId: null, chosenBy: null, status: 'proposed', verdict: undefined, sketch: undefined, sketchRead: undefined, sketchVerdict: undefined } });
+      if (ask) askCards(id, c as PlanCategory);
     },
     chooseOption: (id, optionId, by = 'user', stayDays) => {
       const s = get();
@@ -1024,9 +1087,12 @@ export const useWorld = create<WorldState>((set, get) => {
       const p = s.plans[id];
       if (!p.category) return;
       const salt = (s.regen[s.today]?.[id] ?? 0) + 1;
-      const options = suggestOptions({ dateKey: s.today, blockId: id, category: p.category, memory: s.memory, from: placeBefore(s, id), regenSalt: salt, usedPlaceIds: usedPlaceIds(s.plans, id), companions: companionCtx(s.memory, id, s.today, dayStartOfKey(s.today)) });
+      const ask = s.llmTier !== 'off' && p.category !== 'travel' && p.category !== 'sleep';
+      const options = ask ? [] : suggestOptions({ dateKey: s.today, blockId: id, category: p.category, memory: s.memory, from: placeBefore(s, id), regenSalt: salt, usedPlaceIds: usedPlaceIds(s.plans, id), companions: companionCtx(s.memory, id, s.today, dayStartOfKey(s.today)) });
       set({ regen: { ...s.regen, [s.today]: { ...s.regen[s.today], [id]: salt } } });
       setPlans({ ...s.plans, [id]: { ...p, options, chosenId: null, chosenBy: null, status: 'proposed', verdict: undefined, sketch: undefined, sketchRead: undefined, sketchVerdict: undefined } });
+      // "다른 제안 보기": 방금 보여 준 제목들을 넘겨 다른 걸 받는다
+      if (ask) askCards(id, p.category as PlanCategory, p.options.map(o => o.title));
     },
     sketchBlock: (id, dataUrl) => {
       const s = get();
@@ -1119,6 +1185,24 @@ export const useWorld = create<WorldState>((set, get) => {
       set({ activeCall: accept ? done : null, calls: s.calls.map(x => (x.id === c.id ? done : x)) });
       persist();
     },
+    beginVoiceCall: () => {
+      const s = get();
+      const c = s.activeCall;
+      if (!c || c.result !== 'answered') return;
+      // 하루 계획이 돌고 있으면 끊는다 — 통화 첫마디가 먼저다. 끊고 나서(endCall) 다시 짓는다
+      planCtl?.abort(); planCtl = null;
+      const done: CallEvent = { ...c, voice: true, lines: [] };
+      set({ activeCall: done, calls: s.calls.map(x => (x.id === c.id ? done : x)) });
+    },
+    appendCallLine: (from, text) => {
+      const s = get();
+      const c = s.activeCall;
+      if (!c || c.result !== 'answered') return;
+      const line = from === 'me' ? `나: ${text}` : text;
+      const done: CallEvent = { ...c, lines: [...(c.lines ?? []), line].slice(-60) };
+      set({ activeCall: done, calls: s.calls.map(x => (x.id === c.id ? done : x)) });
+      persist();
+    },
     endCall: () => {
       const s = get();
       const c = s.activeCall;
@@ -1132,6 +1216,7 @@ export const useWorld = create<WorldState>((set, get) => {
         callStartedReal = null;
         set({ activeCall: null, calls: s.calls.map(x => (x.id === c.id ? done : x)) });
         persist();
+        if (c.voice) void get().planDay();   // 통화에 양보했던 하루 계획을 이어서
         return;
       }
       callStartedReal = null;
@@ -1181,7 +1266,65 @@ export const useWorld = create<WorldState>((set, get) => {
         scheduleReply(batch, req, budget, r => get().applyLlmReply(batch, seq, r));
       }
     },
-    setLlmTier: (t) => { setTier(t); set({ llmTier: t }); },
+    setLlmTier: (t) => { setTier(t); set({ llmTier: t }); if (t !== 'off') void get().planDay(); },
+    applyPlanCards: (dayKey, id, category, cards) => {
+      const s = get();
+      const plans = s.days[dayKey];
+      const p = plans?.[id];
+      // 그 사이 범주를 바꿨거나, 카드가 이미 있거나(규칙이 채웠거나 시작했거나), 그림으로 넘겼으면 버린다
+      if (!p || p.category !== category || p.options.length || p.status !== 'proposed') return;
+      const options = cards.length
+        ? cards
+        : suggestOptions({ dateKey: splitDayKey(dayKey).dateKey, blockId: id, category, memory: s.memory, from: dayKey === s.today ? placeBefore(s, id) : placeById(s.anchor.placeId), regenSalt: s.regen[dayKey]?.[id], usedPlaceIds: usedPlaceIds(plans, id), companions: companionCtx(s.memory, id, dayKey, dayStartOfKey(dayKey)) });
+      const next = { ...plans, [id]: { ...p, options } };
+      const days = { ...s.days, [dayKey]: next };
+      set(dayKey === s.today ? { days, plans: next } : { days });
+      persist();
+      if (dayKey === s.today) recompute(simNow(get().clock));
+    },
+    planDay: async () => {
+      const s = get();
+      if (s.llmTier === 'off' || s.planBusy) return;
+      const dayKey = s.today;
+      const dayStart = dayStartOfKey(dayKey);
+      const homeCity = placeById(s.memory.homePlaceId).city;
+      const have = s.llmPlans[dayKey] ?? {};
+      // 아직 안 시작했고, 사용자·친구가 안 정했고, 모델도 아직 안 지은 블록만
+      const todo = BLOCK_ORDER.filter(id => id !== 'sleep' && blockStartAt(dayStart, id) > s.now && !have[id])
+        .filter(id => { const p = s.plans[id]; return p.category === null && !p.options.length && p.chosenBy === null && p.status === 'empty'; });
+      if (!todo.length) return;
+      // 블록이 시작하는 도시별로 한 번씩 묻는다 (카탈로그가 도시 것이라). 밥 시간은 식사, 여행지의 밤은 숙소 — decide()와 같은 규칙
+      const groups = new Map<string, PlanBlockRequest[]>();
+      for (const id of todo) {
+        const from = placeBefore(s, id);
+        const category: PlanCategory | null = MEAL_BLOCKS.has(id) ? 'meal' : id === 'night' && from.city !== homeCity ? 'rest' : null;
+        const list = groups.get(from.city) ?? [];
+        list.push({ id, category, from: from.name, avoid: usedPlaceIds(s.plans, id) });
+        groups.set(from.city, list);
+      }
+      if (s.activeCall?.result === 'answered') return;   // 통화 중엔 모델을 통화에 양보한다
+      const ctl = new AbortController();
+      planCtl = ctl;
+      set({ planBusy: true });
+      try {
+        for (const [city, blocks] of groups) {
+          const r = await fetchPlan(planRequestOf(blocks, { memory: s.memory, status: s.status, now: s.now, tz: s.tz, dateKey: splitDayKey(dayKey).dateKey }, s.llmTier, city), 120_000, ctl.signal);
+          if (!r) continue;
+          const cur = get();
+          const day: LlmDayPlan = { ...(cur.llmPlans[dayKey] ?? {}) };
+          for (const b of r.blocks) {
+            const options = optionsFromCards(b.options, b.category, splitDayKey(dayKey).dateKey, b.id);
+            if (options.length) day[b.id] = { category: b.category, options, at: cur.now };
+          }
+          set({ llmPlans: { ...cur.llmPlans, [dayKey]: day } });
+        }
+      } finally {
+        if (planCtl === ctl) planCtl = null;
+        set({ planBusy: false });
+      }
+      persist();
+      recompute(simNow(get().clock));
+    },
     applyLlmReply: (batch, seq, r) => {
       const s = get();
       const now = simNow(s.clock);
@@ -1299,10 +1442,13 @@ export const useWorld = create<WorldState>((set, get) => {
       };
       const t = simNow(s.clock);
       const plans = releaseAgentPicks(s, t);
-      set({ memory, onboarded: true, plans, days: { ...s.days, [s.today]: plans } });
+      // 취향이 바뀌었으니 모델이 지어 둔 계획도 버리고 다시 짓는다
+      const { [s.today]: _old, ...rest } = s.llmPlans;
+      set({ memory, onboarded: true, plans, days: { ...s.days, [s.today]: plans }, llmPlans: rest });
       save(MEMORY_KEY, memory); save(ONBOARD_KEY, true);
       persist(); recompute(t);
       void publishProfile().then(ok => { if (!ok) profileSent = false; });   // 이름·취향·성향이 바뀌었다 — 상대 화면의 나도 바뀐다 (§3.4 b). 못 보냈으면 tick이 다시
+      void get().planDay();
     },
     setScale: (scale) => { const c = withScale(get().clock, scale); saveClock(c); set({ clock: c }); const t = simNow(c); lastTick = t; sync(t); },
     jumpTo: (t) => { const c = jumpedTo(get().clock, t); saveClock(c); set({ clock: c }); lastTick = t; sync(t); },
@@ -1323,7 +1469,7 @@ export const useWorld = create<WorldState>((set, get) => {
       const remote = s.remote ? { ...s.remote, slots: {} } : null;
       setRemoteCache(remote, { meId: s.sync.userId, homeCity: homeCityOf(s.memory) });
       publishedSig = null;
-      set({ clock: c, anchor, days: {}, regen: {}, today: dayKeyIn(t, anchor.tz), tz: anchor.tz, plans: emptyPlans(), timeline: [], summary: null, gap: null, requests: [], calls: [], activeCall: null, selectedBlock: null, messages: [], dueCalls: [], chatOpen: false, say: null, shots: [], sketchOpen: null, cameraOpen: false, remote });
+      set({ clock: c, anchor, days: {}, regen: {}, llmPlans: {}, today: dayKeyIn(t, anchor.tz), tz: anchor.tz, plans: emptyPlans(), timeline: [], summary: null, gap: null, requests: [], calls: [], activeCall: null, selectedBlock: null, messages: [], dueCalls: [], chatOpen: false, say: null, shots: [], sketchOpen: null, cameraOpen: false, remote });
       recompute(t);
     },
   };

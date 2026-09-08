@@ -11,7 +11,10 @@ mkdirSync(outDir, { recursive: true });
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const port = 9222 + Math.floor(Math.random() * 500);
 const profile = mkdtempSync(join(tmpdir(), 'tw-chrome-'));
-const chrome = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--hide-scrollbars', '--no-first-run', '--no-default-browser-check', '--window-size=390,844', 'about:blank'], { stdio: 'ignore' });
+// EXTRA_CHROME_ARGS: 공백으로 나눈 추가 플래그 — 가짜 마이크(--use-fake-device-for-media-capture …)로 말 통화를 검사할 때 쓴다
+const extra = (process.env.EXTRA_CHROME_ARGS ?? '').split(' ').filter(Boolean);
+// HEADED=1: 창을 띄운다 — 헤드리스에서는 getUserMedia(가짜 마이크)가 응답하지 않는다
+const chrome = spawn(CHROME, [...(process.env.HEADED ? ['--window-position=40,40'] : ['--headless=new']), `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--hide-scrollbars', '--no-first-run', '--no-default-browser-check', '--window-size=390,844', ...extra, 'about:blank'], { stdio: 'ignore' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 try {
   let targets = null;

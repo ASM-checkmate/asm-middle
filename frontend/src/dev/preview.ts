@@ -265,7 +265,7 @@ function previewWorld(now0: number, tz: string, landedYesterday = false): Timeta
   const plans = emptyPlans();
   plans.morning = { blockId: 'morning', category: 'travel', options: [option], chosenId: option.id, chosenBy: 'user', status: 'confirmed' };
   const anchor: Anchor = { placeId: home.id, t: departAt, tz: ownerTz };
-  const world: World = { days: { [depDay]: plans }, anchor, memory: memory(), journeys: {}, regen: {}, encounters: {}, requests: [], calls: [], messages: [], dueCalls: [], shots: [] };
+  const world: World = { days: { [depDay]: plans }, anchor, memory: memory(), journeys: {}, regen: {}, encounters: {}, requests: [], calls: [], messages: [], dueCalls: [], shots: [], llmPlans: {} };
   const first = decide(today, world, now0 + 36 * HOUR_MS, now0);
   const trip = first.timeline.find(a => a.option.id === option.id);
   const now = trip && !landedYesterday ? Math.max(now0, trip.comicUntil + 2 * 60_000) : now0;

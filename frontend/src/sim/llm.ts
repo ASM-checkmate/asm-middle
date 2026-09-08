@@ -1,8 +1,8 @@
-import type { ActivityOption, Category, CityInfo, Memory, Phase, Place, WorryKey } from './types';
-import { placeById } from './places';
+import type { ActivityOption, BlockId, Category, CityInfo, Memory, Phase, Place, WorryKey } from './types';
+import { PLACES, cityNameKo, placeById } from './places';
 import type { Status } from './status';
 import { pickupRule } from './call';
-import { hhmmIn } from './tz';
+import { hhmmIn, weekdayKoIn } from './tz';
 import { LATE_WHY, whereOf, type ChatMsg } from './chat';
 import { api } from './api';
 
@@ -168,6 +168,11 @@ export async function fetchSketchRead(req: SketchReadRequest, timeoutMs = SKETCH
   return ask<SketchReadResponse>('/api/sketch/read', req, timeoutMs, j => (j.optionId === null || typeof j.optionId === 'string') && typeof j.seen === 'string' && (j.category === null || typeof j.category === 'string'));
 }
 
+/** 모델을 미리 올려 둔다 (ADR-0011). 벨이 울릴 때·대화 실을 열 때 — 첫마디가 모델 로드를 기다리지 않게. 실패는 조용히. */
+export function warmModel(tier: Exclude<LlmTier, 'off'>) {
+  void fetch('/api/warm', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tier }), signal: AbortSignal.timeout(60_000) }).catch(() => {});
+}
+
 // ─── 여행지 찾기 (ADR-0009) ───────────────────────────────────────────────────
 // "교토 가자"라고 하면 백엔드가 웹에서 그 도시의 장소를 찾아 "도시 팩"으로 돌려준다. 프론트는 그것을
 // places.ts에 등록할 뿐이고, 여행 카드·이동·도착지의 하루는 규칙 엔진이 그대로 만든다.
@@ -193,4 +198,71 @@ export interface TripPlanResponse {
  */
 export async function fetchTripPlan(req: TripPlanRequest, timeoutMs = TRIP_TIMEOUT_MS): Promise<TripPlanResponse | null> {
   return ask<TripPlanResponse>('/api/trip/plan', req, timeoutMs, j => !!j.city && typeof j.city.key === 'string' && Array.isArray(j.places));
+}
+
+// ─── 하루 계획 (ADR-0010) ─────────────────────────────────────────────────────
+// 블록마다 "무엇을 할지" 카드 3장을 백엔드의 모델이 짓는다. 언제 시작하고 어디를 거쳐 가는지, 돈·피로에 막히는지는
+// 여전히 규칙(review·timeline)이 본다. 서버가 없거나 늦으면 규칙 카드 — 앱은 백엔드 없이도 돈다.
+
+/** 백엔드 계약 (docs/CONTRACT.md의 PlanRequest/Response). backend/src/contract.ts와 같은 모양을 복사해 둔다. */
+export type PlanCategory = Exclude<Category, 'sleep' | 'travel'>;
+export interface PlanBlockRequest { id: BlockId; category: PlanCategory | null; from: string; avoid: string[]; previous?: string[] }
+export interface PlanRequest {
+  tier: Exclude<LlmTier, 'off'>;
+  agent: { name: string; traits: string[]; likes: string[]; dislikes: string[] };
+  day: { dateKey: string; weekday: string };
+  city: { key: string; nameKo: string; home: boolean };
+  status: { money: number; fatigue: number; mood: number };
+  worry: Exclude<WorryKey, 'none'> | null;
+  visited: string[];
+  places: { id: string; name: string; type: Place['type']; area: string }[];
+  blocks: PlanBlockRequest[];
+}
+export interface PlanOption { placeId: string; title: string; reason: string; emoji: string }
+export interface PlanBlock { id: BlockId; category: PlanCategory; options: PlanOption[] }
+export interface PlanResponse { blocks: PlanBlock[]; model: string; ms: number }
+
+/** 카탈로그에 넣을 최대 장소 수 — 프롬프트 한 장에 들어갈 만큼. */
+const PLACES_CAP = 120;
+/** 카탈로그에서 뺄 유형 — 이동의 허브지 활동 장소가 아니다. 친구 집은 동행 규칙(FRIENDS_SPEC)이 맡는다. */
+const NOT_ACTIVITY: ReadonlySet<Place['type']> = new Set(['station', 'airport', 'port', 'friend_home']);
+
+/**
+ * 스토어 상태에서 계획 요청 하나를 만든다. 순수 함수. 카탈로그는 `city`의 장소들이다.
+ *
+ * @param blocks 지어 달라는 블록들 (범주가 정해졌으면 그 범주, 아니면 null)
+ * @param s 지금 상태
+ * @param tier 쓸 단계
+ * @param city 블록들이 시작하는 도시 키
+ */
+export function planRequestOf(blocks: PlanBlockRequest[], s: { memory: Memory; status: Status; now: number; tz: string; dateKey: string }, tier: Exclude<LlmTier, 'off'>, city: string): PlanRequest {
+  const homeCity = placeById(s.memory.homePlaceId).city;
+  const places = PLACES.filter(p => p.city === city && !NOT_ACTIVITY.has(p.type)).slice(0, PLACES_CAP).map(p => ({ id: p.id, name: p.name, type: p.type, area: p.area }));
+  const worry = s.memory.worry && s.memory.worry.key !== 'none' && s.now - s.memory.worry.at < WORRY_FRESH_MS ? s.memory.worry.key : null;
+  const visited = s.memory.visited.slice(-6).map(v => { try { return placeById(v.placeId).name; } catch { return ''; } }).filter(Boolean);
+  return {
+    tier,
+    agent: { name: s.memory.name, traits: s.memory.traits, likes: s.memory.likes, dislikes: s.memory.dislikes },
+    day: { dateKey: s.dateKey, weekday: weekdayKoIn(s.now, s.tz) },
+    city: { key: city, nameKo: cityNameKo(city), home: city === homeCity },
+    status: { money: Math.round(s.status.money), fatigue: Math.round(s.status.fatigue), mood: Math.round(s.status.mood) },
+    worry, visited, places, blocks,
+  };
+}
+
+/**
+ * 백엔드에 카드를 지어 달라고 한다. 실패(서버 없음·502·제한 시간)는 **null** — 호출자는 규칙 카드를 쓴다.
+ *
+ * @param req 요청
+ * @param timeoutMs 이보다 늦으면 포기한다 (블록 하나는 짧게, 하루는 길게)
+ */
+export async function fetchPlan(req: PlanRequest, timeoutMs: number, signal?: AbortSignal): Promise<PlanResponse | null> {
+  try {
+    const res = await fetch('/api/plan/options', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req), signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs) });
+    if (!res.ok) return null;
+    const j = (await res.json()) as PlanResponse;
+    return Array.isArray(j.blocks) ? j : null;
+  } catch {
+    return null;
+  }
 }

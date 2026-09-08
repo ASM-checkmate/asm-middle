@@ -35,6 +35,8 @@ export interface CallEvent {
   startedAt?: number;
   /** 통화 시간 (sim 초). 끊고 나야 생긴다. 대화 실의 기록 줄이 이걸 쓴다. */
   durSec?: number;
+  /** 말로 한 통화 (ADR-0011). `lines`에 내 말도 "나: …"로 섞여 쌓인다 */
+  voice?: boolean;
 }
 
 /**

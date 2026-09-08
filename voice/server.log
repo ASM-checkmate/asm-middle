@@ -1,0 +1,23 @@
+Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files: 100%|██████████| 12/12 [00:00<00:00, 3269.56it/s]
+[transformers] You are using a model of type `qwen3_tts` to instantiate a model of type ``. This may be expected if you are loading a checkpoint that shares a subset of the architecture (e.g., loading a `sam2_video` checkpoint into `Sam2Model`), but is otherwise not supported and can yield errors. Please verify that the checkpoint is compatible with the model you are instantiating.
+00:33:20 models loaded in 2.8s: tts=mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit voice=Sohee stt=mlx-community/whisper-large-v3-turbo
+  Initialized encoder codebooks
+Loaded speech tokenizer from /Users/foxisdog/.cache/huggingface/hub/models--mlx-community--Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit/snapshots/049ef77fe8816b536193c0c25f9a214d17921282/speech_tokenizer
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files: 100%|██████████| 4/4 [00:00<00:00, 1890.39it/s]
+00:33:22 stt dropped (hallucination) '감사합니다.'
+00:33:22 warm
+00:33:22 theworld voice on ws://localhost:8790  (health: http://localhost:8790/health)
+00:33:33 call session from ('::1', 56018, 0, 0)
+00:33:51 tts first=232ms total=493ms '여보세요!'
+00:33:52 tts first=110ms total=617ms '오늘 아침도 좋네요.'
+00:34:03 session closed
+00:36:11 call session from ('::1', 56136, 0, 0)
+00:36:29 tts first=196ms total=654ms '야, 오랜만이네!'
+00:36:29 tts first=112ms total=529ms '목소리 들어?'
+00:36:41 session closed
+00:39:35 call session from ('::1', 56365, 0, 0)
+00:40:05 session closed
+00:41:48 call session from ('::1', 56468, 0, 0)
+00:41:49 tts first=394ms total=843ms '여보세요!'
+00:41:50 tts first=113ms total=923ms '아침 안부 잘 들었어.'
+00:42:18 session closed

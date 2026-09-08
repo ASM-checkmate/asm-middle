@@ -306,3 +306,103 @@ Ollama Web Search 3회 → 로컬 모델이 JSON으로 추출 → Nominatim 지�
 오류: `400` 계약 위반, `422` 얇은 팩(장소 6개 미만·호텔 없음·허브 없음), `502` 검색·모델·지오코딩
 실패, `503` 서버에 `OLLAMA_API_KEY`가 없음. 프론트는 어느 쪽이든 "찾아보려 했는데 잘 안 됐어" 한 줄을
 남기고 만다.
+
+## POST /api/plan/options
+
+블록마다 "무엇을 할지" 카드 3장을 모델이 짓는다 (ADR-0010). 장소는 프론트가 보낸 카탈로그의 id만
+쓸 수 있고(스키마 enum), 범주가 정해진 블록은 그 안에서, 비어 있으면 모델이 범주도 고른다. 언제 시작하고
+어디를 거쳐 가는지, 돈·피로에 막히는지는 여전히 프론트 규칙(`review`·`timeline`)이 본다.
+
+프론트는 두 가지로 부른다. **하루**: 하루가 시작될 때(또는 tier를 켤 때) 오늘의 빈 블록들을 한 번에 —
+결과는 `llmPlans[today]`에 저장되고 블록이 시작하면 `decide()`가 규칙 카드 대신 쓴다. **블록 하나**: 사용자가
+범주를 고르면 그 블록·범주의 카드를 — 그동안 "제안을 준비하는 중…"이 뜨고, 15초 안에 안 오면 규칙 카드.
+
+요청
+
+```json
+{ "tier": "small" | "good",
+  "agent": { "name": "모모", "traits": ["느긋한"], "likes": ["카페"], "dislikes": ["줄 서기"] },
+  "day": { "dateKey": "2026-09-08", "weekday": "화요일" },
+  "city": { "key": "seoul", "nameKo": "서울", "home": true },
+  "status": { "money": 620000, "fatigue": 22, "mood": 58 },
+  "worry": null | "work" | …,
+  "visited": ["경의선숲길"],
+  "places": [ { "id": "layered-yeonnam", "name": "카페 레이어드 연남", "type": "cafe", "area": "연남동" }, … ],
+  "blocks": [ { "id": "am", "category": null, "from": "우리 집", "avoid": ["tuktuk-noodle"] },
+              { "id": "lunch", "category": "meal", "from": "우리 집", "avoid": [], "previous": ["툭툭누들에서 팟타이"] } ] }
+```
+
+*   `places`는 그 도시의 활동 장소(역·공항·항구·친구 집 제외), 최대 120개.
+*   `blocks`는 1~6개 (`morning`~`night`). `category`는 `meal|play|exercise|study|work|rest` 또는 null(모델이 고른다).
+    `avoid`는 오늘 다른 블록에 이미 잡힌 장소, `previous`는 "다른 제안 보기"에서 방금 보여 준 제목들.
+
+응답 (200)
+
+```json
+{ "blocks": [ { "id": "am", "category": "study",
+                "options": [ { "placeId": "mapo-central-library", "title": "마포중앙도서관에서 책 읽기", "reason": "조용한 자리 좋아함", "emoji": "📚" }, … ] } ],
+  "model": "qwen3.5:9b", "ms": 6100 }
+```
+
+*   요청한 블록 중 제대로 지어진 것만 온다(카드 2~3장). 빠진 블록은 프론트가 규칙으로 채운다.
+*   `title`은 24자, `reason`은 30자 안. 범주에 안 맞는 장소 유형(식사에 헬스장)은 서버가 뺀다.
+
+오류: `400` 계약 위반, `502` Ollama 오류·제한 시간(블록 하나 20초, 하루 120초). 프론트는 규칙 카드를 쓴다.
+
+## POST /api/warm
+
+모델을 미리 올려 둔다 (생성 없음). 벨이 울릴 때·대화 실을 열 때 프론트가 부른다 — 첫마디가 모델 로드(3~15초)를
+기다리지 않게. 요청 `{ "tier": "small" | "good" }`, 응답 `{ "ok": true, "model": "…" }`. 답은 기다리지 않아도 된다.
+
+## POST /api/call/turn
+
+말로 하는 통화의 한 턴 (ADR-0011). 사용자가 방금 한 말(또는 통화가 막 붙은 첫 턴)에 에이전트가 뭐라고
+하는지를 **문장이 완성될 때마다** 흘려보낸다 — 프론트가 그 문장을 음성 서비스(`voice/`)에 넣어 목소리로 낸다.
+언제 걸리고 받을 수 있는지, 부재중이면 내용이 사라지는 것은 그대로 프론트 규칙(`sim/call.ts`).
+
+요청
+
+```json
+{ "tier": "small" | "good",
+  "agent": { "name": "모모", "traits": ["느긋한"], "likes": ["카페"], "dislikes": [] },
+  "situation": { "where": "연남동 카페", "doing": "커피 마시는 중", "hhmm": "16:25", "mood": 70, "fatigue": 20 },
+  "why": "worry" | "ask" | "friction" | "out",
+  "worry": null | "work" | …,
+  "transcript": [ { "from": "agent", "text": "여보세요, 나야." }, { "from": "me", "text": "어 왔어?" } ],
+  "user": "아 그냥 팀 사람들이 좀 그래" | null }
+```
+
+*   `why`: worry(약속한 전화) · ask(걸어 달래서) · friction(어긋남 통보) · out(사용자가 걸었다).
+*   `transcript`는 지금까지 오간 말, 마지막 20줄. `user`가 null이면 첫 턴 — 에이전트가 먼저 말한다.
+
+응답 (200, `application/x-ndjson`) — 한 줄에 문장 하나, 끝에 `done`
+
+```
+{"s":"어… 그랬구나."}
+{"s":"많이 힘들었겠다."}
+{"done":true,"model":"qwen3.5:9b","ms":1420}
+```
+
+*   문장은 60자 안, 이름표·따옴표·이모지·지문을 걷어 낸 것. 한 턴은 한두 문장이다.
+*   **끼어들기**: 사용자가 말을 시작하면 프론트가 요청을 닫는다. 서버는 그 신호로 Ollama 생성을 멈춘다.
+
+오류: `400` 계약 위반, 스트림 중 오류는 `{"error": …}` 한 줄로 끝난다. 프론트는 통화를 이어 간다.
+
+## 음성 서비스 (`voice/`, WebSocket)
+
+백엔드가 아니라 별도 선택 서비스다(파이썬·MLX). 귀(STT)·목소리(TTS)·말 감지(VAD)만 하고 말은 짓지 않는다.
+기본 주소 `ws://localhost:8790`, 프론트 개발 서버는 `/voice`를 여기로 프록시한다(`/voice/health`로 있는지 본다).
+
+| 방향 | 프레임 | 뜻 |
+|---|---|---|
+| 브라우저 → | binary | 마이크 PCM 16kHz · mono · int16, 통화 중 계속 |
+| 브라우저 → | `{"type":"say","turn":n,"seq":i,"text":"…"}` | 이 문장을 목소리로 |
+| 브라우저 → | `{"type":"cancel"}` | 말하던 것·줄 선 것 전부 버려라 (끼어들었다) |
+| 브라우저 → | `{"type":"stop"}` | 세션 끝 |
+| → 브라우저 | `{"type":"ready","tts":…,"voice":…,"stt":…}` | 붙었다 |
+| → 브라우저 | `{"type":"speech_start"}` / `{"type":"speech_end"}` | 사람 목소리가 들리기 시작했다 / 끝났다 |
+| → 브라우저 | `{"type":"transcript","text":"…","ms":…}` | 한 발화가 글로 |
+| → 브라우저 | `{"type":"audio","turn":n,"seq":i,"sr":24000,"last":false}` + binary | 목소리 조각 (int16 PCM). `last:true`는 그 문장의 끝 표시(binary 없음) |
+
+*   `speech_start`가 오면 브라우저는 재생을 즉시 멈추고 `/api/call/turn` 요청을 닫는다 (barge-in).
+*   `cancel` 뒤에 도착하는 옛 turn의 조각은 서비스가 버린다.

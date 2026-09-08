@@ -57,6 +57,10 @@ export function DevPanel() {
   const backend = useWorld(s => s.backend);
   const syncInfo = useWorld(s => s.sync);
   const remoteCount = useWorld(s => Object.keys(s.remote?.agents ?? {}).length);   // BACKEND-CONTRACT §3.5 remote 에이전트 수
+  const planBusy = useWorld(s => s.planBusy);
+  const planDay = useWorld(s => s.planDay);
+  const today = useWorld(s => s.today);
+  const planned = useWorld(s => Object.keys(s.llmPlans[s.today] ?? {}).join(' '));
   const [open, setOpen] = useState(false);
   const [tripCity, setTripCity] = useState('');
   // 패널을 열 때(그리고 서버 상태가 바뀔 때) 한 번 — 어느 모델이 깔려 있나
@@ -126,6 +130,11 @@ export function DevPanel() {
                 ...(syncInfo.lastError ? [`err: ${syncInfo.lastError}`] : []),
               ].join(' · ')}
             </span>
+          </div>
+          <div className="dev-row">
+            <span className="dev-k">plan</span>
+            <button type="button" className="dev-b" disabled={planBusy || llmTier === 'off'} onClick={() => void planDay()}>{planBusy ? '짓는 중…' : 'plan day'}</button>
+            <span className="dev-status" title={today}>{planned || '—'}</span>
           </div>
           <div className="dev-row">
             <span className="dev-k">trip</span>

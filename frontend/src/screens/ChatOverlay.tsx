@@ -5,6 +5,7 @@ import { fmtDur, type CallEvent } from '../sim/call';
 import { toldLine, type AgentRequest } from '../sim/requests';
 import { hhmmIn } from '../sim/tz';
 import { Button, Glyph } from '../ui';
+import { warmModel } from '../sim/llm';
 import { dayStamp, phaseLabel } from './util';
 
 /**
@@ -41,6 +42,9 @@ export function ChatOverlay({ tz, onClose }: { tz: string; onClose: () => void }
 
   // 새 줄이 오면 바닥으로 (대화창의 기본값)
   useEffect(() => { const el = listRef.current; if (el) el.scrollTop = el.scrollHeight; }, [items.length]);
+  // 대화 실을 열면 모델을 미리 올린다 — 여기서 전화를 걸거나 말을 보내니까 (ADR-0011)
+  const llmTier = useWorld(s => s.llmTier);
+  useEffect(() => { if (llmTier !== 'off') warmModel(llmTier); }, [llmTier]);
 
   const submit = () => { if (!draft.trim()) return; send(draft); setDraft(''); };
 

@@ -1,0 +1,14 @@
+[갈 수 있는 곳]
+- home: 우리 집 (집, 연남동)
+- layered-yeonnam: 카페 레이어드 연남 (카페, 연남동)
+- gyeongui-line-forest: 경의선숲길 (공원, 연남동)
+- tuktuk-noodle: 툭툭누들타이 (식당, 연남동)
+- the-climb-yeonnam: 더클라임 연남 (헬스장, 연남동)
+- mapo-central-library: 마포중앙도서관 (도서관, 성산동)
+- wework-hongdae: 위워크 홍대 (일터, 서교동)
+
+[정할 시간대]
+· am 오전(09–12) — 범주 (네가 고른다), 시작할 때 있는 곳: 우리 집
+  avoid: tuktuk-noodle
+· lunch 점심(12–14) — 범주 식사, 시작할 때 있는 곳: 카페 레이어드 연남
+  previous: 툭툭누들에서 팟타이

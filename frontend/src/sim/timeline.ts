@@ -5,7 +5,7 @@ import { HOUR_MS, addDaysKey, dayKeyIn, dayStartOfKey, offsetMinutes } from './t
 import { estimateJourney, journeyKey } from './journey';
 import { placeById, tzOf } from './places';
 import { alongPath, cumulativeKm } from './geo';
-import { AGENTS, agentById, agentOfFriend, agentsAt, rollTalk, talkChance } from './agents';
+import { AGENTS, agentById, agentOfFriend, agentsAt, isRemoteId, remoteMeId, remoteSlotAt, rollTalk, rollTalkRemote, talkChance } from './agents';
 import { diverts, pickAlternative, rollFriction, type Outcome } from './friction';
 import { narrate } from './narrate';
 
@@ -131,18 +131,25 @@ export function buildTimeline(anchor: Anchor, days: Days, memory: Memory, journe
  * 마주침 (FRIENDS_SPEC §4): another user's agent sat at the same place for ≥ 30 min. Meeting is not friendship —
  * the talk roll decides, deterministically (seed = 날짜 + 장소 + 둘의 id), at most once a day. An agent we already
  * call a friend is a "우연히 또 만남" twist instead (`again`), and never spends the day's one talk.
+ *
+ * 진짜 사람 먼저 (BACKEND-CONTRACT §3.4): 활동 key에 서버가 준 슬롯(world.remote.slots, 한 번만 채움)이 있으면 그 사람들이
+ * NPC 풀보다 앞에 선다. 캐시가 비면 NPC 풀 그대로. 굴림 시드는 진짜 사람이면 두 id를 정렬한 것(양쪽이 같은 결과),
+ * NPC면 예전 그대로 `${dayKey}:${placeId}:${memory.name}:${agentId}` (기존 결과 보존).
  */
 function addEncounters(acts: ScheduledActivity[], memory: Memory, encounters: Encounters): void {
   const talkedDays = new Set<DayKey>();
   for (const a of acts) {
-    const met = agentsAt(a.place.id, a.arriveAt, a.endAt, AGENTS)
+    const remote = remoteSlotAt(a.key, a.place.id, a.arriveAt, a.endAt) ?? [];
+    const met = [...remote, ...agentsAt(a.place.id, a.arriveAt, a.endAt, AGENTS)]
       .filter(x => x.overlapMs >= ENCOUNTER_MIN_MS && !a.companions.includes(x.agent.id) && x.agent.homePlaceId !== memory.homePlaceId);
     if (!met.length) continue;
     const { agent, overlapMs } = met[0];
     if (memory.friends.some(f => f.id === agent.id)) { a.encounter = { agentId: agent.id, talked: true, again: true }; continue; }
     if (talkedDays.has(a.dayKey)) { a.encounter = { agentId: agent.id, talked: false }; continue; }   // 하루 최대 1명
     const chance = talkChance({ myTraits: memory.traits, myLikes: memory.likes, agent, placeType: a.place.type, overlapMs, metBefore: (encounters[agent.id] ?? 0) > 0 });
-    const talked = rollTalk(a.dayKey, a.place.id, memory.name, agent.id, chance);
+    const talked = isRemoteId(agent.id)
+      ? rollTalkRemote(a.dayKey, a.place.id, remoteMeId() ?? memory.name, agent.id, chance)
+      : rollTalk(a.dayKey, a.place.id, memory.name, agent.id, chance);
     if (talked) talkedDays.add(a.dayKey);
     a.encounter = { agentId: agent.id, talked };
   }

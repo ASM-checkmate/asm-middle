@@ -1,0 +1,64 @@
+# theworld 서버 설정 (BACKEND-CONTRACT §2.5). 환경변수로 덮어쓴다 — ${ENV:기본값}.
+server:
+  port: 8080
+  tomcat:
+    # 413을 낸 뒤 남은 본문을 삼키는 한도. 4 MB 문서가 상한을 조금 넘겨도 응답이 클라이언트에 닿게 넉넉히.
+    max-swallow-size: 6MB
+spring:
+  application:
+    name: theworld-backend
+  threads:
+    virtual:
+      enabled: true   # 블로킹 LLM·지오코딩 호출을 싸게 (ADR-0006 → Spring 이식)
+  datasource:
+    url: jdbc:h2:file:./data/theworld;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    # H2의 text(CLOB)와 엔티티의 LONG32VARCHAR를 같은 것으로 보는 방언 — common/TheworldH2Dialect 주석 참고
+    database-platform: world.theworld.server.common.TheworldH2Dialect
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: false   # 프런트가 필드를 더 보내도 받는다 (계약 타입은 최소 집합)
+theworld:
+  cors:
+    origins: ${CORS_ORIGIN:http://localhost:5173}
+  ollama:
+    url: ${OLLAMA_URL:http://localhost:11434}
+    timeout-ms: ${LLM_TIMEOUT_MS:25000}
+  models:
+    small: ${MODEL_SMALL:qwen3.5:9b}
+    good: ${MODEL_GOOD:qwen3.8:27b}
+  trip:
+    model: ${TRIP_MODEL:}
+    model-timeout-ms: ${TRIP_MODEL_TIMEOUT_MS:90000}
+    deadline-ms: ${TRIP_DEADLINE_MS:100000}
+    snippets-max-chars: ${TRIP_SNIPPETS_MAX_CHARS:22000}
+  search:
+    api-key: ${OLLAMA_API_KEY:}
+  nominatim:
+    url: ${NOMINATIM_URL:https://nominatim.openstreetmap.org}
+    contact: ${NOMINATIM_CONTACT:}
+    min-gap-ms: ${NOMINATIM_MIN_GAP_MS:1100}
+  docs:
+    max-bytes: 4194304
+
+---
+# prod: PostgreSQL. `SPRING_PROFILES_ACTIVE=prod DATABASE_URL=jdbc:postgresql://host/db DB_USER=… DB_PASSWORD=…`
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/theworld}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USER:theworld}
+    password: ${DB_PASSWORD:}
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect

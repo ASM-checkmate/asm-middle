@@ -1,0 +1,56 @@
+/* ─── 로그인 화면 (deck: design/home-deck.html의 시간표 화면과 같은 하늘·언덕·흰 패널) ───────────────────
+   screens.css는 App과 함께 뜨므로 여기서는 쓰지 않는다 — 이 화면은 스토어보다 먼저, 혼자 그려진다. */
+.login { position: absolute; inset: 0; overflow: hidden; background: var(--paper); }
+.login-sky { position: absolute; inset: 0 0 auto 0; height: 420px; background: linear-gradient(180deg, var(--sky) 0%, var(--sky-2) 58%, var(--paper) 100%); }
+.login-sun {
+  position: absolute; top: calc(66px + var(--safe-top)); right: 30px; width: 46px; height: 46px; border-radius: 50%;
+  background: var(--sun); border: var(--outline); box-shadow: 0 0 0 8px color-mix(in srgb, var(--sun) 26%, transparent);
+}
+.login-cloud { position: absolute; width: 92px; height: 32px; background: var(--card); border-radius: 30px; opacity: .95; animation: login-cloud 40s linear infinite; }
+.login-cloud::before { content: ''; position: absolute; left: 16px; top: -16px; width: 40px; height: 40px; background: var(--card); border-radius: 50%; }
+.login-cloud::after { content: ''; position: absolute; left: 46px; top: -9px; width: 30px; height: 30px; background: var(--card); border-radius: 50%; }
+.login-cloud.c1 { top: 150px; left: -110px; }
+.login-cloud.c2 { top: 224px; left: -110px; --s: .68; animation-delay: -22s; animation-duration: 52s; }
+@keyframes login-cloud { from { transform: translateX(0) scale(var(--s, 1)); } to { transform: translateX(560px) scale(var(--s, 1)); } }
+.login-hill { position: absolute; top: 300px; left: -70px; right: -70px; height: 230px; border-radius: 50%; background: color-mix(in srgb, var(--leaf) 40%, var(--paper)); }
+.login-hill2 { position: absolute; top: 332px; left: -140px; right: 46%; height: 200px; border-radius: 50%; background: color-mix(in srgb, var(--leaf) 56%, var(--paper)); }
+/* 캐릭터 큼 — 시간표 화면(290px)만큼, 패널 위에 서서 손을 흔든다 */
+.login-chara {
+  position: absolute; top: calc(92px + var(--safe-top)); left: 50%; width: 300px; height: 300px; margin-left: -150px; z-index: 3;
+  transform-origin: 50% 100%; animation: login-breathe 3.2s ease-in-out infinite;
+}
+@keyframes login-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+.login-bubble { position: absolute; top: calc(72px + var(--safe-top)); left: 22px; z-index: 4; }
+.login-bubble.is-oops { background: var(--coral-3); }
+.login-panel {
+  position: absolute; left: 0; right: 0; top: 372px; bottom: 0; z-index: 4; background: var(--card);
+  border-radius: 36px 36px 0 0; padding: 22px 20px calc(14px + var(--safe-bottom));
+  display: flex; flex-direction: column; gap: 8px; box-shadow: 0 -10px 30px rgba(42, 33, 24, .08);
+}
+.login-ttl { font-family: var(--display); font-size: 27px; line-height: 1.15; }
+.login-sub { font-size: 12px; color: var(--ink-2); line-height: 1.45; }
+.login-list { display: grid; gap: 8px; margin-top: 6px; overflow-y: auto; padding: 2px 4px 6px 2px; }
+/* 아이디 버튼: 흰 카드, 2px 잉크 테두리, 하드 섀도 — 표시 이름은 Jua 크게, id는 DM Mono 작게 */
+.login-user {
+  display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 16px 6px 9px; border-radius: 18px;
+  background: var(--card); border: var(--outline); box-shadow: var(--shadow-hard-sm); text-align: left;
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease, opacity .12s ease;
+}
+.login-user:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.login-user b { font-family: var(--display); font-weight: 400; font-size: 20px; line-height: 1.1; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.login-user small { font-size: 12px; color: var(--ink-2); letter-spacing: .04em; flex: none; }
+.login-user.is-busy { background: var(--sun); transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.login-user[disabled] { pointer-events: none; }
+.login-user[disabled]:not(.is-busy) { opacity: .5; }
+/* 아이디마다 정해진 얼굴색·이모지 (sim/remote.ts appearanceOf — 다른 기기의 친구 목록에서도 같은 모습) */
+.login-face { width: 38px; height: 38px; border-radius: 50%; border: var(--outline); display: grid; place-items: center; font-size: 19px; flex: none; }
+.login-offline { align-self: center; margin-top: auto; font-size: 13px; }
+/* short stages (≤ 830px — iPhone 812 포함): 패널을 올려 다섯 버튼이 다 보이게 */
+@media (max-height: 830px) {
+  .login-sky { height: 360px; }
+  .login-hill { top: 250px; }
+  .login-hill2 { top: 282px; }
+  .login-chara { top: calc(64px + var(--safe-top)); width: 260px; height: 260px; margin-left: -130px; }
+  .login-panel { top: 318px; }
+  .login-user { min-height: 48px; }
+}

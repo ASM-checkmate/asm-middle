@@ -1,16 +1,189 @@
 # 프론트 ↔ 백엔드 계약
 
-`backend/`가 내는 HTTP API의 단일 진실. 바뀌면 이 문서와 `backend/src/contract.ts`,
-`frontend/src/sim/llm.ts`의 타입을 **같은 PR**에서 고친다. 두 패키지는 서로를 import하지 않는다.
+`backend/`(Spring, ADR-0012)가 내는 HTTP API의 단일 진실. 바뀌면 이 문서와 서버 DTO(`backend/src/main/java/world/theworld/server/**/*Dtos.java`),
+`frontend/src/sim/{api,sync,llm,types}.ts`의 타입을 **같은 PR**에서 고친다. 두 패키지는 서로를 import하지 않는다.
+기존 Node 백엔드 `backend/`는 참고용 원본이고 이 계약의 LLM 부분(§2.4)을 그대로 옮긴 것이다.
 
-기본 주소 `http://localhost:8787`. 프론트 개발 서버는 `/api`를 여기로 프록시한다.
+기본 주소 `http://localhost:8080`. 프론트 개발 서버는 `/api`를 여기로 프록시한다.
 모든 응답은 `application/json`. 오류는 `{ "error": string }`.
 
-## GET /api/health
+## 공통
+
+*   **인증.** 세션·토큰·비밀번호가 없다 (2026-09-08 개정). 서버가 시드로 가진 고정 아이디(`yoongwan`·`hojun`·`guest1`·
+    `guest2`·`guest3`, 모양 `^[a-z][a-z0-9_]{1,23}$`) 중 하나를 골라 모든 `/api/**` 요청에 `X-User-Id: <id>`를 붙인다.
+    없거나 모르는 아이디면 `401 { "error": "unauthorized" }` — 프론트는 저장된 사용자를 버리고 **로그인 필요 상태**로 둔다
+    (서버가 죽은 것과 다르다). 공개 경로: `/api/health`, `/api/models`, `/api/users`, `/api/auth/login`, `/actuator/**`.
+    아이디 하나 = 에이전트 하나 = 서버 문서 한 벌.
+*   **오류 본문**은 항상 `{ "error": string }`. `400` 검증, `401` 인증, `403` 권한(친구 아님), `404` 없음,
+    `409` 문서 충돌, `413` 본문 초과, `422` 얇은 여행 팩, `502` 외부(LLM·검색·지오코딩) 실패, `503` 검색 키 없음.
+*   **본문 상한**: `/api/sketch/read` 512 KB, `/api/me/docs/*` 4 MB, 그 외 256 KB. 넘으면 `413 { "error": "body too large" }`
+    (Content-Length로 먼저 자른다).
+*   **시각**은 전부 epoch ms, id는 문자열. CORS는 `CORS_ORIGIN`(기본 `http://localhost:5173`), 헤더 `content-type, x-user-id`.
+
+## 2.1 인증
+
+사용자는 미리 만들어 둔 아이디 중 하나를 고르기만 한다. 프론트는 고른 것을 `theworld.user.v1`(`{ userId, name }`)에 두고
+요청마다 `X-User-Id`로 보낸다 (`src/sim/api.ts`). 서버는 성공한 요청마다 `last_seen_at`을 갱신하되 1분에 한 번만 쓴다.
+같은 기기에서 다른 아이디로 들어가면 프론트가 **로컬 저장본을 비우고** 서버에서 그 아이디의 문서를 받아 시작한다(없으면 새 하루).
+
+### GET /api/users
+
+공개. 고를 수 있는 아이디 전부, `id` 순.
+
+```json
+{ "users": [ { "id": "guest1", "name": "손님1" }, { "id": "guest2", "name": "손님2" }, { "id": "guest3", "name": "손님3" },
+             { "id": "hojun", "name": "호준" }, { "id": "yoongwan", "name": "윤관" } ] }
+```
+
+### POST /api/auth/login
+
+공개. 요청 `{ "userId": "yoongwan" }`. 응답 (200)
+
+```json
+{ "userId": "yoongwan", "name": "윤관" }
+```
+
+*   모르는 아이디 `404 { "error": "user not found" }`. `userId`가 없으면 `400 { "error": "userId required" }`, 모양이 틀리면
+    `400 { "error": "userId must match ^[a-z][a-z0-9_]{1,23}$" }`.
+*   서버 상태는 바뀌지 않는다 — 아이디가 있는지 확인하고 표시 이름을 받는 것뿐이다. 토큰은 없다.
+
+### GET /api/me
+
+`{ "userId": "yoongwan", "name": "윤관", "createdAt": 1788825600000 }`
+
+## 2.2 문서 동기화
+
+프론트 localStorage 저장본 4개를 **불투명 JSON 문서**로 그대로 맡긴다 — 서버는 내용을 해석하지 않고 버전만 안다.
+마이그레이션·검증·catch-up은 여전히 프론트 스토어가 한다 (ADR-0012). 문서 이름은 `world | memory | book | places`
+(localStorage `theworld.world.v5` · `theworld.memory.v2` · `theworld.book.v1` · `theworld.places.v1`). 그 밖의 이름은 `404`.
+
+### GET /api/me/docs
+
+있는 문서의 메타만.
+
+```json
+{ "docs": { "world": { "version": 3, "updatedAt": 1788843212820, "clientTs": 1788843212518 },
+            "book":  { "version": 1, "updatedAt": …, "clientTs": … } } }
+```
+
+### GET /api/me/docs/{name}
+
+`{ "name": "world", "version": 3, "updatedAt": …, "clientTs": …, "body": <JSON> }`. 없으면 `404`.
+`body`는 넣은 JSON 그대로 (객체든 배열이든).
+
+### PUT /api/me/docs/{name}
+
+요청
+
+```json
+{ "baseVersion": 2, "clientTs": 1788843212518, "body": <JSON>, "force": false }
+```
+
+응답 (200) `{ "name": "world", "version": 3, "updatedAt": … }`
+
+*   `baseVersion`은 내가 갖고 있던 판. 서버에 문서가 없으면 `0`일 때만 만들어진다(version 1). 있으면
+    `baseVersion === 현재 version`일 때만 갱신(version+1).
+*   아니면 **`409`** — 서버본을 그대로 돌려줘 클라이언트가 결정한다:
+    `{ "error": "conflict", "name", "version", "updatedAt", "clientTs", "body" }` (서버에 없으면 `version: 0`, 나머지 null).
+    프론트 정책(`src/sim/sync.ts`): 서버 `clientTs`가 내 마지막 로컬 저장보다 나중이면 서버본을 localStorage에 쓰고
+    새로 뜬다, 아니면 `force: true`로 다시 보낸다.
+*   `force: true`면 `baseVersion`을 무시하고 덮어쓴다 (version은 그래도 +1).
+*   `clientTs`는 프론트가 저장한 실제 시각 — 충돌 판정의 근거일 뿐 서버는 비교하지 않는다.
+*   본문 4 MB 초과 `413`. dev 시계(`?dev=1`)의 scale이 1이 아니면 프론트는 `world`/`book`을 올리지도 받지도 않는다.
+
+## 2.3 에이전트 프로필 · 발행 일정 · 친구
+
+FRIENDS_SPEC §4 — "서버가 붙으면 NPC 풀 자리에 실제 사용자 에이전트의 확정 일정이 들어온다". 프론트는 받은 것을
+`world.remote` 캐시에 넣고(`src/sim/remote.ts`) 마주침·동행·친구 목록에 NPC보다 먼저 쓴다. 굴림·판정은 여전히 프론트.
+
+타입 (프론트 `src/sim/types.ts`와 글자 그대로)
+
+```ts
+interface RemotePlace { id: string; name: string; type: string; lng: number; lat: number; area: string; city: string; country: string; emoji: string;
+                        reachBy?: 'boat' | 'plane' | 'train'; ownerFriendId?: string }
+interface RemoteAgent { id: string /* = userId */; name: string; homePlaceId: string /* = home.id */; color: string; emoji: string;
+                        likes: string[]; traits: string[]; hairStyle?: string;
+                        home: RemotePlace /* type 'friend_home', ownerFriendId = id, id = `home:${userId}` */ }
+interface PublishedActivity { key: string /* `${dayKey}:${blockId}` */; agentId: string; dayKey: string; blockId: string; placeId: string;
+                              place?: RemotePlace; category: string; title: string; emoji: string; arriveAt: number; endAt: number;
+                              tz: string; companions: string[] }
+```
+
+`?` 필드는 없을 때 키 자체가 빠지고, `number|null`로 적힌 것(`metAt`·`metPlaceId`·`now`)은 `null`이 그대로 온다.
+
+### PUT /api/me/agent
+
+내 프로필. 요청 `{ "name", "color", "emoji", "hairStyle"?, "likes": string[], "traits": string[], "home": RemotePlace }`
+→ 응답 (200) `RemoteAgent`.
+
+*   `name` 1~40자, `likes`/`traits` 각 ≤ 12개·각 ≤ 30자, `home.lng`/`lat` 유한수. 아니면 `400`.
+*   `home`은 서버가 `type: "friend_home"`, `ownerFriendId: <userId>`, `id: "home:<userId>"`로 **강제**한다 — 내 카탈로그의
+    `home`을 그대로 보내도 상대에게는 "그 사람의 집"으로 간다.
+
+### PUT /api/me/schedule
+
+내 확정 일정을 창째로. 요청 `{ "from": ms, "to": ms, "activities": PublishedActivity[] }` → 응답 (200) `{ "count": n }`.
+
+*   서버는 그 사용자의 `arriveAt ∈ [from, to)` 행을 **전부 지우고** 받은 것을 넣는다 (창 교체 — 하루가 다시 짜이면 옛 활동이
+    남지 않는다). 프론트는 `[anchor.t, now+36h]` 창을 시간표가 바뀔 때마다 800 ms 디바운스로 올린다.
+*   각 activity: `key` ≤ 120(창 안에서 유일), `title` ≤ 120(서버가 NFC), `arriveAt < endAt`, `arriveAt`은 창 안, 최대 64개.
+    `agentId`는 무시하고 userId로 덮는다. `placeId`는 우회(friction) 반영된 실제 장소이고 `place`를 같이 싣는다 — 상대
+    카탈로그에 없을 수 있다. 제목에서 친구 이름은 프론트가 미리 뺀다.
+
+### POST /api/agents/at
+
+내 활동 슬롯마다 "그때 거기 누가 있나". 요청
+
+```json
+{ "slots": [ { "key": "2026-09-08@Asia/Seoul:pm", "placeId": "seoul-cafe-x", "from": 1788850800000, "to": 1788858000000 } ] }
+```
+
+응답 (200)
+
+```json
+{ "hits": { "2026-09-08@Asia/Seoul:pm": [ { "agent": RemoteAgent, "overlapMs": 3600000, "activity": PublishedActivity } ] } }
+```
+
+*   슬롯 ≤ 16개. 자기 자신 제외, 같은 `placeId`이고 `[from,to) ∩ [arriveAt,endAt)`이 **30분(1,800,000 ms) 이상**인 것만,
+    프로필(`PUT /api/me/agent`) 없는 사용자 제외, **`agent.id` 오름차순**, 슬롯당 ≤ 8명. 못 찾은 슬롯은 빈 배열.
+*   프론트는 활동 key마다 **한 번만** 묻고(마주침 결정성), 이미 도착한 활동은 다시 묻지 않는다. 굴림 시드는
+    `${dayKey}:${placeId}:${[내 id, 상대 id].sort()}`라 어느 기기에서 봐도 같은 마주침이다.
+
+### GET /api/friends?at=<ms>
+
+```json
+{ "friends": [ { "agent": RemoteAgent, "metAt": 1788854400000, "metPlaceId": "seoul-cafe-x", "now": PublishedActivity | null } ] }
+```
+
+*   `now`는 `arriveAt <= at < endAt`인 발행 활동 — 시차 있는 친구도 그 순간으로 본다. `at`을 빼면 서버 시각.
+
+### POST /api/friends
+
+말을 튼 마주침이 진짜 사람이면 관계를 적는다. 요청 `{ "otherId", "metAt", "metPlaceId" }` → 응답 (200)
+`{ "ok": true, "created": boolean }`.
+
+*   대칭 저장(정렬된 쌍 하나) — 어느 쪽이 먼저 보내도 같은 관계, 두 번째부터 `created: false` (멱등).
+    자기 자신 `400`, 없는 사용자 `404`. 프론트는 불 붙이고 잊는다 (`settle()`은 기다리지 않는다).
+
+### DELETE /api/friends/{otherId}
+
+`204`. 양쪽에서 사라진다.
+
+### GET /api/friends/{otherId}/day?from=<ms>&to=<ms>
+
+`{ "activities": PublishedActivity[] }` (arriveAt 순). 친구가 아니면 `403`, 창이 7일을 넘으면 `400`.
+프론트는 remote 친구의 오늘~내일을 받아 동행 카드와 친구 목록의 '지금'에 쓴다.
+
+## 2.4 LLM 관문
+
+기존 Node 백엔드의 계약을 그대로 옮겼다 (ADR-0006·0007·0009). 프롬프트·파서·스키마는 `backend/src/*.ts`를 글자 단위로
+이식했고, 모델 호출은 검사하지 않는다 — 실패하면 프론트가 규칙으로 돈다. `/api/health`·`/api/models`는 공개 경로.
+
+### GET /api/health
 
 `{ "ok": true }`
 
-## GET /api/models
+### GET /api/models
 
 어느 모델이 어느 단계인지, 설치돼 있는지.
 
@@ -20,7 +193,7 @@
              "good":  { "model": "qwen3.8:27b", "installed": true } } }
 ```
 
-## POST /api/chat/reply
+### POST /api/chat/reply
 
 한 묶음의 내 말에 에이전트가 **뭐라고** 답할지. **언제** 읽고 답할지는 프론트 규칙
 (`sim/chat.ts`)이 정하고, 여기서는 말만 짓는다 (ADR-0006).
@@ -34,12 +207,15 @@
                  "lateWhy": null | "자느라" | "이동 중이라" | "조용히 해야 하는 데라" | "밥 먹느라",
                  "mood": 70, "fatigue": 20, "worry": null | "work" | "people" | "body" | "money" | "focus" | "blue" | "bored" },
   "recent": [ { "from": "me" | "agent", "text": "…" } ],
-  "texts": ["야", "어디야", "뭐해"] }
+  "texts": ["야", "어디야", "뭐해"],
+  "batch": "b1" }
 ```
 
 *   `recent`는 이번 묶음을 뺀 최근 대화, 오래된 것부터. 서버는 마지막 12줄만 본다.
 *   `texts`는 이번 묶음 — 연달아 보낸 내 말들. 1개 이상, 서버는 마지막 8줄만 본다.
 *   `mood`·`fatigue`는 0–100.
+*   `batch`는 묶음 id(선택). 같은 (사용자, batch)의 진행 중 호출은 새 호출이 오면 서버가 취소하고, 취소된 쪽은
+    `502 { error: 'reply cancelled: …' }`로 끝난다 — 답은 마지막 묶음에만 필요하다.
 
 응답 (200)
 
@@ -53,14 +229,15 @@
 
 *   `text: null`은 읽고 답하지 않는다는 뜻(읽씹). 프론트는 규칙 답장을 지운다 — 단, 규칙이 이미
     전화를 약속한 묶음이면 규칙 답장을 남긴다.
-*   `worry`·`callMe`는 규칙이 못 알아들은 것을 모델이 알아들었을 때만 프론트가 뒤처리한다.
+*   `worry`·`callMe`는 규칙이 못 알아들은 것을 모델이 알아들었을 때만 프론트가 뒤처리한다. 상황과 무관하게 세운다 —
+    못 받는 상황이면 프론트가 막힌 것이 끝난 뒤로 벨을 예약하고, 둘 다 true면 곧 거는 고민 전화 하나다 (ADR-0013).
 *   `trip`은 사용자가 어디로 여행 가자고 했을 때 그 도시 이름(한국어, ≤30자). 프론트는 아는 도시면
     소원만 적고, 모르는 도시면 `/api/trip/plan`을 부른다 (ADR-0009). 답장이 이미 떴어도 유효하다.
 
 오류: `400` 계약 위반, `502` Ollama 오류·제한 시간(`LLM_TIMEOUT_MS`, 기본 25초). 프론트는
 어느 쪽이든 규칙 기반 답장을 그대로 쓴다.
 
-## POST /api/sketch/read
+### POST /api/sketch/read
 
 사용자가 그림으로 넘긴 계획이 그 블록의 카드 중 어느 것을 가리키는지 비전 모델이 읽는다
 (ADR-0007). 그림을 넘기는 순간 프론트가 미리 묻고 결과를 계획에 적어 둔다. 사용자에게는
@@ -93,12 +270,12 @@
 
 오류: `400` 계약 위반, `502` Ollama 오류·제한 시간. 프론트는 못 읽은 것으로 본다.
 
-## POST /api/trip/plan
+### POST /api/trip/plan
 
 "교토 가자"의 교토를 웹에서 찾아 **도시 팩**(도시 정보 + 실제 장소들)으로 돌려준다 (ADR-0009).
 Ollama Web Search 3회 → 로컬 모델이 JSON으로 추출 → Nominatim 지오코딩 → 조립. 프론트는 팩을
 `sim/places.ts`에 등록할 뿐이고, 여행 카드·이동·도착지의 하루는 규칙 엔진이 그대로 만든다.
-**1~2분** 걸린다. 같은 도시는 서버가 파일에 캐시해 두 번째부터 즉시다.
+**1~2분** 걸린다. 같은 도시는 서버가 `trip_pack` 테이블에 캐시해(모든 사용자 공유) 두 번째부터 즉시다. 요청 전체 데드라인은 100초.
 
 요청
 

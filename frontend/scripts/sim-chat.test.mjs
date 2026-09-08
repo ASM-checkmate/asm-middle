@@ -249,5 +249,68 @@ if (solo) {
   check('안 보고 있던 도착에는 혼잣말이 없다', S().say === null && !S().messages.some(m => m.id.startsWith('arrive:')), JSON.stringify(S().say));
 }
 
+// ── 약속은 상황과 무관하게 지킨다 (ADR-0013) ─────────────────────────────────
+console.log('\n── 약속은 지킨다 ──');
+const { ASK_CALL_MS } = await import('../src/sim/chat.ts');
+const okAsk = replyTo('전화해줘', ctx());
+check('받을 수 있으면 답장 뒤 20초에 건다', okAsk.callMe === true && okAsk.callInMs === okAsk.delayMs + ASK_CALL_MS, JSON.stringify(okAsk));
+const blockedAsk = replyTo('전화해줘', { ...ctx(sleeping), now: T0 });
+check('자는 중에 걸어 달라면 힐끗 보고 나중에 걸겠다고 한다', blockedAsk.callMe === true && /나중에/.test(blockedAsk.text) && blockedAsk.readMs <= 8 * 60_000 && blockedAsk.delayMs > blockedAsk.readMs, JSON.stringify(blockedAsk));
+check('그 약속은 깬 뒤에 지켜진다', blockedAsk.callInMs >= 3600_000 && blockedAsk.callInMs >= blockedAsk.delayMs + ASK_CALL_MS, JSON.stringify(blockedAsk));
+const both = replyToAll(['오늘 너무 힘들어', '전화 좀 해줘'], ctx());
+check('지쳤다면서 걸어 달라면 곧 거는 고민 전화다', !!both.worry && both.callInMs === both.delayMs + ASK_CALL_MS, JSON.stringify(both));
+const bothOne = replyTo('힘들어 전화해줘', ctx());
+check('한 줄에 같이 있어도 본다', !!bothOne.worry && bothOne.callInMs === bothOne.delayMs + ASK_CALL_MS, JSON.stringify(bothOne));
+
+const reset = () => useWorld.setState({ requests: [], messages: [], calls: [], dueCalls: [], activeCall: null, say: null, phase: waiting, memory: { ...S().memory, worry: undefined } });
+reset();
+S().sendMessage('전화해줘');
+const askReplyAt = S().messages.find(m => m.from === 'agent').at;
+check('걸어 달란 말에 전화가 예약된다', S().dueCalls.length === 1 && S().dueCalls[0].why === 'ask' && S().dueCalls[0].at === askReplyAt + ASK_CALL_MS, JSON.stringify(S().dueCalls));
+S().jumpBy(S().dueCalls[0].at - S().now + 1000);
+S().tick();
+check('그 전화가 실제로 온다', S().activeCall?.why === 'ask' && S().activeCall.lines?.length === 2, JSON.stringify(S().activeCall));
+S().answerCall(false);
+
+reset();
+S().sendMessage('힘들어 전화해줘');
+const soonReplyAt = S().messages.find(m => m.from === 'agent').at;
+check('지쳤다면서 걸어 달라면 고민 전화가 곧 잡힌다', S().dueCalls.length === 1 && S().dueCalls[0].why === 'worry' && S().dueCalls[0].at === soonReplyAt + ASK_CALL_MS, JSON.stringify(S().dueCalls));
+
+// 모델 답장의 callMe — 못 받는 상황이면 깬 뒤로, 고민과 같이 오면 곧 거는 고민 전화
+reset();
+useWorld.setState({ phase: { ...sleeping, until: S().now + 3600_000 } });
+S().sendMessage('뭐 해?');
+const b3 = S().messages.find(m => m.from === 'me').batch;
+S().applyLlmReply(b3, 1, { text: '끝나고 걸게', worry: null, callMe: true, model: 'x', ms: 1 });
+check('자는 중의 모델 callMe도 버리지 않는다', S().dueCalls.some(d => d.id === `ask:${b3}` && d.at >= S().now + 3600_000), JSON.stringify(S().dueCalls));
+
+reset();
+S().sendMessage('뭐 해?');
+const b4 = S().messages.find(m => m.from === 'me').batch;
+const b4ReplyAt = S().messages.find(m => m.id === `${b4}:r`).at;
+S().applyLlmReply(b4, 1, { text: '헐 무슨 일이야, 지금 걸게', worry: 'work', callMe: true, model: 'x', ms: 1 });
+check('모델이 고민과 전화 부탁을 같이 들으면 곧 거는 고민 전화 하나다', S().dueCalls.length === 1 && S().dueCalls[0].why === 'worry' && S().dueCalls[0].worry === 'work' && S().dueCalls[0].at === b4ReplyAt + ASK_CALL_MS, JSON.stringify(S().dueCalls));
+
+// 규칙이 걸어 달란 전화(ask)로 들었는데 모델이 고민을 들었다 — 시각은 그대로, 고민 전화로 바뀌고 메모리에도 적힌다
+reset();
+S().sendMessage('요즘 좀 그래… 전화 좀 해줘');
+const b5 = S().messages.find(m => m.from === 'me').batch;
+const askAt = S().dueCalls.find(d => d.id === `ask:${b5}`)?.at;
+check('규칙은 걸어 달란 말로만 듣는다', typeof askAt === 'number' && !S().memory.worry, JSON.stringify(S().dueCalls));
+S().applyLlmReply(b5, 1, { text: '헐 무슨 일이야, 지금 걸게', worry: 'blue', callMe: true, model: 'x', ms: 1 });
+check('모델이 고민을 들으면 그 전화가 고민 전화가 된다', S().dueCalls.length === 1 && S().dueCalls[0].id === `worry:${b5}` && S().dueCalls[0].worry === 'blue' && S().dueCalls[0].at === askAt, JSON.stringify(S().dueCalls));
+check('고민이 메모리에 남는다', S().memory.worry?.key === 'blue', JSON.stringify(S().memory.worry));
+
+// 규칙이 38분 뒤 고민 전화를 잡았는데 모델이 전화 부탁도 들었다 — 곧으로 당긴다
+reset();
+S().sendMessage('힘들어');
+const b6 = S().messages.find(m => m.from === 'me').batch;
+const b6ReplyAt = S().messages.find(m => m.id === `${b6}:r`).at;
+check('규칙은 38분 뒤로 잡는다', S().dueCalls[0]?.at === b6ReplyAt + WORRY_CALL_MS, JSON.stringify(S().dueCalls));
+S().applyLlmReply(b6, 1, { text: '무슨 일이야, 지금 걸게', worry: 'work', callMe: true, model: 'x', ms: 1 });
+check('모델이 전화 부탁을 들으면 고민 전화를 곧으로 당긴다', S().dueCalls.length === 1 && S().dueCalls[0].why === 'worry' && S().dueCalls[0].at === b6ReplyAt + ASK_CALL_MS, JSON.stringify(S().dueCalls));
+reset();
+
 console.log(`\n${n - fails.length}/${n} checks passed`);
 if (fails.length) { console.log('FAILED: ' + fails.join(', ')); process.exit(1); }

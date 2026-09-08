@@ -1,6 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "theworld-dev", "runtimeExecutable": "sh", "runtimeArgs": ["-c", "cd frontend && npx vite --port 5173 --strictPort"], "port": 5173 }
+    { "name": "theworld-dev", "runtimeExecutable": "sh", "runtimeArgs": ["-c", "cd frontend && npx vite --port 5173 --strictPort"], "port": 5173 },
+    { "name": "theworld-backend", "runtimeExecutable": "sh", "runtimeArgs": ["-c", "cd backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew bootRun -q"], "port": 8080 }
   ]
 }

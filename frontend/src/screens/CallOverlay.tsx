@@ -18,14 +18,24 @@ const LINE_MS = 800;
  *
  * 세 얼굴이 있다. 걸려온 전화(받기/안 받기) · 받은 통화(말이 한 줄씩) · 못 받은 발신(늦게 오는 문자).
  */
-export function CallOverlay({ call, tz }: { call: CallEvent; tz: string }) {
+export function CallOverlay({ call, tz, onDone }: {
+  call: CallEvent;
+  tz: string;
+  /** dev 프리뷰(`&call=`)의 가짜 통화 — 스토어에 없으니 끊거나 안 받으면 이걸로 닫는다 */
+  onDone?: () => void;
+}) {
   const answerCall = useWorld(s => s.answerCall);
   const endCall = useWorld(s => s.endCall);
   const [shown, setShown] = useState(0);
   const [late, setLate] = useState(false);
+  // 프리뷰의 가짜 통화는 스토어가 'answered'로 바꿔 주지 않는다 — 받기를 누른 것을 여기서 기억한다
+  const [accepted, setAccepted] = useState(false);
 
-  const answered = call.result === 'answered';
+  const answered = call.result === 'answered' || accepted;
   const refused = call.result === 'refused';
+  const decline = () => { answerCall(false); onDone?.(); };
+  const accept = () => { answerCall(true); setAccepted(true); };
+  const hangUp = () => { endCall(); onDone?.(); };
 
   // 받은 통화: 말이 한 줄씩 쌓인다
   useEffect(() => {
@@ -42,14 +52,14 @@ export function CallOverlay({ call, tz }: { call: CallEvent; tz: string }) {
     return () => window.clearTimeout(id);
   }, [refused]);
 
+  const ringing = call.dir === 'in' && call.result === 'missed' && !accepted;
+
   // 걸려온 전화는 12초 뒤 저절로 부재중이 된다 — 안 받으면 내용도 사라진다
   useEffect(() => {
-    if (call.dir !== 'in' || call.result !== 'missed') return;
-    const id = window.setTimeout(() => answerCall(false), RING_MS);
+    if (!ringing) return;
+    const id = window.setTimeout(() => { answerCall(false); onDone?.(); }, RING_MS);
     return () => window.clearTimeout(id);
-  }, [call.dir, call.result, answerCall]);
-
-  const ringing = call.dir === 'in' && call.result === 'missed';
+  }, [ringing, answerCall, onDone]);
 
   return (
     <div className={`call ${refused ? 'is-refused' : ''}`} role="dialog" aria-label="통화">
@@ -82,11 +92,11 @@ export function CallOverlay({ call, tz }: { call: CallEvent; tz: string }) {
       <div className="call-btns">
         {ringing ? (
           <>
-            <Button tone="paper" onClick={() => answerCall(false)}><Glyph name="phone-off" size={20} /> 안 받기</Button>
-            <Button tone="coral" onClick={() => answerCall(true)}><Glyph name="phone" size={20} color="#fff" /> 받기</Button>
+            <Button tone="paper" onClick={decline}><Glyph name="phone-off" size={20} /> 안 받기</Button>
+            <Button tone="coral" onClick={accept}><Glyph name="phone" size={20} color="#fff" /> 받기</Button>
           </>
         ) : (
-          <Button tone="paper" onClick={endCall}>{refused && !late ? '끊기' : '끊었어'}</Button>
+          <Button tone="paper" onClick={hangUp}>{refused ? '끊기' : '끊었어'}</Button>
         )}
       </div>
     </div>

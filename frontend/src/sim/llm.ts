@@ -4,10 +4,45 @@ import type { Status } from './status';
 import { pickupRule } from './call';
 import { hhmmIn } from './tz';
 import { LATE_WHY, whereOf, type ChatMsg } from './chat';
+import { api } from './api';
 
-// ─── LLM 관문 (docs/adr/0006-backend-and-llm.md) ─────────────────────────────
+// ─── LLM 관문 (docs/adr/0006-backend-and-llm.md · BACKEND-CONTRACT §3.2) ─────────────────────────────
 // 백엔드(backend/)에 "이 묶음에 뭐라고 답할지"만 묻는다. **언제 읽고 언제 답할지는 여전히 sim/chat.ts의 규칙**이고,
 // 여기서는 그 답장의 말만 갈아끼운다. 서버가 없거나 늦으면 규칙 기반 답장이 그대로 남는다 — 앱은 백엔드 없이도 돈다.
+// 세 요청은 sim/api.ts의 공통 관문을 지난다 (베이스 URL·Bearer 토큰·제한 시간을 한 곳에서).
+
+/** 답장 제한 시간 — 서버의 Ollama 25s보다 넉넉히 */
+export const REPLY_TIMEOUT_MS = 30_000;
+/** 그림 읽기 제한 시간 */
+export const SKETCH_TIMEOUT_MS = 40_000;
+/** 여행지 찾기 제한 시간 — 검색·모델·지오코딩(서버 데드라인 100s) */
+export const TRIP_TIMEOUT_MS = 120_000;
+
+/**
+ * 세 관문의 공통: POST 한 번, 실패(서버 없음·4xx/5xx·제한 시간·모양 불일치)는 전부 **null** — 호출부 계약 유지.
+ *
+ * @param valid 응답 모양 검증 (통과 못 하면 null)
+ */
+async function ask<T>(path: string, body: unknown, timeoutMs: number, valid: (j: T) => boolean, signal?: AbortSignal): Promise<T | null> {
+  try {
+    const j = await api<T>(path, { method: 'POST', body, timeoutMs, signal });
+    return j && valid(j) ? j : null;
+  } catch {
+    return null;
+  }
+}
+
+/** `GET /api/models` (docs/CONTRACT.md의 ModelsResponse) — 어느 단계의 모델이 깔려 있나. 개발 패널이 본다 */
+export interface ModelsResponse { tiers: Record<Exclude<LlmTier, 'off'>, { model: string; installed: boolean }>; ollama: boolean }
+/** 실패는 null (서버 없음). */
+export async function fetchModels(timeoutMs = 4_000): Promise<ModelsResponse | null> {
+  try {
+    const j = await api<ModelsResponse>('/api/models', { auth: false, timeoutMs });
+    return j && j.tiers && typeof j.tiers.small?.model === 'string' && typeof j.tiers.good?.model === 'string' ? j : null;
+  } catch {
+    return null;
+  }
+}
 
 export type LlmTier = 'off' | 'small' | 'good';
 const TIER_KEY = 'theworld.llm.v1';
@@ -18,13 +53,15 @@ export function getTier(): LlmTier {
 }
 export function setTier(t: LlmTier) { try { localStorage.setItem(TIER_KEY, t); } catch { /* ignore */ } }
 
-/** 백엔드 계약 (docs/CONTRACT.md의 ReplyRequest). backend/src/contract.ts와 같은 모양을 복사해 둔다. */
+/** 백엔드 계약 (docs/CONTRACT.md의 ReplyRequest). 옛 Node 백엔드 contract.ts(커밋 0298e8d)와 같은 모양을 복사해 둔다. */
 export interface ReplyRequest {
   tier: Exclude<LlmTier, 'off'>;
   agent: { name: string; traits: string[]; likes: string[]; dislikes: string[] };
   situation: { where: string; doing: string; hhmm: string; lateWhy: string | null; mood: number; fatigue: number; worry: Exclude<WorryKey, 'none'> | null };
   recent: { from: 'me' | 'agent'; text: string }[];
   texts: string[];
+  /** 묶음 id — 서버는 같은 (사용자, batch)의 진행 중 호출을 새 호출이 오면 취소한다 (BACKEND-CONTRACT §2.4) */
+  batch?: string;
 }
 export interface ReplyResponse {
   text: string | null;
@@ -63,6 +100,7 @@ export function requestOf(texts: string[], s: { phase: Phase; status: Status; me
     situation: { where, doing, hhmm: hhmmIn(s.now, s.phase.tz), lateWhy: ok ? null : LATE_WHY[block ?? 'quiet'], mood: Math.round(s.status.mood), fatigue: Math.round(s.status.fatigue), worry },
     recent,
     texts,
+    batch,
   };
 }
 
@@ -72,16 +110,9 @@ export function requestOf(texts: string[], s: { phase: Phase; status: Status; me
  * @param req 요청
  * @param timeoutMs 이보다 늦으면 포기한다 (규칙 답장이 화면에 뜨기 전에 결정을 내려야 한다)
  */
-export async function fetchReply(req: ReplyRequest, timeoutMs = 30_000, signal?: AbortSignal): Promise<ReplyResponse | null> {
-  try {
-    const res = await fetch('/api/chat/reply', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req), signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs) });
-    if (!res.ok) return null;
-    const j = (await res.json()) as ReplyResponse;
-    if (typeof j.callMe !== 'boolean' || !(j.text === null || typeof j.text === 'string')) return null;
-    return { ...j, trip: typeof j.trip === 'string' && j.trip.trim() ? j.trip.trim() : null };
-  } catch {
-    return null;
-  }
+export async function fetchReply(req: ReplyRequest, timeoutMs = REPLY_TIMEOUT_MS, signal?: AbortSignal): Promise<ReplyResponse | null> {
+  const j = await ask<ReplyResponse>('/api/chat/reply', req, timeoutMs, r => typeof r.callMe === 'boolean' && (r.text === null || typeof r.text === 'string'), signal);
+  return j ? { ...j, trip: typeof j.trip === 'string' && j.trip.trim() ? j.trip.trim() : null } : null;
 }
 
 /** 연달아 보내는 동안 기다리는 시간 (실제 ms). 세 줄을 치는 사이마다 모델을 부르면 27B가 세 번 돈다. */
@@ -133,15 +164,8 @@ export function sketchRequestOf(sketch: string, category: string, options: Activ
  * 백엔드에 그림을 읽어 달라고 한다. 실패는 null — 호출자는 못 읽은 것으로 두고 시드로 고른다.
  * 그림을 넘긴 직후에 부른다 (블록 시작은 동기라 그때 기다릴 수 없다).
  */
-export async function fetchSketchRead(req: SketchReadRequest, timeoutMs = 40_000): Promise<SketchReadResponse | null> {
-  try {
-    const res = await fetch('/api/sketch/read', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req), signal: AbortSignal.timeout(timeoutMs) });
-    if (!res.ok) return null;
-    const j = (await res.json()) as SketchReadResponse;
-    return (j.optionId === null || typeof j.optionId === 'string') && typeof j.seen === 'string' && (j.category === null || typeof j.category === 'string') ? j : null;
-  } catch {
-    return null;
-  }
+export async function fetchSketchRead(req: SketchReadRequest, timeoutMs = SKETCH_TIMEOUT_MS): Promise<SketchReadResponse | null> {
+  return ask<SketchReadResponse>('/api/sketch/read', req, timeoutMs, j => (j.optionId === null || typeof j.optionId === 'string') && typeof j.seen === 'string' && (j.category === null || typeof j.category === 'string'));
 }
 
 // ─── 여행지 찾기 (ADR-0009) ───────────────────────────────────────────────────
@@ -167,13 +191,6 @@ export interface TripPlanResponse {
  * @param req 요청
  * @param timeoutMs 이보다 늦으면 포기한다
  */
-export async function fetchTripPlan(req: TripPlanRequest, timeoutMs = 120_000): Promise<TripPlanResponse | null> {
-  try {
-    const res = await fetch('/api/trip/plan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req), signal: AbortSignal.timeout(timeoutMs) });
-    if (!res.ok) return null;
-    const j = (await res.json()) as TripPlanResponse;
-    return j && j.city && typeof j.city.key === 'string' && Array.isArray(j.places) ? j : null;
-  } catch {
-    return null;
-  }
+export async function fetchTripPlan(req: TripPlanRequest, timeoutMs = TRIP_TIMEOUT_MS): Promise<TripPlanResponse | null> {
+  return ask<TripPlanResponse>('/api/trip/plan', req, timeoutMs, j => !!j.city && typeof j.city.key === 'string' && Array.isArray(j.places));
 }

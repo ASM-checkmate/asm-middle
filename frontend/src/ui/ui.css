@@ -18,8 +18,11 @@
   display: inline-block; font-family: var(--mono); font-size: 11px; line-height: 1;
   background: var(--sun); color: var(--ink); border: 2px solid var(--ink); border-radius: 999px; padding: 3px 8px;
 }
-/* left of the clock, level with the round buttons: the dev x-scale badge */
+/* left of the clock, level with the round buttons: the dev x-scale badge (+ the "혼자 생각 중" dot) */
 .chrome-side { position: absolute; left: 16px; top: -3px; height: 44px; display: flex; align-items: center; gap: 6px; pointer-events: none; }
+/* 서버가 안 보일 때의 작은 회색 점 — 오류 색을 쓰지 않는다 (ADR-0006: 앱은 백엔드 없이도 돈다). 제목이 "혼자 생각 중" */
+.chrome-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ink-2); opacity: .45; pointer-events: auto; }
+.chrome.is-paper .chrome-dot { background: var(--paper); }
 /* the clock row: the big local time stays centred; the owner's own time hangs left of it as a small house pill (the
    top-left is otherwise empty, so the pill can grow with long city names without touching the round buttons) */
 .chrome-row { display: inline-flex; align-items: center; vertical-align: top; }

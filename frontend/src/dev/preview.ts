@@ -497,7 +497,7 @@ function fakeRequest(kind: RequestKind, now: number): AgentRequest {
 /** `&call=` — 통화 하나를 강제로 띄운다. */
 function fakeCall(kind: 'in' | 'answered' | 'refused', now: number): CallEvent {
   if (kind === 'refused') return { id: 'preview:out', at: now, dir: 'out', result: 'refused', block: 'quiet', text: lateText('quiet', 'preview:out') };
-  const lines = callLines('cafe', 'preview:in', undefined);
+  const lines = callLines('cafe', 'preview:in');
   return kind === 'in'
     ? { id: 'preview:in', at: now, dir: 'in', result: 'missed', lines }
     : { id: 'preview:in', at: now, dir: 'in', result: 'answered', lines };

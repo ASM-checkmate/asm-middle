@@ -1,4 +1,5 @@
 import { PLACE_TYPES, type CityHubs, type CityInfo, type Place } from './types';
+import { onLocalSave } from './sync';
 
 // Real places with real coordinates (≈3-decimal precision). Ids are stable — screens, memory and the
 // book reference them. Seoul is dense around the home in 연남동 so morning/lunch blocks stay walkable;
@@ -298,12 +299,52 @@ export const placeById = (id: string): Place => {
   return p;
 };
 export const hasPlace = (id: string): boolean => byId.has(id);
-export const registerPlaces = (extra: Place[]) => { for (const p of extra) { if (!byId.has(p.id)) { PLACES.push(p); byId.set(p.id, p); } } };
+/** remote(진짜 사람)로 등록된 id들 — 아래 registerRemotePlaces가 채운다 */
+const remoteIds = new Set<string>();
+/**
+ * 붙박이·찾아 온 도시의 장소를 등록한다. 이미 있는 id는 건드리지 않되, 숨은 remote 장소(친구의 활동 장소)와 겹치면 내 팩의 것이 이긴다 —
+ * 그 장소가 제안 스캔(PLACES)에 보이도록 바꿔 끼운다 (아래 "붙박이·찾아 온 도시의 장소와 id가 겹치면 그쪽이 이긴다").
+ */
+export const registerPlaces = (extra: Place[]) => {
+  for (const p of extra) {
+    if (remoteIds.has(p.id)) {
+      const i = PLACES.indexOf(byId.get(p.id)!);
+      if (i >= 0) PLACES[i] = p; else PLACES.push(p);
+      byId.set(p.id, p);
+      remoteIds.delete(p.id);
+      continue;
+    }
+    if (!byId.has(p.id)) { PLACES.push(p); byId.set(p.id, p); }
+  }
+};
+
+// ─── 진짜 사람 에이전트의 장소 (BACKEND-CONTRACT §3.4) ─────────────────────────
+// 다른 사용자의 집(`home:<userId>`)과 발행된 활동의 장소는 `placeById`가 throw하지 않게 표에 넣되, 제안·마찰·여행 카드가
+// 훑는 PLACES 배열에는 **내 도시의 친구 집만** 보인다 — 다른 도시의 남의 집이 여행지 후보(suggest.ts travelOptions)로 새지
+// 않게. 숨은 장소는 id로만 찾힌다. 붙박이·찾아 온 도시의 장소와 id가 겹치면 그쪽이 이긴다(덮지 않는다 — 나중에 와도 registerPlaces가 바꿔 끼운다).
+
+/**
+ * remote 장소를 등록·갱신한다 (같은 id는 새 값으로 바꾼다 — 사용자가 이사할 수 있다).
+ *
+ * @param extra 장소들
+ * @param visible PLACES 배열(제안 스캔)에도 보일지. 기본은 숨김
+ */
+export function registerRemotePlaces(extra: Place[], visible: (p: Place) => boolean = () => false) {
+  for (const p of extra) {
+    const cur = byId.get(p.id);
+    if (cur && !remoteIds.has(p.id)) continue;   // 내 카탈로그의 장소 — 건드리지 않는다
+    remoteIds.add(p.id);
+    byId.set(p.id, p);
+    const i = cur ? PLACES.indexOf(cur) : -1;
+    if (visible(p)) { if (i >= 0) PLACES[i] = p; else PLACES.push(p); }
+    else if (i >= 0) PLACES.splice(i, 1);
+  }
+}
 
 // ─── 찾아 온 도시 (ADR-0009) ───────────────────────────────────────────────────
 // 백엔드가 웹에서 찾아 만든 "도시 팩"(도시 정보 + 장소들)은 브라우저에 남는다. 하루보다 오래 살아야
 // 새로고침해도 같은 하루가 나온다 — 장소 id가 사라지면 그 도시에서의 활동이 통째로 없어진다.
-// 이 모듈은 `./types`만 import하므로 store.ts가 뜨기 전에 아래 hydrate가 먼저 돈다.
+// 이 모듈은 `./types`와 잎 모듈(`./sync` → api·clock)만 import하므로 store.ts가 뜨기 전에 아래 hydrate가 먼저 돈다.
 
 const PLACES_KEY = 'theworld.places.v1';
 interface CityPack { info: CityInfo; places: Place[]; at: number }
@@ -369,7 +410,9 @@ export function validPack(key: string, v: unknown): CityPack | null {
 }
 
 const saveDynamic = () => {
-  try { localStorage.setItem(PLACES_KEY, JSON.stringify({ v: 1, cities: Object.fromEntries(dynamic) } satisfies PersistedPacks)); } catch { /* ignore */ }
+  const packs = { v: 1, cities: Object.fromEntries(dynamic) } satisfies PersistedPacks;
+  try { localStorage.setItem(PLACES_KEY, JSON.stringify(packs)); } catch { /* ignore */ }
+  onLocalSave('places', packs);   // 서버의 places 문서 (BACKEND-CONTRACT §3.3) — 다른 기기에서도 그 도시의 활동 id가 살아 있게
 };
 
 /** 팩 하나를 표들에 적는다 (저장은 호출자가). */

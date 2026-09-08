@@ -92,7 +92,9 @@ export function Home() {
   const homeCity = homeCityOf(memory.homePlaceId);
 
   const [arrivedKey, setArrivedKey] = useState<string | null>(null);
-  const [previewClosed, setPreviewClosed] = useState({ summary: false, book: false });
+  const [previewClosed, setPreviewClosed] = useState({ summary: false, book: false, call: false });
+  // 프리뷰 통화의 닫기 — 매 tick 새 함수면 CallOverlay의 12초 타이머가 그때마다 다시 시작한다
+  const closePreviewCall = useCallback(() => setPreviewClosed(s => ({ ...s, call: true })), []);
   /** `?preview=active:…&camera=1` — 마운트 때 카메라를 연 것으로 친다. 스토어는 안 건드린다 (dev/preview.ts 계약) */
   const [previewCam, setPreviewCam] = useState(previewCamera);
 
@@ -196,7 +198,8 @@ export function Home() {
   };
   const showBook = bookOpen || (!!previewOverlay.book && !previewClosed.book);
   const pendingReq = previewOverlay.request ?? pendingOf(requests, now)[0] ?? null;
-  const activeCall = previewOverlay.call ?? storeCall;
+  // 스토어의 진짜 통화가 먼저다 — 프리뷰(`&call=`)의 가짜 통화 밑에서 진짜 벨이 울리면 그쪽 버튼이 진짜 통화를 움직여 버린다
+  const activeCall = storeCall ?? (previewOverlay.call && !previewClosed.call ? previewOverlay.call : null);
   // 대화 실 (ADR-0002): 쪽지·통화·자유 대화가 한 줄로 섞인다. 배지는 아직 안 본 줄의 개수.
   const showChat = chatOpen || previewOverlay.chat;
   const unread = unreadCount(buildThread(messages, requests, calls, now), chatSeen);
@@ -214,7 +217,7 @@ export function Home() {
       {/* 혼잣말: 대가 없이 지나가는 1단계 (ADR-0001 §1). 시트가 떠 있으면 자리를 비켜 주고, 지도 위(이동 중·도착 홀드)에는 안 띄운다 —
           도착 혼잣말(store tick 'arrive-ask', ADR-0004 오너 결정 6)은 활동 화면에서 보인다 */}
       {sayVisible && say && <SayBubble text={say.text} onDone={dismissSay} />}
-      {activeCall && <CallOverlay call={activeCall} tz={phase.tz} />}
+      {activeCall && <CallOverlay key={activeCall.id} call={activeCall} tz={phase.tz} onDone={previewOverlay.call && activeCall === previewOverlay.call ? closePreviewCall : undefined} />}
       {friendsOpen && <FriendsOverlay onClose={() => setFriendsOpen(false)} />}
       {ttOpen && screen !== 'timetable' && <TimetableScreen phase={pseudoWaiting(phase, now)} asSheet onClose={() => setTtOpen(false)} world={previewWorld ?? undefined} />}
       {/* 그려서 알려줘 (ADR-0004): 시간표 시트(z 45) 위. 카드 분기의 "✎ 카드 대신 그려서 알려줄래" / 그림 카드의 "다시 그리기"가 연다 */}

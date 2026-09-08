@@ -29,7 +29,7 @@ export interface CallEvent {
   text?: string;
   /** 받았을 때 오간 말. **부재중에는 없다** — 안 받았으면 내용도 없다. */
   lines?: string[];
-  /** 왜 걸려온 전화인가. 없으면 내가 건 것이거나 마찰 통보다. */
+  /** 왜 걸려온 전화인가. 없으면 내가 건 것이다 (계획이 어긋난 순간의 통보 전화는 없앴다 — ADR-0013). */
   why?: DueCall['why'];
   /** 통화가 실제로 붙은 시각 (sim ms) — 통화 시간을 여기서 잰다 */
   startedAt?: number;
@@ -103,19 +103,15 @@ const BRAG: Partial<Record<PlaceType, string[]>> = {
 const BRAG_DEFAULT = ['야 나 지금 이거 하고 있다?', '그냥 목소리 듣고 싶어서 걸었어', '나 지금 여기 있어. 좋다.'];
 
 /**
- * 받은 통화에서 에이전트가 하는 말들.
+ * 받은 통화에서 에이전트가 하는 말들 — 내가 걸었든, 걸어 달라고 해서 걸었든.
  *
  * @param placeType 지금 있는 곳
  * @param seed 그 통화의 키
- * @param extra 덧붙일 한 줄 (마찰 통보 등)
- * @returns 2~3줄
+ * @returns 2줄 (자랑 → 마무리)
  */
-export function callLines(placeType: PlaceType, seed: string, extra?: string): string[] {
+export function callLines(placeType: PlaceType, seed: string): string[] {
   const r = rng(`call:${seed}`);
-  const out = [r.pick(BRAG[placeType] ?? BRAG_DEFAULT)];
-  if (extra) out.push(extra);
-  out.push(r.pick(['너는 뭐 해?', '심심하면 또 걸게', '끊는다? 이따 봐']));
-  return out;
+  return [r.pick(BRAG[placeType] ?? BRAG_DEFAULT), r.pick(['너는 뭐 해?', '심심하면 또 걸게', '끊는다? 이따 봐'])];
 }
 
 /** 지쳤다는 말을 듣고 거는 전화. 무엇 때문이라 했는지를 첫 줄이 짚는다 (docs/adr/0002-chat.md). */

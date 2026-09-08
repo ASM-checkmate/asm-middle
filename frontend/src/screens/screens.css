@@ -688,3 +688,9 @@
 /* 쪽지·혼잣말은 화면 아래 카드와 같은 자리를 쓴다 — 활동 화면에선 사진 버튼(.act-stat), 만화 화면에선 두 버튼(.cm-foot)을 가리지 않게 위로 올린다 (ADR-0004: 사진 찍기가 활동 중 유일한 손댈 수 있는 것) */
 .home--active .req, .home--active .say { bottom: calc(152px + var(--safe-bottom)); }
 .home--comic .req, .home--comic .say { bottom: calc(92px + var(--safe-bottom)); }
+
+/* 친구 목록 맨 아래 "나" 줄 — 지금 들어와 있는 아이디와 로그아웃 (AUTH-ADDENDUM). 서버 없이(오프라인) 뜨면 안 보인다 */
+.fr-me { flex: none; margin: 0 20px calc(20px + var(--safe-bottom)); padding: 12px 14px 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border: var(--outline); border-radius: var(--r-card); background: var(--card); box-shadow: var(--shadow-hard-sm); }
+.fr-me-who { display: grid; gap: 1px; min-width: 0; }
+.fr-me-who b { font-family: var(--display); font-weight: 400; font-size: 18px; line-height: 1.1; }
+.fr-me-who small { font-size: 11px; color: var(--ink-2); letter-spacing: .06em; }

@@ -1,5 +1,6 @@
 import { hhmmIn, offsetMinutes, ownerTz } from '../sim/tz';
 import { cityNameKo, cityOfTz } from '../sim/places';
+import { useWorld } from '../sim/store';
 import { Glyph } from './Glyph';
 
 export interface TopChromeProps {
@@ -34,6 +35,8 @@ const ownerCityName = (() => { const c = cityOfTz(ownerTz); return c ? cityNameK
 export function TopChrome({ now, tz, label, tone = 'ink', onBook, hideBook, onTimetable, hideTimetable, onFriends, onChat, unread = 0, scale }: TopChromeProps) {
   const away = tz !== ownerTz && offsetMinutes(tz, now) !== offsetMinutes(ownerTz, now);
   const showScale = scale !== undefined && scale !== 1;
+  // 서버가 안 보일 때만 작은 회색 점 (BACKEND-CONTRACT §3.5) — 오류처럼 보이지 않게, ok면 아무것도 없다. 스토어에서 직접 읽는다 (Home은 모른다)
+  const alone = useWorld(s => s.backend) === 'down';
   return (
     <div className={`chrome ${tone === 'paper' ? 'is-paper' : ''}`}>
       <div className="chrome-clock">
@@ -49,7 +52,12 @@ export function TopChrome({ now, tz, label, tone = 'ink', onBook, hideBook, onTi
         </div>
         <small>{label}</small>
       </div>
-      {showScale && <div className="chrome-side"><span className="chrome-scale">x{scale}</span></div>}
+      {(showScale || alone) && (
+        <div className="chrome-side">
+          {showScale && <span className="chrome-scale">x{scale}</span>}
+          {alone && <span className="chrome-dot" role="img" aria-label="혼자 생각 중" title="혼자 생각 중" />}
+        </div>
+      )}
       <button type="button" className="chrome-book chrome-friends" onClick={onFriends} aria-label="친구 목록 열기">
         <Glyph name="friends" size={24} />
       </button>

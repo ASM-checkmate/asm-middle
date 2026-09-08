@@ -71,6 +71,58 @@ export interface Friend {
   metPlaceId?: string;
 }
 
+// ─── 진짜 사람 에이전트 (BACKEND-CONTRACT §2.3·§3.4, FRIENDS_SPEC §4) ──────────
+// 서버가 붙으면 NPC 풀 자리에 실제 사용자 에이전트의 발행 일정이 들어온다. 굴림·판정은 그대로 프런트(ADR-0006 결정 5)라,
+// 서버 데이터는 world의 `remote` 캐시로만 들어오고 buildTimeline은 그 캐시만 읽는다 (동기·순수·결정적).
+
+/** 서버가 주는 장소 모양 (§2.3 RemotePlace). `type`이 문자열이라 `validRemotePlace`(sim/remote.ts)를 지나야 `Place`가 된다. */
+export interface RemotePlace {
+  id: string; name: string; type: string; lng: number; lat: number; area: string; city: string; country: string; emoji: string;
+  reachBy?: 'boat' | 'plane' | 'train';
+  ownerFriendId?: string;
+}
+
+/**
+ * 다른 사용자의 에이전트 (§2.3 RemoteAgent). `id` = 서버 userId. `Agent`를 그대로 만족시켜 encounterOf·talkChance·화면이
+ * 바뀌지 않는다. `home`은 내 카탈로그에 없는 집이라 동봉된다 — type 'friend_home', ownerFriendId = id, id = `home:${userId}`.
+ */
+export interface RemoteAgent extends Agent { home: Place }
+
+/** 사용자가 발행한 확정 일정 한 건 (§2.3 PublishedActivity) — ScheduledActivity에서 뽑고, 상대에겐 AgentActivity가 된다. */
+export interface PublishedActivity {
+  /** ScheduledActivity.key `${dayKey}:${blockId}` — 창 교체의 upsert 키 */
+  key: string;
+  agentId: string;
+  dayKey: DayKey;
+  blockId: BlockId;
+  /** 우회(friction) 반영된 실제 장소. 상대 카탈로그에 없을 수 있어 `place`를 같이 싣는다 */
+  placeId: string;
+  place?: Place;
+  category: Category;
+  title: string;
+  emoji: string;
+  arriveAt: number;
+  endAt: number;
+  tz: string;
+  /** 동행 친구 id — 지금은 실어 두기만 한다 (FRIENDS_SPEC §2 후속) */
+  companions: string[];
+}
+
+/** `POST /api/agents/at`의 hit 하나 — 캐시에는 프로필 대신 id만 (프로필은 `RemoteCache.agents`) */
+export interface RemoteHit { agentId: string; overlapMs: number; activity: PublishedActivity }
+
+/**
+ * world 저장본의 remote 캐시 (§3.4). `slots`는 활동 key마다 **한 번만** 채우고 도착이 지난 key는 다시 묻지 않는다
+ * (마주침 결정성). `days`는 친구별 발행된 하루 (오늘·내일). `friendsAt`은 친구 목록을 마지막으로 받은 실제 시각.
+ */
+export interface RemoteCache {
+  fetchedAt: number;
+  agents: Record<string, RemoteAgent>;
+  slots: Record<string, RemoteHit[]>;
+  days: Record<string, PublishedActivity[]>;
+  friendsAt: number;
+}
+
 /** 사용자가 골라 준 오늘의 고민 (docs/adr/0001-agentness.md — 고민 듣기). 하루 뒤 감쇠한다. */
 export type WorryKey = 'work' | 'people' | 'body' | 'money' | 'focus' | 'blue' | 'bored' | 'none';
 

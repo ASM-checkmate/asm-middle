@@ -104,9 +104,12 @@ check('같은 시드면 같은 줄', tripFollowUp('found', cctx(), '교토', ['�
 
 console.log('\n── planTrip ──');
 const calls = [];
+// 인증(AUTH-ADDENDUM)은 저장된 사용자의 `X-User-Id` 하나 — 스텁은 그 헤더만 본다. 세는 것은 여행 요청뿐. 베이스 URL이 붙어도 맞게 endsWith
+storage.set('theworld.user.v1', JSON.stringify({ userId: 'u_test', name: '테스트' }));
 globalThis.fetch = async (url, init) => {
-  calls.push({ url, body: JSON.parse(init.body) });
-  if (url === '/api/trip/plan') {
+  if (init.headers?.['x-user-id'] !== 'u_test') return { ok: false, status: 401, json: async () => ({ error: 'unauthorized' }) };
+  if (url.endsWith('/api/trip/plan')) {
+    calls.push({ url, body: JSON.parse(init.body) });
     const city = JSON.parse(init.body).city;
     if (city === '화성') return { ok: false, status: 422, json: async () => ({ error: 'thin' }) };
     const key = city === '나라' ? 'nara' : null;
@@ -114,7 +117,7 @@ globalThis.fetch = async (url, init) => {
     const pl = KYOTO.places.map(p => ({ ...p, id: p.id.replace('kyoto-', 'nara-'), city: 'nara' }));
     return { ok: true, status: 200, json: async () => ({ ...KYOTO, city: { ...KYOTO.city, key: 'nara', nameKo: '나라', nameEn: 'Nara', hubs: { airport: 'nara-kansai-international-airport', intlAirport: 'nara-kansai-international-airport', station: 'nara-kyoto-station', hasSubway: false } }, places: pl }) };
   }
-  return { ok: false, status: 404, json: async () => ({}) };
+  return { ok: false, status: 404, json: async () => ({ error: 'not found' }) };
 };
 const msgs = () => S().messages.filter(m => m.from === 'agent');
 

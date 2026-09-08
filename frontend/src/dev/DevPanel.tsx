@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useWorld } from '../sim/store';
 import { BLOCKS, hhmmIn } from '../sim/blocks';
 import { DAY_MS, HOUR_MS, ownerTz } from '../sim/tz';
 import { cityNameKo, cityOfTz, dynamicCities, forgetDynamicCities } from '../sim/places';
-import type { LlmTier } from '../sim/llm';
+import { fetchModels, type LlmTier, type ModelsResponse } from '../sim/llm';
+import { switchUser } from '../sim/sync';
 
 const SCALES = [1, 10, 60, 600];
 /** 답장을 짓는 모델 단계 (sim/llm.ts). off = 규칙 기반. */
@@ -34,7 +35,9 @@ const CSS = `
 
 /** "서울" for a zone with a city in the catalogue, else the IANA id's last segment ("New_York"). */
 const zoneName = (tz: string) => { const c = cityOfTz(tz); return c ? cityNameKo(c) : tz.split('/').pop() ?? tz; };
-
+/** `/api/models` 한 줄: "small qwen3.5:9b ✓ · good qwen3.8:27b ✗ · ollama 없음" */
+const modelsLine = (m: ModelsResponse) => `small ${m.tiers.small.model}${m.tiers.small.installed ? ' ✓' : ' ✗'} · good ${m.tiers.good.model}${m.tiers.good.installed ? ' ✓' : ' ✗'}${m.ollama ? '' : ' · ollama 없음'}`;
+const hhmmss = (t: number) => new Date(t).toLocaleTimeString('ko-KR', { hour12: false });
 /** `?dev=1` — time scale, jump-to-hour (in the character's zone), relative jumps, reset day, current sim time. */
 export function DevPanel() {
   const now = useWorld(s => s.now);
@@ -51,8 +54,19 @@ export function DevPanel() {
   const tripBusy = useWorld(s => s.tripBusy);
   const wish = useWorld(s => s.memory.wish);
   const planTrip = useWorld(s => s.planTrip);
+  const backend = useWorld(s => s.backend);
+  const syncInfo = useWorld(s => s.sync);
+  const remoteCount = useWorld(s => Object.keys(s.remote?.agents ?? {}).length);   // BACKEND-CONTRACT §3.5 remote 에이전트 수
   const [open, setOpen] = useState(false);
   const [tripCity, setTripCity] = useState('');
+  // 패널을 열 때(그리고 서버 상태가 바뀔 때) 한 번 — 어느 모델이 깔려 있나
+  const [models, setModels] = useState<ModelsResponse | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    void fetchModels().then(m => { if (live) setModels(m); });
+    return () => { live = false; };
+  }, [open, backend]);
   // 등록된 도시는 스토어 밖(places.ts)에 있어 구독이 안 된다 — tripBusy·wish가 바뀔 때 같이 다시 그려진다
   const cities = dynamicCities();
 
@@ -96,6 +110,22 @@ export function DevPanel() {
           <div className="dev-row">
             <span className="dev-k">llm</span>
             {LLM_TIERS.map(t => <button key={t} type="button" className={`dev-b ${t === llmTier ? 'is-on' : ''}`} onClick={() => setLlmTier(t)}>{t}</button>)}
+            <span className="dev-status">{models ? modelsLine(models) : '—'}</span>
+          </div>
+          <div className="dev-row">
+            <span className="dev-k">api</span>
+            <span className="dev-status" style={{ color: backend === 'down' ? 'var(--coral)' : backend === 'ok' ? 'var(--ink)' : undefined }}>{backend}</span>
+            <span className="dev-status" style={{ color: 'var(--ink)' }}>user: {syncInfo.userId ?? '—'}</span>
+            <button type="button" className="dev-b dev-b--warn" onClick={() => { if (confirm('다른 아이디로 들어갈까요? 이 기기의 하루·앨범·기억은 비워져요.')) void switchUser(); }}>바꾸기</button>
+            <span className="dev-status">
+              {[
+                Object.entries(syncInfo.versions).map(([k, v]) => `${k}:v${v}`).join(' ') || 'v—',
+                `push ${syncInfo.lastPushAt ? hhmmss(syncInfo.lastPushAt) : '—'}`,
+                `remote ${remoteCount}`,
+                ...(syncInfo.skipped ? [`skip: ${syncInfo.skipped}`] : []),
+                ...(syncInfo.lastError ? [`err: ${syncInfo.lastError}`] : []),
+              ].join(' · ')}
+            </span>
           </div>
           <div className="dev-row">
             <span className="dev-k">trip</span>

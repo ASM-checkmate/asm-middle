@@ -1,13 +1,14 @@
 import { create } from 'zustand';
-import type { ActivityOption, Anchor, BlockId, BlockPlan, Category, Friend, Comic, DayKey, DaySummaryItem, Journey, Memory, Phase, ScheduledActivity, ShotWin, UserShot } from './types';
+import type { ActivityOption, Anchor, BlockId, BlockPlan, Category, Friend, Comic, DayKey, DaySummaryItem, Journey, Memory, Phase, RemoteCache, ScheduledActivity, ShotWin, UserShot } from './types';
 import { splitDayKey } from './types';
 import type { WorryKey } from './types';
 import { BLOCK_ORDER, CATEGORIES, blockEndAt, blockSlotIn, blockStartAt } from './blocks';
-import { DAY_MS, HOUR_MS, compareDayKeys, dayEndOfKey, dayKeyIn, dayStartIn, dayStartOfKey, isValidTz, ownerTz } from './tz';
-import { loadClock, saveClock, simNow, withScale, jumpedTo, resetClock, type ClockState } from './clock';
+import { DAY_MS, HOUR_MS, addDaysKey, compareDayKeys, dayEndOfKey, dayKeyIn, dayStartIn, dayStartOfKey, isValidTz, ownerTz } from './tz';
+import { isRealClock, loadClock, saveClock, simNow, withScale, jumpedTo, resetClock, type ClockState } from './clock';
 import { PLACES, cityKeyOfName, cityNameKo, placeById, registerCity, tzOf } from './places';
 import { suggestOptions, withStayDays } from './suggest';
-import { AGENTS, agentActivityAt, agentById, agentOfFriend, companionCtx, friendOf, type Agent } from './agents';
+import { AGENTS, agentActivityAt, agentById, agentNames, agentOfFriend, companionCtx, friendOf, isRemoteId, remoteAgents, setRemoteCache, type Agent } from './agents';
+import { appearanceOf, arrivedKeys, emptyRemote, friendOfRemote, mergeRemote, pendingSlots, pruneRemote, publishWindow, remoteFriendIds, remoteHomeId, timelineSig, validRemote } from './remote';
 import { makeComic } from './comic';
 import { shotsFor, trimShots } from './shots';
 import { buildTimeline, currentDayKey, currentPlaceAt, emptyPlans, isBlockEditable, isBlockFree, phaseAt, returnDueAt, tzAt, type Days, type Encounters, type JourneyCache, type Plans } from './timeline';
@@ -18,8 +19,9 @@ import { PUSH_COST, cheapestFirst, fallbackOption, review, type ReviewCtx } from
 import { WORRY_CHOICES, expire, nextRequest, trimRequests, type AgentRequest } from './requests';
 import { callLines, lateText, pickupRule, trimCalls, trimDueCalls, worryLines, type CallEvent, type DueCall } from './call';
 import { narrate } from './narrate';
-import { MAX_LEN, WORRY_CALL_MS, ASK_CALL_MS, openBatch, reactToWorry, replyToAll, tripFollowUp, trimMessages, type ChatMsg } from './chat';
+import { MAX_LEN, WORRY_CALL_MS, ASK_CALL_MS, askCallInMs, openBatch, reactToWorry, replyToAll, tripFollowUp, trimMessages, type ChatMsg } from './chat';
 import { fetchSketchRead, fetchTripPlan, getTier, requestOf, scheduleReply, setTier, sketchRequestOf, type LlmTier, type ReplyResponse, type SketchReadResponse } from './llm';
+import { addFriendRemote, checkHealth, onLocalSave, publishAgent, publishSchedule, refreshRemote, subscribeSync, syncArmed, syncSnapshot, type BackendStatus, type DocName, type SyncInfo } from './sync';
 
 /** Seed memory: the first launch starts from 모모; onboarding (`updateMemory`) overwrites name/likes/traits. */
 export const DEFAULT_MEMORY: Memory = {
@@ -40,10 +42,10 @@ export type MemoryPatch = Partial<Pick<Memory, 'name' | 'likes' | 'dislikes' | '
 
 /** "다른 제안 보기" counter per day and block. */
 export type Regen = Record<DayKey, Partial<Record<BlockId, number>>>;
-/** The pure inputs of the timeline — the bundle the helpers below pass around. */
-export interface World { days: Days; anchor: Anchor; memory: Memory; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[] }
-/** v5 그대로 — `shots`(ADR-0004)는 optional 필드라 옛 저장본은 빈 배열로 읽는다 (버전을 올리지 않는다). */
-interface Persisted { v: 5; days: Days; anchor: Anchor; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[] }
+/** The pure inputs of the timeline — the bundle the helpers below pass around. `remote`는 진짜 사람 에이전트 캐시 (§3.4, 없으면 null). */
+export interface World { days: Days; anchor: Anchor; memory: Memory; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; remote?: RemoteCache | null }
+/** v5 그대로 — `shots`(ADR-0004)·`remote`(BACKEND-CONTRACT §3.4)는 optional 필드라 옛 저장본은 빈 값으로 읽는다 (버전을 올리지 않는다). */
+interface Persisted { v: 5; days: Days; anchor: Anchor; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; remote?: RemoteCache }
 
 const WORLD_KEY = 'theworld.world.v5';   // + 대화 실 (ADR-0002). 옛 판은 한 번만 읽어 올린다
 const WORLD_KEY_V4 = 'theworld.world.v4';  // legacy: days + anchor(+status), 대화 실 없음 (ADR-0001)
@@ -75,10 +77,23 @@ const CATCHUP_GAP_MS = 10 * 60_000; // away at least this long (sim time) → th
 const KEEP_DAYS = 5;               // days older than this are folded into the anchor
 const HORIZON_MS = 36 * HOUR_MS;   // how far past "now" the timeline is resolved (tomorrow's plan, the next departure)
 const SUMMARY_CAP = 12;            // most recent stories shown on the sheet
+const HEALTH_EVERY_MS = 30_000;    // tick이 서버 생사를 묻는 간격 (실제 ms, BACKEND-CONTRACT §3.3)
+const REMOTE_EVERY_MS = 5 * 60_000; // 친구 목록·친구의 하루를 다시 받는 간격 (실제 ms, BACKEND-CONTRACT §3.4 c)
+const REMOTE_DEBOUNCE_MS = 800;    // recompute 뒤 발행·조회까지 기다리는 시간 — 한 tick이 recompute를 여러 번 부른다
+const REMOTE_RETRY_BASE_MS = 2_000; // 발행·조회가 실패한 뒤 다시 시도하기까지: 2s → 4s → … ≤ 60s (sync.ts의 문서 재시도와 같은 곡선)
+const REMOTE_RETRY_MAX_MS = 60_000;
+
+/** 서버에 올리는 문서 (BACKEND-CONTRACT §3.3) — SEEN/CHAT_SEEN/ONBOARD/clock/llm/route는 기기 로컬이라 뺀다. places는 places.ts가 올린다 */
+const DOC_OF_KEY: Partial<Record<string, DocName>> = { [WORLD_KEY]: 'world', [MEMORY_KEY]: 'memory', [BOOK_KEY]: 'book' };
 
 // localStorage may be missing (node harness, sandboxed webviews): every access is guarded
 const load = <T,>(k: string, fb: T): T => { try { const r = localStorage.getItem(k); return r ? (JSON.parse(r) as T) : fb; } catch { return fb; } };
-const save = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } };
+// 저장의 단일 관문 — 부팅 중 쓰기·comicFor·persist가 전부 여기를 지나므로 서버 동기화 훅도 여기 한 곳에 붙는다
+const save = (k: string, v: unknown) => {
+  try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ }
+  const doc = DOC_OF_KEY[k];
+  if (doc) onLocalSave(doc, v);
+};
 const remove = (k: string) => { try { localStorage.removeItem(k); } catch { /* ignore */ } };
 
 const loadMemory = (): Memory => {
@@ -92,7 +107,8 @@ const loadMemory = (): Memory => {
     dislikes: arr(m.dislikes, DEFAULT_MEMORY.dislikes),
     traits: arr(m.traits, DEFAULT_MEMORY.traits),
     homePlaceId: typeof m.homePlaceId === 'string' ? m.homePlaceId : DEFAULT_MEMORY.homePlaceId,
-    friends: Array.isArray(m.friends) && m.friends.length
+    // `friends: []`도 유효하다 (BACKEND-CONTRACT §3.4 e): 서버 사용자는 NPC 씨앗 친구를 받지 않는다. 저장본에 배열이 아예 없을 때만 씨앗
+    friends: Array.isArray(m.friends)
       ? m.friends.filter((f): f is Memory['friends'][number] => !!f && typeof f.id === 'string' && typeof f.name === 'string' && typeof f.homePlaceId === 'string')
       : DEFAULT_MEMORY.friends,
     visited: Array.isArray(m.visited) ? m.visited.filter(v => v && typeof v.placeId === 'string' && Number.isFinite(v.at)).slice(-VISITED_CAP) : [],
@@ -158,7 +174,7 @@ const validShots = (raw: unknown): UserShot[] => {
       && (c.pitch === undefined || Number.isFinite(c.pitch)) && (c.light === undefined || Number.isFinite(c.light)) && (c.dof === undefined || Number.isFinite(c.dof)) && (c.focus === undefined || c.focus === 'near' || c.focus === 'far');
   });
 };
-const persistedOf = (w: World): Persisted => ({ v: 5, days: w.days, anchor: w.anchor, journeys: w.journeys, regen: w.regen, encounters: w.encounters, requests: w.requests, calls: w.calls, messages: w.messages, dueCalls: w.dueCalls, shots: w.shots });
+const persistedOf = (w: World): Persisted => ({ v: 5, days: w.days, anchor: w.anchor, journeys: w.journeys, regen: w.regen, encounters: w.encounters, requests: w.requests, calls: w.calls, messages: w.messages, dueCalls: w.dueCalls, shots: w.shots, ...(w.remote ? { remote: w.remote } : {}) });
 const horizonFor = (t: number) => t + HORIZON_MS;
 const build = (w: World, t: number) => buildTimeline(w.anchor, w.days, w.memory, w.journeys, horizonFor(t), w.encounters);
 
@@ -193,12 +209,16 @@ function rankMealOptions(options: ActivityOption[], memory: Memory): ActivityOpt
   return options.map((o, i) => ({ o, i })).sort((x, y) => rank(x.o) - rank(y.o) || x.i - y.i).map(x => x.o);
 }
 
-/** Friend / agent names never appear in a title — companionship is data (`friendId`), not copy (FRIENDS_SPEC). */
+/** Friend / agent names never appear in a title — companionship is data (`friendId`), not copy (FRIENDS_SPEC).
+ *  진짜 사람의 이름도 지운다 (BACKEND-CONTRACT §3.4) — 사용자 이름은 흔한 낱말일 수 있어("카페") 조사가 붙은 꼴만 지우고,
+ *  정규식 문자는 이스케이프한다. NPC 이름은 예전 규칙 그대로. */
 const AGENT_NAMES = AGENTS.map(a => a.name);
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const stripNames = (title: string, keepPlaceName: boolean): string => {
   if (keepPlaceName) return title.replace(/\{friend\}(이랑|랑|와|과|네)?\s*/g, '').replace(/\s{2,}/g, ' ').trim();
   let out = title.replace(/\{friend\}(이랑|랑|와|과|네)?\s*/g, '');
   for (const n of AGENT_NAMES) out = out.replace(new RegExp(`${n}(이랑|랑|와|과|네)?\\s*`, 'g'), '');
+  for (const n of agentNames().slice(AGENT_NAMES.length)) if (n.length >= 2) out = out.replace(new RegExp(`${escapeRe(n)}(이랑|랑|와|과|네)\\s*`, 'g'), '');
   return out.replace(/\s{2,}/g, ' ').trim();
 };
 
@@ -427,6 +447,8 @@ function settle(a: ScheduledActivity, book: Comic[], memory: Memory, encounters:
     const agent = agentById(e.agentId);
     if (e.talked && !e.again && agent && !nextMemory.friends.some(f => f.id === e.agentId)) {
       nextMemory = { ...nextMemory, friends: [...nextMemory.friends, friendOf(agent, { at: a.endAt, placeId: a.place.id })] };
+      // 진짜 사람이면 서버에도 적는다 (BACKEND-CONTRACT §3.4 d — 대칭·멱등, 불 붙이고 잊는다)
+      if (isRemoteId(e.agentId)) addFriendRemote(e.agentId, a.endAt, a.place.id);
     }
   }
   return { comic, book: [...book, comic], memory: nextMemory, encounters: nextEncounters };
@@ -465,6 +487,12 @@ export interface WorldState {
   llmTier: LlmTier;
   /** 지금 웹에서 찾고 있는 여행지 (ADR-0009). 없으면 null. 한 번에 하나만. */
   tripBusy: string | null;
+  /** 서버 생사 (sim/sync.ts). unknown = 아직 안 물어봄. down이어도 앱은 돈다 — 화면엔 회색 점 하나뿐 */
+  backend: BackendStatus;
+  /** 문서 동기화 상태 (sim/sync.ts): 사용자 id·문서 버전·마지막 push·오류·건너뛴 이유 */
+  sync: SyncInfo;
+  /** 진짜 사람 에이전트 캐시 (BACKEND-CONTRACT §3.4). world 저장본에 실린다. 오프라인이면 null — NPC 풀 그대로 */
+  remote: RemoteCache | null;
   /** 대화 실을 마지막으로 본 시각 — 안 읽은 줄 배지가 이걸 쓴다 */
   chatSeen: number;
   /** 혼잣말 한 줄 (ADR-0001 §1의 1단계). 대가 없이 지나가고, 잠깐 떴다 사라진다. */
@@ -526,6 +554,11 @@ export interface WorldState {
   planTrip: (city: string, batch: string) => Promise<void>;
   /** 혼잣말을 지운다 (뜬 지 몇 초 뒤 화면이 부른다). */
   dismissSay: () => void;
+  /**
+   * 서버에서 받은 진짜 사람 캐시를 world에 넣는다 (BACKEND-CONTRACT §3.4 c): 모듈 캐시(agents.ts)에 옮기고 저장하고 오늘을
+   * 다시 결정한다. 이미 정산된 활동은 만화 id로 굳어 있어 안 바뀐다 (settle 멱등). null이면 NPC 풀로 돌아간다.
+   */
+  applyRemote: (cache: RemoteCache | null) => void;
 
   tick: () => void;
   setCategory: (id: BlockId, c: Category) => void;
@@ -570,7 +603,7 @@ export interface WorldState {
 const comicCache = new Map<string, Comic>();
 const summaryOf = (acts: ScheduledActivity[], comicOf: (a: ScheduledActivity) => Comic): DaySummaryItem[] =>
   [...acts].sort((a, b) => a.endAt - b.endAt).slice(-SUMMARY_CAP).map(a => ({ blockId: a.blockIds[0], act: a, comic: comicOf(a) }));
-const worldOf = (s: WorldState): World => ({ days: s.days, anchor: s.anchor, memory: s.memory, journeys: s.journeys, regen: s.regen, encounters: s.encounters, requests: s.requests, calls: s.calls, messages: s.messages, dueCalls: s.dueCalls, shots: s.shots });
+const worldOf = (s: WorldState): World => ({ days: s.days, anchor: s.anchor, memory: s.memory, journeys: s.journeys, regen: s.regen, encounters: s.encounters, requests: s.requests, calls: s.calls, messages: s.messages, dueCalls: s.dueCalls, shots: s.shots, remote: s.remote });
 /** Where the character is right before block `id` of today (the previous activity's place, else the anchor's). */
 const placeBefore = (s: WorldState, id: BlockId) => currentPlaceAt(blockStartAt(dayStartOfKey(s.today), id) - 1, s.timeline, s.anchor);
 
@@ -585,6 +618,11 @@ export const useWorld = create<WorldState>((set, get) => {
   const persisted0 = load<Partial<Persisted> | null>(WORLD_KEY, null) ?? load<Partial<Persisted> | null>(WORLD_KEY_V4, null) ?? load<Partial<Persisted> | null>(DAYS_KEY_V3, null);
   let encounters: Encounters = persisted0?.encounters ?? {};
   let shots: UserShot[] = validShots(persisted0?.shots);   // 옛 저장본엔 없다 (ADR-0004) → 빈 배열
+  // 진짜 사람 캐시 (BACKEND-CONTRACT §3.4): 모양이 틀리면 버린다. settle(agentById)·decide(제안)보다 먼저 모듈 캐시에 올린다
+  const sync0 = syncSnapshot();
+  const homeCityOf = (m: Memory) => { try { return placeById(m.homePlaceId).city; } catch { return undefined; } };
+  let remote: RemoteCache | null = validRemote(persisted0?.remote);
+  setRemoteCache(remote, { meId: sync0.sync.userId, homeCity: homeCityOf(memory) });
   const book0 = book, memory0 = memory;
   const settleLocal = (a: ScheduledActivity): Comic => {
     const r = settle(a, book, memory, encounters, shots);
@@ -603,11 +641,16 @@ export const useWorld = create<WorldState>((set, get) => {
     .map(r => (r.kind === 'worry' && !r.answered && !r.decidedAlone ? { ...r, choices: WORRY_CHOICES } : r));
   const messages0 = (Array.isArray(persisted?.messages) ? persisted.messages : []).filter(m => !m.id.startsWith('nego:'));
   const dueCalls0 = (Array.isArray(persisted?.dueCalls) ? persisted.dueCalls : []).map(d => (d.worry !== undefined && !isWorryKey(d.worry) ? { ...d, worry: undefined } : d));
-  let w: World = { days: validDays(persisted?.days), anchor: validAnchor(persisted?.anchor, now, memory), memory, journeys: persisted?.journeys ?? {}, regen: persisted?.regen ?? {}, encounters, requests: requests0, calls: Array.isArray(persisted?.calls) ? persisted.calls : [], messages: messages0, dueCalls: dueCalls0, shots };
+  let w: World = { days: validDays(persisted?.days), anchor: validAnchor(persisted?.anchor, now, memory), memory, journeys: persisted?.journeys ?? {}, regen: persisted?.regen ?? {}, encounters, requests: requests0, calls: Array.isArray(persisted?.calls) ? persisted.calls : [], messages: messages0, dueCalls: dueCalls0, shots, remote };
   const gapActs: ScheduledActivity[] = [];
   const remember = (a: ScheduledActivity) => { settleLocal(a); if (a.endAt > lastSeen && a.endAt <= now) gapActs.push(a); };
   w = prune(w, now, remember);
   shots = trimShots(shots, w.anchor.t);   // anchor 뒤로 접힌 활동의 샷은 만화가 이미 앨범에 있다
+  if (remote) {
+    // anchor 이전 날의 슬롯은 그 날과 함께 접혔다 — 내 친구의 프로필은 남긴다
+    const pruned = pruneRemote(remote, w.anchor.t, new Set(memory.friends.map(f => f.id)));
+    if (pruned !== remote) { remote = pruned; w = { ...w, remote }; setRemoteCache(remote, { meId: sync0.sync.userId, homeCity: homeCityOf(memory) }); }
+  }
   w = { ...w, memory, encounters, shots, days: liveOut({ ...w, memory, encounters, shots }, now) };
   const today = currentDayKey(now, build(w, now), w.anchor.tz);
   const first = decide(today, w, horizonFor(now), now);
@@ -622,9 +665,128 @@ export const useWorld = create<WorldState>((set, get) => {
   const away = now - lastSeen >= CATCHUP_GAP_MS;
   const summary = away && gapActs.length ? summaryOf(gapActs, a => comicCache.get(a.key)!) : null;
   const gap = summary ? { from: lastSeen, to: now } : null;
+  // 자리를 비운 사이 시각이 지난 약속 전화는 **부재중**이다 — 켜자마자 벨이 울리는 게 아니라 (ADR-0013). 내용은 없다.
+  // 잠깐 껐다 켠 것(10분 안)이면 첫 tick이 그대로 울린다. "비웠다"는 이 기기의 마지막 tick 기준인데, 다른 기기에서 받아 온
+  // 저장본(로그인·새 기기)엔 그 시각이 없으니 약속 자체가 10분 넘게 지났으면 똑같이 접는다.
+  {
+    const expired = w.dueCalls.filter(d => d.at <= now && (away || now - d.at >= CATCHUP_GAP_MS));
+    // 받은 채로 앱이 꺼진 통화는 끊은 것으로 친다 — 안 그러면 대화 실에 "통화 중"이 영영 남는다. 마지막으로 본 시각까지(최대 1시간)
+    const speed = clock.scale > 0 ? clock.scale : 1;
+    const calls = w.calls.map(c => (c.result === 'answered' && c.startedAt !== undefined && c.durSec === undefined
+      ? { ...c, durSec: Math.max(1, Math.min(3600, Math.round((Math.max(lastSeen, c.startedAt) - c.startedAt) / 1000 / speed))) }
+      : c));
+    if (expired.length || calls.some((c, i) => c !== w.calls[i])) {
+      const missed: CallEvent[] = expired.map(d => ({ id: `in:${d.id}`, at: d.at, dir: 'in', result: 'missed', why: d.why }));
+      w = { ...w, calls: trimCalls([...calls, ...missed], w.anchor.t), dueCalls: w.dueCalls.filter(d => !expired.includes(d)) };
+      save(WORLD_KEY, persistedOf(w));
+    }
+  }
 
   /** sim time of the previous tick — the start of the gap a tick has to account for */
   let lastTick = now;
+  /** 지금 붙어 있는 통화가 시작된 실제 시각 (ms) — 통화 시간은 실제로 통화한 초다 */
+  let callStartedReal: number | null = null;
+  /** 마지막으로 서버 생사를 물은 실제 시각 (tick이 30초마다) */
+  let lastHealthAt = 0;
+  // 동기화 모듈은 스토어를 모른다 — 상태가 바뀌면 여기로 복사해 화면(DevPanel·TopChrome)이 구독한다
+  subscribeSync(s => set({ backend: s.backend, sync: s.sync }));
+
+  // ── 진짜 사람 에이전트 (BACKEND-CONTRACT §3.4) ──
+  // 발행(내 확정 일정)·조회(같은 곳의 사람들, 친구, 친구의 하루)는 서버가 있고 시계가 실시간일 때만 — dev가 돌린 하루를
+  // 다른 사람의 세계에 흘리지 않는다 (§3.3의 world/book 규칙과 같다). 실시간은 scale 1만이 아니라 점프 없음까지다
+  // (clock.isRealClock: jumpTo·x10→x1 뒤의 어긋난 시계도 dev 시계). 서버가 죽어 있으면(backend down) 30초 health가 살릴 때까지
+  // 두드리지 않는다. 하네스(fetch 없음)에서는 전부 꺼져 NPC 풀 그대로다.
+  const remoteOn = () => syncArmed() && isRealClock(get().clock) && !!get().sync.userId && get().backend !== 'down';
+  const unref = (t: ReturnType<typeof setTimeout>) => { (t as { unref?: () => void }).unref?.(); };
+  let publishTimer: ReturnType<typeof setTimeout> | null = null;
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 마지막으로 서버가 받아 준 시간표의 서명 — 같으면 다시 올리지 않는다 */
+  let publishedSig: string | null = null;
+  /** 마지막으로 친구 목록·하루를 받은 실제 시각 (5분마다) */
+  let lastRemoteAt = 0;
+  let refreshing = false;
+  let publishing = false;
+  let profileSent = false;
+  let profileSending = false;
+  // 실패 뒤 백오프 — recompute가 tick마다(1초) 돌고 디바운스(800 ms)가 그보다 짧아, 이게 없으면 죽은 서버를 초마다 두드린다
+  let remoteFailures = 0;
+  let nextRemoteAt = 0;
+  /** 지금 서버에 물어도 되나 — 켜져 있고 백오프가 지났다 */
+  const remoteReady = () => remoteOn() && Date.now() >= nextRemoteAt;
+  const remoteFailedNow = () => { nextRemoteAt = Date.now() + Math.min(REMOTE_RETRY_MAX_MS, REMOTE_RETRY_BASE_MS * 2 ** Math.min(remoteFailures, 5)); remoteFailures++; };
+  const remoteOkNow = () => { remoteFailures = 0; nextRemoteAt = 0; };
+
+  /** (a) 내 확정 일정 `[anchor.t, now+36h)`를 발행한다 (한 번에 하나만 — 느린 서버에 PUT이 쌓이지 않게) */
+  const publishNow = async () => {
+    if (!remoteReady() || publishing) return;
+    const s = get();
+    const me = s.sync.userId!;
+    const sig = timelineSig(s.timeline);
+    if (sig === publishedSig) return;
+    const from = s.anchor.t;
+    const acts = publishWindow(s.timeline, from, Number.POSITIVE_INFINITY, me, s.memory.name, stripNames);
+    const to = Math.max(s.now + HORIZON_MS, ...acts.map(a => a.arriveAt + 1));
+    publishing = true;
+    try {
+      if (await publishSchedule(from, to, acts.filter(a => a.arriveAt < to))) { publishedSig = sig; remoteOkNow(); } else remoteFailedNow();
+    } finally { publishing = false; }
+  };
+  const schedulePublish = () => {
+    if (!remoteReady() || timelineSig(get().timeline) === publishedSig) return;
+    if (publishTimer) clearTimeout(publishTimer);
+    publishTimer = setTimeout(() => { publishTimer = null; void publishNow(); }, REMOTE_DEBOUNCE_MS);
+    unref(publishTimer);
+  };
+  /** (b) 내 프로필 — 부팅·updateMemory 뒤. 색·이모지는 userId로 정해 어느 기기에서 봐도 같다 (sim/remote.ts appearanceOf). 서버가 받았으면 true */
+  const publishProfile = async (): Promise<boolean> => {
+    if (!remoteOn()) return false;
+    const s = get();
+    const me = s.sync.userId!;
+    let home; try { home = placeById(s.memory.homePlaceId); } catch { return false; }
+    const look = appearanceOf(me);
+    const clip = (v: string[]) => v.slice(0, 12).map(x => x.slice(0, 30));
+    const r = await publishAgent({ name: s.memory.name.slice(0, 40), color: look.color, emoji: look.emoji, hairStyle: look.hairStyle, likes: clip(s.memory.likes), traits: clip(s.memory.traits), home: { ...home, id: remoteHomeId(me), name: `${s.memory.name}네 집`, type: 'friend_home', ownerFriendId: me } });
+    return r !== null;
+  };
+  /**
+   * (c) 오늘·내일 활동 중 아직 도착 전이고 슬롯에 없는 key로 같은 곳의 사람들을 묻고, 5분마다(또는 `full`) 친구 목록과
+   * 친구의 하루를 받는다. 결과는 applyRemote로 world에 들어간다. 슬롯은 key마다 한 번만 (mergeRemote가 지킨다).
+   */
+  const refreshNow = async (full: boolean) => {
+    if (!remoteReady() || refreshing) return;
+    const s = get();
+    const today = s.today, tomorrow = addDaysKey(today, 1);
+    const slots = pendingSlots(s.timeline, s.remote, s.now, [today, tomorrow]);
+    const real = Date.now();
+    const friendsDue = full || real - lastRemoteAt >= REMOTE_EVERY_MS;
+    if (!slots.length && !friendsDue) return;
+    refreshing = true;
+    try {
+      if (friendsDue) lastRemoteAt = real;
+      const got = await refreshRemote({
+        slots,
+        friendsAt: friendsDue ? s.now : null,
+        days: friendsDue ? { ids: remoteFriendIds(s.memory, s.remote), from: dayStartOfKey(today), to: dayEndOfKey(tomorrow) } : null,
+      });
+      if (!got) { remoteFailedNow(); return; }   // 물을 게 있었는데 전부 실패했다 — 백오프
+      remoteOkNow();
+      const cur = get();
+      const next = mergeRemote(cur.remote ?? emptyRemote(), got, { now: cur.now, arrivedKeys: arrivedKeys(cur.timeline, cur.now), friendsAt: friendsDue ? real : undefined });
+      // 서버가 아는 친구 중 내 메모리에 없는 사람은 추가 (상대가 먼저 말을 걸었다) — 프로필은 캐시에서 온다
+      const added = (got.friends ?? []).filter(f => !cur.memory.friends.some(x => x.id === f.agent.id)).map(f => friendOfRemote(f.agent, f.metAt, f.metPlaceId));
+      if (added.length) {
+        const memory: Memory = { ...cur.memory, friends: [...cur.memory.friends, ...added] };
+        set({ memory }); save(MEMORY_KEY, memory);
+      }
+      get().applyRemote(next);
+    } finally { refreshing = false; }
+  };
+  const scheduleRefresh = () => {
+    if (!remoteReady()) return;
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => { refreshTimer = null; void refreshNow(false); }, REMOTE_DEBOUNCE_MS);
+    unref(refreshTimer);
+  };
 
   const comicFor = (a: ScheduledActivity): Comic => {
     let c = comicCache.get(a.key);
@@ -658,6 +820,8 @@ export const useWorld = create<WorldState>((set, get) => {
     const status = foldStatus(s.anchor, timeline, t, s.memory);
     set({ now: t, days, plans: days[s.today], timeline, phase, tz: phase.tz, journeys, status });
     if (changed || jchanged) persist();
+    // 시간표가 바뀌었으면 발행하고, 새로 정해진 활동의 슬롯을 묻는다 (둘 다 800 ms 디바운스, BACKEND-CONTRACT §3.4)
+    schedulePublish(); scheduleRefresh();
   };
 
   /** Move the world to sim time `t`. When the character's local date changed (a night passed, a flight landed in
@@ -693,43 +857,29 @@ export const useWorld = create<WorldState>((set, get) => {
   };
 
   /**
-   * 에이전트가 거는 전화를 굴린다 (ADR-0001 §1). 두 갈래다: 계획이 어긋난 순간의 통보와,
-   * **약속한 전화**("이따가 전화할게", ADR-0002). 접속 중이면 벨이 울리고, 그 시점이 이미
-   * 지나갔으면 **부재중**이 된다 — 그때는 기록만 남고 무슨 얘기였는지는 잃는다.
+   * 에이전트가 거는 전화를 굴린다 (ADR-0001 §1): **약속한 전화**뿐이다 — "이따가 전화할게"(고민을 듣고),
+   * "지금 걸게"(걸어 달라고 해서) (ADR-0002·ADR-0013). 계획이 어긋난 순간의 통보 전화는 없앴다 — 그 사연은
+   * 시간표와 활동 로그에 남는다. 접속 중이면 벨이 울리고, 그 시점이 이미 지나갔으면 **부재중**이 된다 —
+   * 그때는 기록만 남고 무슨 얘기였는지는 잃는다. 시각이 지난 약속이 여럿이면 이른 것부터 tick마다 하나씩.
    * @param from 지난 tick의 시각
    * @param t 지금
    */
   const pumpCalls = (from: number, t: number) => {
     const s = get();
     if (s.activeCall) return;
-    const live = t - from < CATCHUP_GAP_MS;   // 그 순간에 앱을 보고 있었나
-    const ring = (call: CallEvent, dueCalls = s.dueCalls) => {
-      set({ calls: trimCalls([...s.calls, call], s.anchor.t), dueCalls, activeCall: live ? call : null });
-      persist();
-    };
-
-    // ① 약속한 전화가 먼저다. 약속을 지키는 것이 이 기능의 전부다.
-    const promised = s.dueCalls.find(d => d.at <= t);
-    if (promised) {
-      const rest = s.dueCalls.filter(d => d !== promised);
-      const place = s.phase.kind === 'moving' || s.phase.kind === 'active' || s.phase.kind === 'comic' ? s.phase.act.place : null;
-      const lines = promised.why === 'worry'
-        ? worryLines(promised.worry ?? 'none', promised.id)
-        : callLines(place?.type ?? 'home', promised.id);
-      const base = { id: `in:${promised.id}`, at: promised.at, dir: 'in' as const, result: 'missed' as const, why: promised.why };
-      ring(live ? { ...base, lines } : base, rest);   // 안 받았으면 내용도 없다
-      return;
-    }
-
-    // ② 계획이 어긋난 순간의 통보 — 같은 통보를 두 번 걸지 않는 id 중복 방지일 뿐, 활동당 1회 '제한'이 아니다
-    //    (도착 창 조건 `from < arriveAt ≤ t`가 있어 실질 제한은 이미 없다 — ADR-0004 결정 10은 쪽지 상한을 지운 것)
-    const due = s.timeline.find(a =>
-      a.outcome && a.outcome.plannedPlaceId !== a.place.id
-      && a.arriveAt > from && a.arriveAt <= t
-      && !s.calls.some(c => c.id === `in:${a.key}`));
-    if (!due) return;
-    const base = { id: `in:${due.key}`, at: due.arriveAt, dir: 'in' as const, result: 'missed' as const };
-    ring(live ? { ...base, lines: callLines(due.place.type, due.key, due.outcome!.line) } : base);
+    const promised = [...s.dueCalls].sort((a, b) => a.at - b.at).find(d => d.at <= t);
+    if (!promised) return;
+    // 그 순간에 앱을 보고 있었나 — 지난 tick도, 약속 시각도 10분 안이어야 한다 (다른 기기에서 받아 온 지난 약속은 부재중)
+    const live = t - from < CATCHUP_GAP_MS && t - promised.at < CATCHUP_GAP_MS;
+    const rest = s.dueCalls.filter(d => d !== promised);
+    const place = s.phase.kind === 'moving' || s.phase.kind === 'active' || s.phase.kind === 'comic' ? s.phase.act.place : null;
+    const lines = promised.why === 'worry'
+      ? worryLines(promised.worry ?? 'none', promised.id)
+      : callLines(place?.type ?? 'home', promised.id);
+    const base: CallEvent = { id: `in:${promised.id}`, at: promised.at, dir: 'in', result: 'missed', why: promised.why };
+    // 기록엔 내용을 넣지 않는다 — 받아야 붙는다 (answerCall). 벨이 울리는 중에 앱이 꺼져도 저장본에 내용이 남지 않는다
+    set({ calls: trimCalls([...s.calls, base], s.anchor.t), dueCalls: rest, activeCall: live ? { ...base, lines } : null });
+    persist();
   };
 
   /**
@@ -737,7 +887,8 @@ export const useWorld = create<WorldState>((set, get) => {
    * 이동 중이던 활동이 그대로 활동 중으로 넘어간 순간, 혼자이고(동행·말 튼 마주침 없음) 계획대로 도착했으면
    * 감정 한 줄만 띄운다 — 사진을 찍어 달라는 부탁은 하지 않고, 문자로도 남기지 않는다 (오너 결정 2026-09-07:
    * 문자는 마음이 오갈 때만, 일을 시킬 때가 아니다). 혼잣말이라 몇 초 뒤 사라진다.
-   * 마찰로 딴 데 간 도착은 통보 전화(pumpCalls)가 대신하므로 건너뛴다.
+   * 마찰이 있던 도착(딴 데 갔든 그 자리에서 버텼든)에는 말하지 않는다 — 그 사연은 활동 로그의 판단 줄과 시간표에 남는다
+   * (통보 전화는 ADR-0013에서 없앴다). "오늘 여기 잘 고른 것 같아"가 안 간 곳에서 나오면 이상하다.
    * @param before 지난 tick의 phase
    * @param after 지금 phase
    * @param from 지난 tick의 시각
@@ -782,8 +933,9 @@ export const useWorld = create<WorldState>((set, get) => {
   };
 
   const st: WorldState = {
-    clock, now, anchor: w.anchor, days: w.days, today, tz: initialPhase.tz, memory, agents: AGENTS, encounters, status: initialStatus, requests: w.requests, calls: w.calls, activeCall: null, onboarded,
+    clock, now, anchor: w.anchor, days: w.days, today, tz: initialPhase.tz, memory, agents: [...remoteAgents(), ...AGENTS], encounters, status: initialStatus, requests: w.requests, calls: w.calls, activeCall: null, onboarded,
     messages: w.messages, dueCalls: w.dueCalls, chatOpen: false, chatSeen: load<number>(CHAT_SEEN_KEY, now), llmTier: getTier(), tripBusy: null, say: null,
+    backend: sync0.backend, sync: sync0.sync, remote: w.remote ?? null,
     shots: w.shots, sketchOpen: null, cameraOpen: false,
     plans: w.days[today], journeys: w.journeys, regen: w.regen, book,
     timeline: first.timeline,
@@ -809,10 +961,20 @@ export const useWorld = create<WorldState>((set, get) => {
       arriveSay(s.phase, get().phase, from, t);
       // 쪽지: 마감이 지난 건 "혼자 정했다"로 넘기고, 물어볼 게 있으면 하나 만든다 — 상한 없이, 오래된 것부터 카드로 (sim/requests.ts)
       pumpRequests(t);
-      // 전화: 계획이 어긋난 순간 에이전트가 건다. 접속 중이면 울리고, 지나갔으면 부재중(내용 없음).
+      // 전화: 약속한 전화만 (ADR-0013). 접속 중이면 울리고, 지나갔으면 부재중(내용 없음).
       pumpCalls(from, t);
       save(SEEN_KEY, t);
       if (t - from >= CATCHUP_GAP_MS && gap.length) set({ summary: summaryOf(gap, comicFor), gap: { from, to: t } });
+      // 서버 생사: 실제 30초마다 (sim 시계가 빨라도 요청이 늘지 않게). 결과는 subscribeSync로 들어온다
+      const real = Date.now();
+      if (real - lastHealthAt >= HEALTH_EVERY_MS) { lastHealthAt = real; void checkHealth(); }
+      // 진짜 사람 (BACKEND-CONTRACT §3.4): 부팅 뒤 내 프로필(서버가 받을 때까지 — 프로필 없는 사용자는 남의 agents/at·친구 목록에서 빠진다 §2.3),
+      // 5분마다 친구 목록·친구의 하루
+      if (!profileSent && !profileSending && remoteReady()) {
+        profileSending = true;
+        void publishProfile().then(ok => { profileSending = false; if (ok) { profileSent = true; remoteOkNow(); } else remoteFailedNow(); });
+      }
+      if (real - lastRemoteAt >= REMOTE_EVERY_MS) void refreshNow(true);
     },
     setCategory: (id, c) => {
       const s = get();
@@ -943,6 +1105,7 @@ export const useWorld = create<WorldState>((set, get) => {
       const call: CallEvent = ok
         ? { id, at: s.now, dir: 'out', result: 'answered', startedAt: s.now, lines: callLines(place?.type ?? 'home', id) }
         : { id, at: s.now, dir: 'out', result: 'refused', block, text: lateText(block!, id) };
+      callStartedReal = ok ? Date.now() : null;
       set({ activeCall: call, calls: trimCalls([...s.calls, call], s.anchor.t) });
       persist();
     },
@@ -952,19 +1115,26 @@ export const useWorld = create<WorldState>((set, get) => {
       if (!c || c.dir !== 'in') return;
       // 안 받으면 내용은 사라진다 (오너 결정): 기록만 남기고 lines를 버린다. 안 받기를 눌렀든 12초가 지났든 똑같이 부재중이다 (ADR-0004 오너 결정 13)
       const done: CallEvent = accept ? { ...c, result: 'answered', startedAt: s.now } : { ...c, result: 'missed', lines: undefined };
+      if (accept) callStartedReal = Date.now();
       set({ activeCall: accept ? done : null, calls: s.calls.map(x => (x.id === c.id ? done : x)) });
       persist();
     },
     endCall: () => {
       const s = get();
       const c = s.activeCall;
-      // 통화 시간은 붙은 순간부터 잰다 (sim 시간) — 부재중 통화의 `at`은 한참 전일 수 있다
+      // 통화 시간은 **실제로 통화한 초**다 — 화면이 붙어 있던 실제 시간을 잰다. 검사 스크립트처럼 sim 시계만 점프했으면
+      // sim 경과(배속으로 나눈)가 실제보다 크니 그쪽을 쓴다. 부재중 통화의 `at`은 한참 전일 수 있어 startedAt부터 잰다
       if (c?.result === 'answered' && c.startedAt !== undefined) {
-        const done: CallEvent = { ...c, durSec: Math.max(1, Math.round((s.now - c.startedAt) / 1000)) };
+        const speed = s.clock.scale > 0 ? s.clock.scale : 1;
+        const simSec = (s.now - c.startedAt) / 1000 / speed;
+        const wallSec = callStartedReal !== null ? (Date.now() - callStartedReal) / 1000 : simSec;
+        const done: CallEvent = { ...c, durSec: Math.max(1, Math.round(simSec > wallSec + 1 ? simSec : wallSec)) };
+        callStartedReal = null;
         set({ activeCall: null, calls: s.calls.map(x => (x.id === c.id ? done : x)) });
         persist();
         return;
       }
+      callStartedReal = null;
       set({ activeCall: null });
     },
     sendMessage: (raw) => {
@@ -991,12 +1161,14 @@ export const useWorld = create<WorldState>((set, get) => {
       if (reply.text !== undefined) msgs.push({ id: `${batch}:r`, at: s.now + reply.delayMs, from: 'agent', text: reply.text });
       let dueCalls = s.dueCalls.filter(d => !(stale.has(d.id) && d.at > s.now));
       let memory = s.memory;
+      // 약속한 전화 — 규칙이 시각을 실어 주면(못 받는 상황·지쳤다면서 걸어 달란 말) 그 시각, 아니면 답장 뒤 기본 간격
       if (reply.worry) {
         memory = { ...s.memory, worry: { key: reply.worry, at: s.now } };
         save(MEMORY_KEY, memory);
-        dueCalls = [...dueCalls, { id: `worry:${batch}`, at: s.now + reply.delayMs + WORRY_CALL_MS, why: 'worry', worry: reply.worry }];
+        dueCalls = [...dueCalls, { id: `worry:${batch}`, at: s.now + (reply.callInMs ?? reply.delayMs + WORRY_CALL_MS), why: 'worry', worry: reply.worry }];
+      } else if (reply.callMe) {
+        dueCalls = [...dueCalls, { id: `ask:${batch}`, at: s.now + (reply.callInMs ?? reply.delayMs + ASK_CALL_MS), why: 'ask' }];
       }
-      if (reply.callMe) dueCalls = [...dueCalls, { id: `ask:${batch}`, at: s.now + reply.delayMs + ASK_CALL_MS, why: 'ask' }];
       set({ messages: trimMessages(msgs, s.anchor.t), dueCalls: trimDueCalls(dueCalls, s.anchor.t), memory, chatSeen: s.now });
       persist();
       if (reply.worry) recompute(simNow(get().clock));
@@ -1019,7 +1191,9 @@ export const useWorld = create<WorldState>((set, get) => {
       // 여행 가자는 말은 답장이 이미 떴어도 유효하다 — 찾는 일은 답장과 별개로 시작한다 (ADR-0009)
       if (r.trip) void get().planTrip(r.trip, batch);
       if (!old || old.at <= now) return;   // 이미 뜬 답장 — 손대지 않는다
-      const promised = s.dueCalls.some(d => d.id === `worry:${batch}` || d.id === `ask:${batch}`);
+      const askDue = s.dueCalls.find(d => d.id === `ask:${batch}`);
+      const worryDue = s.dueCalls.find(d => d.id === `worry:${batch}`);
+      const promised = !!askDue || !!worryDue;
       let messages = s.messages;
       if (r.text === null) {
         // 모델이 침묵을 골랐다. 규칙이 전화를 약속해 둔 묶음이면 약속은 지켜야 하니 규칙 답장을 남긴다
@@ -1030,18 +1204,28 @@ export const useWorld = create<WorldState>((set, get) => {
       }
       let dueCalls = s.dueCalls;
       let memory = s.memory;
-      const { ok } = pickupRule(s.phase);
-      // 규칙이 못 알아들은 고민·전화 부탁을 모델이 알아들었으면 그 뒤처리를 여기서 한다 (sendMessage와 같은 규칙)
-      if (r.worry && !promised) {
+      // 규칙이 못 알아들은 고민·전화 부탁을 모델이 알아들었으면 그 뒤처리를 여기서 한다 (sendMessage와 같은 규칙 —
+      // 못 받는 상황이면 막힌 게 끝난 뒤로 예약하고, 고민과 전화 부탁이 같이 오면 곧 거는 고민 전화다, ADR-0013).
+      // 규칙이 이미 약속한 전화는 시각을 지키되 종류는 모델이 올릴 수 있다: 걸어 달란 전화(ask)를 고민 전화로, 38분 뒤 고민 전화를 곧으로
+      const replyInMs = Math.max(old.at - now, 0);
+      const soon = now + askCallInMs(s.phase, now, replyInMs, batch);
+      let heardWorry = false;
+      if (r.worry && !worryDue) {
+        heardWorry = true;
         memory = { ...s.memory, worry: { key: r.worry, at: now } };
         save(MEMORY_KEY, memory);
-        dueCalls = [...dueCalls, { id: `worry:${batch}`, at: old.at + WORRY_CALL_MS, why: 'worry', worry: r.worry }];
-      } else if (r.callMe && ok && !promised) {
-        dueCalls = [...dueCalls, { id: `ask:${batch}`, at: old.at + ASK_CALL_MS, why: 'ask' }];
+        dueCalls = askDue
+          ? dueCalls.map(d => (d === askDue ? { id: `worry:${batch}`, at: askDue.at, why: 'worry' as const, worry: r.worry! } : d))
+          : [...dueCalls, { id: `worry:${batch}`, at: r.callMe ? soon : old.at + WORRY_CALL_MS, why: 'worry', worry: r.worry }];
+      }
+      if (r.callMe) {
+        const wd = dueCalls.find(d => d.id === `worry:${batch}`);
+        if (wd) { if (wd.at > soon) dueCalls = dueCalls.map(d => (d === wd ? { ...d, at: soon } : d)); }
+        else if (!askDue) dueCalls = [...dueCalls, { id: `ask:${batch}`, at: soon, why: 'ask' }];
       }
       set({ messages, dueCalls: trimDueCalls(dueCalls, s.anchor.t), memory });
       persist();
-      if (r.worry && !promised) recompute(now);
+      if (heardWorry) recompute(now);
     },
     planTrip: async (cityName, batch) => {
       const s0 = get();
@@ -1082,6 +1266,13 @@ export const useWorld = create<WorldState>((set, get) => {
       set({ chatOpen: open, chatSeen: s.now, say: open ? null : s.say });
     },
     dismissSay: () => set({ say: null }),
+    applyRemote: (cache) => {
+      const s = get();
+      setRemoteCache(cache, { meId: s.sync.userId, homeCity: homeCityOf(s.memory) });
+      set({ remote: cache, agents: [...remoteAgents(), ...AGENTS] });
+      persist();
+      recompute(simNow(get().clock));
+    },
     markRequestTold: (id) => {
       const s = get();
       set({ requests: s.requests.map(r => (r.id === id ? { ...r, told: true } : r)) }); persist();
@@ -1111,6 +1302,7 @@ export const useWorld = create<WorldState>((set, get) => {
       set({ memory, onboarded: true, plans, days: { ...s.days, [s.today]: plans } });
       save(MEMORY_KEY, memory); save(ONBOARD_KEY, true);
       persist(); recompute(t);
+      void publishProfile().then(ok => { if (!ok) profileSent = false; });   // 이름·취향·성향이 바뀌었다 — 상대 화면의 나도 바뀐다 (§3.4 b). 못 보냈으면 tick이 다시
     },
     setScale: (scale) => { const c = withScale(get().clock, scale); saveClock(c); set({ clock: c }); const t = simNow(c); lastTick = t; sync(t); },
     jumpTo: (t) => { const c = jumpedTo(get().clock, t); saveClock(c); set({ clock: c }); lastTick = t; sync(t); },
@@ -1127,7 +1319,11 @@ export const useWorld = create<WorldState>((set, get) => {
       const t = simNow(c);
       const anchor = freshAnchor(t, s.memory);
       lastTick = t;
-      set({ clock: c, anchor, days: {}, regen: {}, today: dayKeyIn(t, anchor.tz), tz: anchor.tz, plans: emptyPlans(), timeline: [], summary: null, gap: null, requests: [], calls: [], activeCall: null, selectedBlock: null, messages: [], dueCalls: [], chatOpen: false, say: null, shots: [], sketchOpen: null, cameraOpen: false });
+      // 새 하루: 슬롯은 옛 활동 key에 매여 있으니 비우고, 프로필·친구의 하루는 남긴다 (다음 조회가 채운다)
+      const remote = s.remote ? { ...s.remote, slots: {} } : null;
+      setRemoteCache(remote, { meId: s.sync.userId, homeCity: homeCityOf(s.memory) });
+      publishedSig = null;
+      set({ clock: c, anchor, days: {}, regen: {}, today: dayKeyIn(t, anchor.tz), tz: anchor.tz, plans: emptyPlans(), timeline: [], summary: null, gap: null, requests: [], calls: [], activeCall: null, selectedBlock: null, messages: [], dueCalls: [], chatOpen: false, say: null, shots: [], sketchOpen: null, cameraOpen: false, remote });
       recompute(t);
     },
   };

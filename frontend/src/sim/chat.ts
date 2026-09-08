@@ -37,8 +37,10 @@ const BUSY_REPLY_MS: [number, number] = [3 * 60_000, 9 * 60_000];
 const SULK_MOOD = 35;
 /** "이따가 전화할게"의 이따가 (sim ms). */
 export const WORRY_CALL_MS = 38 * 60_000;
-/** 채팅에서 전화를 부르면 이만큼 뒤에 벨이 울린다 (sim ms). */
+/** 채팅에서 전화를 부르면 답장 뒤 이만큼 뒤에 벨이 울린다 (sim ms). */
 export const ASK_CALL_MS = 20_000;
+/** 못 받는 상황에서 전화를 부르면 폰을 힐끗 보고 이 안에 "나중에 걸게"라고 답한다 (sim ms). */
+const GLANCE_MS = 8 * 60_000;
 
 export interface ChatMsg {
   id: string;
@@ -112,11 +114,13 @@ export type Intent = 'tired' | 'where' | 'what' | 'howru' | 'call' | 'come' | 'l
 /** 답을 바라지 않는 추임새 — "ㅋㅋ", "ㅇㅇ", "응". 이것만 오면 읽고 만다 (사람도 그런다). */
 const ACK_RE = /^[\s~!?.,ㅋㅎㅠㅜ♥\p{Extended_Pictographic}]*(?:(?:ㅇㅇ|ㅇㅋ|응|웅|엉|어|넹|넵|네|옹|오|아|음|흠|그래|그럼|굿|ok|okay|오케이?|알겠어|알았어|ㄱㄱ|ㅂㅂ|잘\s*자|굿밤|굿나잇)[\s~!?.,ㅋㅎㅠㅜ♥\p{Extended_Pictographic}]*)*$/iu;
 
+/** 전화를 걸어 달라는 말. 지쳤다는 말에 섞여 있어도 본다 (그때는 곧 거는 고민 전화다). */
+const CALL_RE = /전화|통화|보이스|목소리/;
 /** 순서가 규칙이다 — 앞의 것이 이긴다. 지친다는 말이 제일 먼저다. */
 const INTENTS: [Intent, RegExp][] = [
   ['tired', /지쳤|지친|지쳐|힘들|힘드|피곤|번아웃|우울|짜증|외로|속상|스트레스|죽겠|못하겠|하기\s*싫/],
   ['come', /집에\s*(와|가|오)|들어와|돌아와|보러\s*와/],
-  ['call', /전화|통화|보이스|목소리/],
+  ['call', CALL_RE],
   ['where', /어디|위치|어딨|어디야/],
   ['what', /뭐\s*해|뭐하|뭐\s*하고|무슨\s*일|뭐\s*했/],
   ['howru', /잘\s*지내|괜찮|어때|어땠|기분/],
@@ -182,6 +186,11 @@ export interface ChatReply {
   worry?: WorryKey;
   /** 전화를 걸어 달라는 말로 들었다 */
   callMe?: boolean;
+  /**
+   * 약속한 전화까지 (sim ms, 지금부터). `worry`·`callMe`로 전화를 약속했을 때 스토어가 이 시각에 벨을 예약한다.
+   * 없으면 기본값이다 — 지쳤다는 말엔 답장 뒤 `WORRY_CALL_MS`, 걸어 달라는 말엔 답장 뒤 `ASK_CALL_MS`.
+   */
+  callInMs?: number;
 }
 
 /** 제목에서 장소를 뺀 활동 부분 ("펀시티에서 오락실 한 판" → "오락실 한 판"). sim/comic.ts의 activityStem과 같은 규칙. */
@@ -220,6 +229,24 @@ function blockEndsAt(phase: Phase): number | null {
  * 스토어가 `now`를 실어 주면 그걸 쓰고, 없으면(단위 검사) 막힌 것이 지금 끝나는 걸로 본다.
  */
 const ctxNow = (ctx: ChatCtx) => ctx.now ?? blockEndsAt(ctx.phase) ?? 0;
+
+/**
+ * 전화를 걸어 달라는 말에 벨이 울리기까지 (sim ms, 지금부터). **약속은 상황과 무관하게 지켜진다** (ADR-0013) —
+ * 받을 수 있으면 답장 뒤 `ASK_CALL_MS`, 못 받는 상황이면 막힌 것이 끝나고 폰을 다시 본 뒤(그리고 답장 뒤). 끝을 모르면 한참 뒤.
+ * 규칙 답장(`replyToAll`)과 모델 답장(`store.applyLlmReply`)이 같은 시각을 쓴다.
+ *
+ * @param phase 지금 캐릭터의 상태
+ * @param now 지금 (sim ms)
+ * @param replyInMs 답장이 도착하기까지 (sim ms, 지금부터) — 벨은 답장보다 먼저 울리지 않는다
+ * @param seed 그 묶음의 키
+ */
+export function askCallInMs(phase: Phase, now: number, replyInMs: number, seed: string): number {
+  const soonest = replyInMs + ASK_CALL_MS;
+  if (pickupRule(phase).ok) return soonest;
+  const end = blockEndsAt(phase);
+  const after = end !== null ? Math.max(end - now, 0) + rng(`ask-call:${seed}`).int(...AFTER_BLOCK_MS) : LATE_READ_MS;
+  return Math.max(after, soonest);
+}
 
 /** 놀거나 운동하는 중 — 폰은 보지만 답은 미룬다. */
 const absorbed = (phase: Phase) =>
@@ -311,12 +338,21 @@ export function replyToAll(texts: string[], ctx: ChatCtx): ChatReply {
     const tiredText = texts.find(t => intentOf(t) === 'tired') ?? texts[0];
     const worry = worryOf(tiredText);
     const readUrgent = Math.min(readMs, URGENT_READ_MS);
-    return { readMs: readUrgent, text: reactToWorry(worry, ctx.seed), delayMs: readUrgent + thinkMs, worry };
+    const delayMs = readUrgent + thinkMs;
+    // 지쳤다면서 걸어 달라고까지 했으면 "이따가"가 아니라 곧 건다 — 통화 내용은 그래도 고민을 짚는다 (ADR-0013)
+    const callInMs = texts.some(t => CALL_RE.test(t)) ? askCallInMs(ctx.phase, ctxNow(ctx), delayMs, ctx.seed) : undefined;
+    return { readMs: readUrgent, text: reactToWorry(worry, ctx.seed), delayMs, worry, ...(callInMs !== undefined ? { callInMs } : {}) };
   }
   if (primary === 'call') {
-    return ok
-      ? { ...say(answer('call', ctx, r, false)), callMe: true }
-      : { readMs, text: `${LATE_PREFIX[block ?? 'quiet']} 나중에 내가 걸게.`, delayMs: Math.min(readMs, 8 * 60_000) + thinkMs };
+    // 받을 수 있으면 답장 뒤 곧 건다. 못 받는 상황이면 폰을 힐끗 보고 "나중에 걸게"라고 하고, **그 약속도 지킨다** —
+    // 막힌 것이 끝난 뒤 벨이 울린다 (ADR-0013). 힐끗 본 것이라 읽은 시각도 그때다 (답장보다 늦게 읽을 수는 없다)
+    if (ok) {
+      const reply = say(answer('call', ctx, r, false));
+      return { ...reply, callMe: true, callInMs: reply.delayMs + ASK_CALL_MS };
+    }
+    const readGlance = Math.min(readMs, GLANCE_MS);
+    const delayMs = readGlance + thinkMs;
+    return { readMs: readGlance, text: `${LATE_PREFIX[block ?? 'quiet']} 나중에 내가 걸게.`, delayMs, callMe: true, callInMs: askCallInMs(ctx.phase, ctxNow(ctx), delayMs, ctx.seed) };
   }
 
   // 알아들은 줄이 있으면 못 알아들은 줄은 넘긴다

@@ -144,7 +144,9 @@ export class StageView {
       const base = hitGround(rayFromFrame(frameOfCol((p.x0 + p.x1) / 2), frameOfRow(p.base)));
       if (!base) continue;
       const s = (CAM_DIST - base[2]) / CAM_DIST / 390;   // 그림 1열 = 몇 W (그 깊이에서)
-      const g = placeInBox(model, [base[0], 0, base[2]], (p.x1 - p.x0) * s, (p.base - p.y0) * s);
+      // 매달린 것(램프): 상자 바닥이 접점보다 훨씬 위 — 바닥에 세우지 않고 상자 그대로 공중에, 서는 것은 접점 행이 바닥
+      const hang = p.y1 < p.base - 10;
+      const g = placeInBox(model, [base[0], hang ? (p.base - p.y1) * s : 0, base[2]], (p.x1 - p.x0) * s, ((hang ? p.y1 : p.base) - p.y0) * s);
       this.bg.add(g);
       this.shadow(this.bg, base, ((p.x1 - p.x0) / 390) * ((CAM_DIST - base[2]) / CAM_DIST) * 0.5);
     }

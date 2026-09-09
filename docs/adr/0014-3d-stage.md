@@ -189,3 +189,32 @@ CSS로 층을 미는 첫 판을 실기기 없이 스크린샷으로만 보고도
     생긴 것. 카메라 near/far를 세트 크기에 맞춰 좁히고(0.15~16), 뒷막을 발치 아래까지 내려 바닥과 겹치게 하고 바닥에 polygonOffset,
     눕는 것·그림자는 깊이 검사 없이 바닥 다음에 그리고(renderOrder), 잘라낸 가장자리는 alphaToCoverage(MSAA)로. 정지 무대에서
     캐릭터가 눈을 감고 있던 것(깜빡임 주기가 t = 0에 걸림)도 고쳤다.
+
+## 개정 8 (2026-09-09): 이미지→3D를 로컬에서 — TripoSR로 카페 소품 다섯 개
+
+개정 7의 흐름을 실제로 돌려 첫 glb들을 무대에 올렸다. 생성은 **TripoSR(MIT, Tripo·Stability)** 을 이 맥(Apple 실리콘, MPS)에서 돌린다 —
+TRELLIS는 CUDA 전용이라 로컬 불가, Tripo API는 크레딧이 없고 웹 스튜디오는 내보내기가 유료, Hunyuan3D는 라이선스가 한국을 제외한다.
+소품 하나에 3초 남짓(모델 첫 로드 2분, 체크포인트 1.7 GB).
+
+*   **설치·실행은 스크립트로.** `scripts/triposr-setup.sh`가 `frontend/.triposr/`(git 제외)에 uv venv(Python 3.12)와 TripoSR 소스를 놓는다.
+    C++ 빌드가 필요한 torchmcubes는 안 깔고 `scripts/triposr.py`가 scikit-image의 marching cubes로 바꿔 끼운다. rembg도 안 쓴다 — 입력이
+    이미 투명 배경 PNG다. `scripts/triposr.py --scene cafe`가 장소의 소품 전부를 `public/assets/models/cafe-<번호>.glb`로 만들고 매니페스트
+    조각을 찍는다.
+*   **입력은 2D 그림이 아니라 코드 소품의 3/4 렌더다.** 우리 소품 그림은 시점이 뒤섞여(상판은 위에서, 다리는 옆에서) TripoSR이 두께 10 %짜리
+    납작한 부조를 만든다 — Tripo 웹에서 상판이 기울어져 나오던 것과 같은 원인. 코드 로우폴리(props3d)를 부드러운 조명으로 3/4 뷰(yaw 35°·pitch 22°)
+    에서 렌더한 그림(`stage/propshot.ts`, `export-props.mjs`가 `<번호>.r.png`로 같이 뽑는다)을 넣으면 둥근 상판·다리·받침이 있는 진짜 덩어리가
+    나온다. 잉크 껍질은 빼고 렌더한다 — 정점색에 검은 얼룩으로 남는다. 코드 도형이 "모양의 밑그림" 역할로 남는 셈이다.
+*   **출력은 입력 카메라의 프레임이다.** LRM 계열답게 결과가 카메라 기준이라 pitch만큼 물체가 카메라 쪽으로 기울고 yaw만큼 돌아 있다.
+    `triposr.py --pitch/--yaw`(export 값과 같게)가 되돌린 뒤 축을 (x 앞·y 오른쪽·z 위) → (y 위·+z 앞)으로 바꿔 저장하므로 매니페스트에
+    회전 보정이 필요 없다. 그래도 로더의 `AssetEntry.rotate`(x·y·z 도, 정규화 전)를 두었다 — 다른 출처의 glb용.
+*   **메시 정리는 파이썬에서.** 부스러기 제거(가장 큰 덩어리의 1 % 미만) → 타우빈 스무딩 8회 → quadric 데시메이션 6000면(원본 3만~17만)
+    → 정점색을 이웃 평균으로 6회 펴기. 118 KB/소품. 브라우저의 SimplifyModifier(`simplify`)는 안 쓴다.
+*   **정점색은 셰이더에서 팔레트로 스냅한다** (`tone.ts snapVertexColorsToPalette`). 정점마다 양자화하면 삼각형 안에서 두 색이 섞여
+    얼룩덜룩하고, 픽셀마다 스냅하면 단색 면과 또렷한 경계가 된다. TripoSR의 COLOR_0는 sRGB 바이트라 sRGB로 견주고 선형으로 낸다 —
+    안 그러면 갈색 상판이 크림색으로 뜬다. 그래도 색 필드가 거칠어 두 색 사이에서 떨리며 빗금이 생기는 것을 위의 색 펴기가 막는다.
+*   **매달린 소품.** 상자 바닥이 접점보다 훨씬 위인 것(램프)은 바닥에 세우지 않고 상자 그대로 공중에 둔다(render.ts `hang`).
+*   **QA.** `?preview=active:cafe&camera=1&crop=scale:1.6,yaw:12,pitch:8,dof:0` — 흐트러진 시작 대신 정해진 구도로 열어 스크린샷을 견준다.
+*   **결과.** 카페의 램프·화분·카운터·테이블·스툴이 glb다(러그는 눕는 카드). 카메라를 돌리면 상판이 타원으로 벌어지고 다리·받침이 보인다.
+    한계: 컵·접시처럼 작은 부속은 덩어리로 뭉개지고, 얇은 잎은 색을 잃는다(화분 잎이 베이지). 캐릭터는 형태가 곧 정체성이라 TripoSR로는
+    부족하다 — Hugging Face의 TRELLIS Space(무료, GPU 대기열)에 `assets-src/character/me-idle.png`를 올려 glb를 손으로 받아 `character.me`에
+    등록하는 것을 제안한다. 같은 Space로 소품도 더 좋게 뽑을 수 있다.

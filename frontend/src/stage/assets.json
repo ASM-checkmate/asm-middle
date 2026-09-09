@@ -1,5 +1,23 @@
 {
-  "_": "밖에서 만든 3D 모델(glb) 매니페스트 — ADR-0014 개정 7. props: 장소별 소품 번호(scenes/index.tsx의 P 순서) → { url, line?, simplify?, yaw? }. character: me/friend. 없는 것은 코드 도형(props3d/character3d)이 맡는다. glb는 frontend/public/assets/models/ 에 둔다.",
-  "props": {},
+  "_": "밖에서 만든 3D 모델(glb) 매니페스트 — ADR-0014 개정 7·8. props: 장소별 소품 번호(scenes/index.tsx의 P 순서) → { url, line?, simplify?, rotate?, yaw? }. character: me/friend. 없는 것은 코드 도형(props3d/character3d)이 맡는다. glb는 frontend/public/assets/models/ 에 둔다. TripoSR(scripts/triposr.py) 결과는 스크립트가 무대 축(y 위·+z 앞)으로 돌려 두니 rotate가 필요 없다.",
+  "props": {
+    "cafe": {
+      "0": {
+        "url": "/assets/models/cafe-0.glb"
+      },
+      "1": {
+        "url": "/assets/models/cafe-1.glb"
+      },
+      "2": {
+        "url": "/assets/models/cafe-2.glb"
+      },
+      "4": {
+        "url": "/assets/models/cafe-4.glb"
+      },
+      "5": {
+        "url": "/assets/models/cafe-5.glb"
+      }
+    }
+  },
   "character": {}
 }

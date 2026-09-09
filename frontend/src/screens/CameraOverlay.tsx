@@ -29,6 +29,19 @@ export function messyStart(actKey: string, win: ShotWin): Crop {
     yaw: step(sp(-8, 8), 0.5),
   };
 }
+/** QA: `?preview=active:…&camera=1&crop=scale:1.4,yaw:12,pitch:-6,dof:0` — 흐트러진 시작 대신 정해진 구도로 연다 (스크린샷용). 빠진 키는 CROP0 */
+export function cropParam(search: string = typeof location !== 'undefined' ? location.search : ''): Crop | null {
+  const v = new URLSearchParams(search).get('crop');
+  if (!v) return null;
+  const c: Crop = { ...CROP0 };
+  for (const kv of v.split(',')) {
+    const [k, raw] = kv.split(':');
+    if (k === 'focus') { if (raw === 'near' || raw === 'far') c.focus = raw; continue; }
+    const n = Number(raw);
+    if (Number.isFinite(n) && k && k in CROP0) (c as unknown as Record<string, number>)[k] = n;
+  }
+  return c;
+}
 /** 프레이밍 범위 — types.ts ShotCrop 주석 그대로: x/y ±35 %(뷰포트 자기 크기 대비), 확대 1.0~2.2, 기울임 ±15°, 각도 ±18°, 방향 ±12°, 조도 0.55~1.45, 심도 0~1 */
 const PAN_MAX = 35;
 const YAW_MAX = 12;
@@ -127,7 +140,7 @@ export function CameraOverlay({ act, progress, nowMs, companions, encounter, pre
   const now = winAt(progress);
   const count = Object.keys(taken).length;
   // 열 때 지금 창에 이미 찍은 게 있으면 그 프레이밍에서, 아니면 일부러 흐트러진 구도(messyStart)에서 시작한다
-  const [crop, setCrop] = useState<Crop>(() => taken[now]?.crop ?? messyStart(act.key, now));
+  const [crop, setCrop] = useState<Crop>(() => taken[now]?.crop ?? ((preview && cropParam()) || messyStart(act.key, now)));
   // 창이 넘어가면(활동이 진행돼 다음 장면) 그 창의 사진이나 새 흐트러진 구도에서 다시 시작한다
   const [seenWin, setSeenWin] = useState(now);
   if (seenWin !== now) { setSeenWin(now); setCrop(taken[now]?.crop ?? messyStart(act.key, now)); }

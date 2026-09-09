@@ -62,6 +62,37 @@ export function quantizeTexture(tex: THREE.Texture): THREE.CanvasTexture {
   return out;
 }
 
+/** 팔레트를 GLSL 상수로 — sRGB(비교용)와 선형(출력용) 둘 다 */
+const PAL_GLSL = (() => {
+  const c = new THREE.Color();
+  const srgb = PAL_RGB.map(p => `vec3(${(p[0] / 255).toFixed(4)}, ${(p[1] / 255).toFixed(4)}, ${(p[2] / 255).toFixed(4)})`);
+  const lin = PAL_RGB.map(p => { c.setRGB(p[0] / 255, p[1] / 255, p[2] / 255, THREE.SRGBColorSpace); return `vec3(${c.r.toFixed(5)}, ${c.g.toFixed(5)}, ${c.b.toFixed(5)})`; });
+  return { n: PAL_RGB.length, srgb, lin };
+})();
+
+/**
+ * 정점색을 프래그먼트에서 팔레트로 스냅한다 — 정점마다 양자화하면 삼각형 안에서 두 색이 섞여 얼룩덜룩해지는데, 픽셀마다 스냅하면
+ * 단색 면과 또렷한 색 경계가 된다. glTF의 COLOR_0는 선형이 규격이지만 TripoSR(trimesh)은 sRGB 바이트를 그대로 쓰니 sRGB로
+ * 견주고(nearestPalette와 같은 가중치) 선형으로 낸다. 안 그러면 갈색 상판이 크림색으로 뜬다.
+ */
+export function snapVertexColorsToPalette(mat: THREE.MeshToonMaterial): void {
+  mat.vertexColors = true;
+  mat.onBeforeCompile = shader => {
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+const int PAL_N = ${PAL_GLSL.n};
+vec3 palSnap(vec3 c) {
+  vec3 pal[PAL_N] = vec3[](${PAL_GLSL.srgb.join(', ')});
+  vec3 lin[PAL_N] = vec3[](${PAL_GLSL.lin.join(', ')});
+  float bd = 1e9; vec3 best = lin[0];
+  for (int i = 0; i < PAL_N; i++) { vec3 d = pal[i] - c; float dd = dot(d * d, vec3(0.3, 0.59, 0.11)); if (dd < bd) { bd = dd; best = lin[i]; } }
+  return best;
+}`)
+      .replace('#include <color_fragment>', 'diffuseColor.rgb *= palSnap(vColor.rgb);');
+  };
+  mat.customProgramCacheKey = () => 'palSnap';
+}
+
 export interface ToneOptions {
   /** 외곽선 두께 (모델 단위) */
   line: number;
@@ -89,14 +120,17 @@ export function applyTone(root: THREE.Object3D, o: ToneOptions): { dispose(): vo
     if (!geo.getAttribute('normal')) geo.computeVertexNormals();
     const src = (Array.isArray(m.material) ? m.material[0] : m.material) as THREE.MeshStandardMaterial;
     const map = src.map ? quantizeTexture(src.map) : null;
+    // 정점색(TripoSR 등 생성 메시의 COLOR_0)은 셰이더에서 픽셀마다 팔레트로 — 재질을 갈아 끼우니 vertexColors를 다시 켜야 한다
+    const vc = !map && geo.getAttribute('color');
     let color: THREE.ColorRepresentation = 0xffffff;
-    if (!map) {
+    if (!map && !vc) {
       const c = src.color ?? new THREE.Color(0xffffff);
       const q = nearestPalette(Math.round(c.r * 255), Math.round(c.g * 255), Math.round(c.b * 255));
       color = (q[0] << 16) | (q[1] << 8) | q[2];
     }
     const mat = toon(color);
     if (map) mat.map = map;
+    else if (vc) snapVertexColorsToPalette(mat);
     m.material = mat;
     own.push(mat);
     if (map) own.push(map);

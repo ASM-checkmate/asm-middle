@@ -39,6 +39,12 @@ const HAIR_ME =
 const HAIR_FRIEND =
   'M-60 14 A62 56 0 1 1 60 14 C61 -4 58 -18 48 -24 Q34 -32 22 -20 Q8 -34 -8 -22 Q-22 -32 -38 -20 C-50 -14 -57 0 -60 14 Z';
 
+// 뒷모습: 위 반쪽은 같은 타원 호, 아래 가장자리는 목덜미 위(y≈34)에서 살짝 물결친다
+const HAIR_BACK_ME =
+  'M-58 20 A62 56 0 0 1 58 20 Q52 34 40 32 Q28 40 14 33 Q0 40 -14 33 Q-28 40 -40 32 Q-52 34 -58 20 Z';
+const HAIR_BACK_FRIEND =
+  'M-60 14 A62 56 0 1 1 60 14 Q58 44 44 50 Q0 58 -44 50 Q-58 44 -60 14 Z';
+
 export interface HeadProps {
   face?: Face;
   variant?: Variant;
@@ -46,15 +52,35 @@ export interface HeadProps {
   quarter?: boolean;
   /** Render both a closed and an open mouth (eat pose toggles them). */
   chew?: boolean;
+  /** 뒷모습 — 얼굴 없이 머리카락이 뒤통수를 덮는다 (방 안에서 위로 걸어갈 때) */
+  back?: boolean;
   eyesClass?: string;
   mouthClass?: string;
   cheeksClass?: string;
 }
 
 /** The head, drawn around (0,0). Hair, eyes, blush, mouth, and the friend's scarf. */
-export function Head({ face = 'default', variant = 'me', quarter = false, chew = false, eyesClass, mouthClass, cheeksClass }: HeadProps) {
+export function Head({ face = 'default', variant = 'me', quarter = false, chew = false, back = false, eyesClass, mouthClass, cheeksClass }: HeadProps) {
   const dx = quarter ? 8 : 0;
   const eyeShift = face === 'down' ? 'translate(0 4)' : face === 'up' ? 'translate(3 -3)' : undefined;
+  if (back) {
+    return (
+      <>
+        <ellipse cx="0" cy="0" rx={HEAD_RX} ry={HEAD_RY} fill={C.skin} {...INK} />
+        {/* 뒤통수: 바가지 머리가 목덜미 위까지 내려온다 (친구는 단발이라 더 길게) */}
+        <path d={variant === 'friend' ? HAIR_BACK_FRIEND : HAIR_BACK_ME} fill={C.hair} {...INK} />
+        <path d="M-32 -38 q8 -10 18 -13" fill="none" stroke={C.paper} strokeWidth="4" strokeLinecap="round" opacity=".35" />
+        {variant === 'friend' ? (
+          <>
+            <path d="M18 60 l4 22 q1 6 7 5 l12 -4 q-8 -8 -8 -24 z" fill={FRIEND} {...INK} />
+            <path d="M-44 40 Q0 64 44 40 Q46 56 40 62 Q0 78 -40 62 Q-46 56 -44 40 Z" fill={FRIEND} {...INK} />
+          </>
+        ) : (
+          <path d="M1 -55 q-6 -14 11 -12" fill="none" {...INK} />
+        )}
+      </>
+    );
+  }
   return (
     <>
       <ellipse cx="0" cy="0" rx={HEAD_RX} ry={HEAD_RY} fill={C.skin} {...INK} />

@@ -1,0 +1,42 @@
+/* ─── 2.5D 방 (ADR-0015): 위에서 비스듬히 내려다본 장소. 바닥은 평면 격자, 벽·가구는 앞면이 선다.
+   소품·인물은 절대 위치 div 하나씩이고 z-index = 바닥 접점 행 — 아래(앞)에 있는 것이 위(뒤)에 있는 것을 가린다. */
+.room {
+  /* 방 팔레트 — scenes.css의 --sc-*는 .scene 안에서만 정의돼 있어 여기서 따로 둔다 */
+  --rm-wood: #CDA862; --rm-wood-2: #A6864C; --rm-cream: #FFF0CF;
+  position: absolute; left: 0; top: calc(132px + var(--safe-top)); width: 390px; height: 560px; z-index: 2; overflow: hidden; }
+.room > svg, .room-prop, .room-actor, .room-bubble { position: absolute; }
+.room-prop, .room-actor { pointer-events: none; }
+.room-prop svg { display: block; overflow: visible; }
+/* 인물: 걸을 때 transform이 1.4초 동안 미끄러진다 (자리는 sim 로그가 정하고, 걷는 시간은 실제 시간) */
+.room-actor { left: 0; top: 0; transition: transform 1.4s linear; will-change: transform; }
+.room-actor.is-still { transition: none; }
+.room-actor .ch { display: block; }
+.room-actor.face-left .ch { transform: scaleX(-1); }
+.room-actor.is-ghost .ch { opacity: .32; filter: grayscale(1); }
+/* 자리에 있을 때만 숨쉬기 — 걷는 중엔 캐릭터 자체의 bob이 있다 */
+.room-actor.is-seated .ch { animation: act-breathe 3s ease-in-out infinite; }
+/* 자리 표시: 그 자리 위에 떠서 3.6초 뒤 사라진다. 결제·주문·소음처럼 "무슨 일"이 방 안 어디서 났는지 */
+.room-bubble {
+  transform: translate(-50%, -100%); padding: 4px 9px; border-radius: 12px; white-space: nowrap;
+  background: var(--card); border: var(--outline); box-shadow: var(--shadow-hard-sm);
+  font-family: var(--display); font-size: 13px; line-height: 1.2; color: var(--ink);
+  animation: room-bubble 3.6s ease-out both;
+}
+.room-bubble.is-fx { background: var(--coral); color: var(--card); }
+.room-bubble.is-money { font-family: var(--mono); background: var(--sun); }
+.room-bubble.is-stay { animation: room-bubble-in .35s cubic-bezier(.34, 1.56, .64, 1) both; }
+.room-bubble::after { content: ''; position: absolute; left: 50%; bottom: -7px; width: 10px; height: 10px; margin-left: -5px; background: inherit; border: var(--outline); border-top: 0; border-left: 0; transform: rotate(45deg); }
+@keyframes room-bubble {
+  0% { opacity: 0; transform: translate(-50%, -80%) scale(.6); }
+  10%, 80% { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -120%) scale(1); }
+}
+@keyframes room-bubble-in { from { opacity: 0; transform: translate(-50%, -80%) scale(.6); } to { opacity: 1; transform: translate(-50%, -100%) scale(1); } }
+/* 옆 테이블의 소음·음악: 말풍선은 똑같이 사라지고, 안의 음표만 흔들린다 (겉에 걸면 사라지는 애니메이션을 덮어쓴다) */
+.room-bubble.is-notes { font-size: 16px; }
+.room-bubble.is-notes > span { display: inline-block; animation: room-notes 1.1s ease-in-out infinite; }
+@keyframes room-notes { 0%, 100% { transform: rotate(-10deg) translateY(0); } 50% { transform: rotate(10deg) translateY(-2px); } }
+/* 방이 있는 장소에선 옛 정면 무대·큰 캐릭터를 쓰지 않는다 */
+.act.has-room .act-scene, .act.has-room .act-chara, .act.has-room .act-friend, .act.has-room .act-met, .act.has-room .act-met-bubble, .act.has-room .act-ghost { display: none; }
+.act.has-room { background: var(--paper); }
+@media (prefers-reduced-motion: reduce) { .room-actor { transition: none; } .room-bubble, .room-notes { animation: none; opacity: 1; } }

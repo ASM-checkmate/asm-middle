@@ -17,6 +17,8 @@ export interface CharacterProps {
   style?: CSSProperties;
   /** Freeze every loop (animation-play-state). */
   paused?: boolean;
+  /** 뒷모습 (방 안에서 위로 걸어갈 때): 얼굴 없이 뒤통수, 팔은 그대로 */
+  back?: boolean;
 }
 
 const FACE: Record<Pose, Face> = {
@@ -35,7 +37,7 @@ const LABEL: Record<Pose, string> = {
   draw: '그림 그리는 캐릭터', happy: '기뻐하는 캐릭터', eat: '먹는 캐릭터', read: '책 읽는 캐릭터', think: '생각하는 캐릭터',
 };
 
-export function Character({ pose = 'idle', size = 240, variant = 'me', color, className, style, paused }: CharacterProps) {
+export function Character({ pose = 'idle', size = 240, variant = 'me', color, className, style, paused, back = false }: CharacterProps) {
   const face = FACE[pose];
   const [al, ar] = ARM[pose];
   const sit = pose === 'sit';
@@ -52,7 +54,7 @@ export function Character({ pose = 'idle', size = 240, variant = 'me', color, cl
   );
 
   return (
-    <svg className={cls} data-pose={pose} data-face={face} data-variant={variant} viewBox="0 0 200 200" width={size} height={size} style={st} role="img" aria-label={LABEL[pose]}>
+    <svg className={cls} data-pose={pose} data-face={face} data-variant={variant} data-back={back || undefined} viewBox="0 0 200 200" width={size} height={size} style={st} role="img" aria-label={LABEL[pose]}>
       <ellipse className="ch-shadow" cx="100" cy="190" rx="48" ry="7" fill={C.ink} opacity=".12" />
       <g className="ch-pose" transform={ROOT[pose]}>
         <g className="ch-root">
@@ -65,7 +67,7 @@ export function Character({ pose = 'idle', size = 240, variant = 'me', color, cl
           {pose === 'read' && <Book />}
           <g transform={`translate(100 96)${tilt ? ` rotate(${tilt})` : ''}`}>
             <g className="ch-head">
-              <Head face={face} variant={variant} chew={pose === 'eat'} eyesClass="ch-eyes" mouthClass="ch-mouth" cheeksClass="ch-cheeks" />
+              <Head face={face} variant={variant} chew={pose === 'eat'} back={back} eyesClass="ch-eyes" mouthClass="ch-mouth" cheeksClass="ch-cheeks" />
             </g>
           </g>
           {armsFront && arms}

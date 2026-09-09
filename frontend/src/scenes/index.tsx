@@ -16,6 +16,11 @@ export const SCENE_LABEL: Record<SceneType, string> = {
   cafe: '카페', restaurant: '식당', park: '공원', river: '강변', beach: '해변', gym: '헬스장', library: '도서관', mall: '쇼핑몰', museum: '박물관', home: '집',
 };
 
+/** 그림의 바닥 경계선(벽·하늘과 바닥이 만나는 행) — 3D 무대가 뒷막의 거리를 여기서 정한다 (ADR-0014 개정 2) */
+export const SCENE_FLOOR_Y: Record<SceneType, number> = {
+  cafe: 450, restaurant: 450, park: 440, river: 344, beach: 290, gym: 420, library: 456, mall: 450, museum: 450, home: 450,
+};
+
 const MAP: Partial<Record<PlaceType, SceneType>> = {
   home: 'home', friend_home: 'home', hotel: 'home',
   cafe: 'cafe',
@@ -190,6 +195,10 @@ type Depth = 'far' | 'mid' | 'floor' | 'front';
 function L({ d, children }: { d: Depth; children: ReactNode }) {
   return <g className={`sc-l sc-${d}`}>{children}</g>;
 }
+/** 소품 하나 (mid·front 안): 3D 무대에서 자기 카드로 선다. base = 바닥 접점 행(카드가 서는 깊이), lie = 바닥에 눕는 것(러그·돗자리) */
+function P({ base, lie, children }: { base: number; lie?: boolean; children: ReactNode }) {
+  return <g className="sc-p" data-base={base} data-lie={lie ? 1 : undefined}>{children}</g>;
+}
 
 function Cafe() {
   return (
@@ -209,19 +218,19 @@ function Cafe() {
         </g>
       </L>
       <L d="mid">
-        {/* pendant lamp (x 304: clear of the top-right book button and the menu board) */}
-        <g className="sc-top" transform="translate(304 0)"><g className="an-sway">
+        {/* pendant lamp (x 304: clear of the top-right book button and the menu board) — 천장에 매달려 벽보다 조금 앞 */}
+        <P base={480}><g className="sc-top" transform="translate(304 0)"><g className="an-sway">
           <path d="M0 0v104" className="s-ink f-none" />
           <path d="M-26 132l8-30h36l8 30z" className="f-coral s-ink" />
           <circle cx="0" cy="130" r="9" className="f-sun s-ink2" />
           <circle cx="0" cy="134" r="22" className="f-sun an-glow" opacity=".4" />
-        </g></g>
-        <Plant x={40} y={420} s={0.9} />
+        </g></g></P>
+        <P base={454}><Plant x={40} y={420} s={0.9} /></P>
       </L>
       <L d="floor"><Floor y={450} className="f-wood" boards /></L>
       <L d="front">
         {/* counter (front right) */}
-        <g transform="translate(246 466)">
+        <P base={606}><g transform="translate(246 466)">
           <rect x="-4" y="0" width="150" height="20" rx="6" className="f-wood2 s-ink" />
           <rect x="4" y="20" width="134" height="120" rx="8" className="f-card s-ink" />
           <path d="M22 44h98M22 64h98M22 84h98" className="s-line" />
@@ -231,31 +240,31 @@ function Cafe() {
             <circle cx="0" cy="34" r="4" className="f-sun an-blink" />
           </g>
           <Cup x={36} y={-26} color="f-paper" />
-        </g>
+        </g></P>
         {/* rug across the middle of the floor (fills the band between the character and the status card; y 608..692) */}
-        <g transform="translate(190 650)">
+        <P base={692} lie><g transform="translate(190 650)">
           <ellipse cx="0" cy="0" rx="162" ry="42" className="f-paper2 s-ink2" />
           <ellipse cx="0" cy="0" rx="140" ry="28" className="f-none s-coral" strokeDasharray="9 9" opacity=".8" />
           <circle cx="-96" cy="-2" r="4" className="f-mint" /><circle cx="96" cy="-2" r="4" className="f-mint" />
           <circle cx="-48" cy="12" r="3" className="f-sun" /><circle cx="48" cy="12" r="3" className="f-sun" />
           <circle cx="0" cy="-12" r="3" className="f-sun" />
-        </g>
+        </g></P>
         {/* little round table, centred in front of the character (the seat is on the rug's left edge) */}
-        <g transform="translate(182 536)">
+        <P base={622}><g transform="translate(182 536)">
           <rect x="-6" y="0" width="12" height="80" className="f-wood2 s-ink" />
           <rect x="-38" y="74" width="76" height="12" rx="6" className="f-wood2 s-ink" />
           <ellipse cx="0" cy="0" rx="64" ry="16" className="f-wood s-ink" />
           <Cup x={-12} y={-24} />
           <rect x="16" y="-16" width="30" height="8" rx="3" className="f-mint s-ink2" />
           <circle cx="31" cy="-19" r="4" className="f-sun s-ink2" />
-        </g>
+        </g></P>
         {/* stool */}
-        <g transform="translate(66 566)">
+        <P base={622}><g transform="translate(66 566)">
           <path d="M-14 8l-6 48M14 8l6 48" className="s-ink" />
           <path d="M-18 40h36" className="s-ink" opacity=".5" />
           <ellipse cx="0" cy="8" rx="28" ry="10" className="f-wood2 s-ink" />
           <ellipse cx="0" cy="0" rx="28" ry="10" className="f-coral s-ink" />
-        </g>
+        </g></P>
       </L>
     </>
   );
@@ -294,13 +303,13 @@ function Restaurant() {
       </L>
       <L d="mid">
         {/* paper lantern (x 304: clear of the centre clock and the book button) */}
-        <g transform="translate(304 0)"><g className="an-sway">
+        <P base={480}><g transform="translate(304 0)"><g className="an-sway">
           <path d="M0 0v58" className="s-ink f-none" />
           <ellipse cx="0" cy="92" rx="30" ry="34" className="f-coral s-ink" />
           <path d="M-28 82h56M-30 96h60M-24 110h48" className="s-ink2 f-none" opacity=".5" />
           <rect x="-8" y="124" width="16" height="8" rx="3" className="f-sun s-ink2" />
-        </g></g>
-        <Plant x={352} y={430} s={0.85} pot="f-mint" />
+        </g></g></P>
+        <P base={459}><Plant x={352} y={430} s={0.85} pot="f-mint" /></P>
       </L>
       <L d="floor">
         <rect x={-390} y="450" width={1170} height="394" fill="url(#sc-rest-tile)" />
@@ -308,7 +317,7 @@ function Restaurant() {
       </L>
       <L d="front">
         {/* dining table (front centre) */}
-        <g transform="translate(195 520)">
+        <P base={614}><g transform="translate(195 520)">
           <rect x="-8" y="0" width="16" height="90" className="f-wood2 s-ink" />
           <rect x="-50" y="84" width="100" height="12" rx="6" className="f-wood2 s-ink" />
           <ellipse cx="0" cy="0" rx="110" ry="24" className="f-wood s-ink" />
@@ -324,7 +333,7 @@ function Restaurant() {
             <circle cx="-6" cy="-2" r="6" className="f-leaf s-ink2" /><circle cx="8" cy="-1" r="5" className="f-coral s-ink2" />
           </g>
           <path d="M-84 -6l14 -22M-78 -6l14 -22" className="s-ink f-none" />
-        </g>
+        </g></P>
       </L>
     </>
   );
@@ -340,32 +349,32 @@ function Park() {
         <Cloud x={0} y={168} s={1} className="an-drift" />
         <Cloud x={0} y={236} s={0.7} className="an-drift d1" />
         <path d="M-390 400H-20c60-60 140-70 220-30s130 20 190-20H780v80H-390z" className="f-grass2" />
-      </L>
-      <L d="mid">
-        <Tree x={58} y={430} s={1} />
-        <Tree x={352} y={430} s={0.85} />
-        {/* falling leaves */}
+        {/* falling leaves (far: 배경과 함께) */}
         <g transform="translate(60 330)"><path className="an-leaf f-leaf s-ink2" d="M0 0c8-10 18-8 20 2-8 8-18 6-20-2z" /></g>
         <g transform="translate(340 320)"><path className="an-leaf d1 f-sun s-ink2" d="M0 0c8-10 18-8 20 2-8 8-18 6-20-2z" /></g>
         <g transform="translate(110 300)"><path className="an-leaf d2 f-coral s-ink2" d="M0 0c8-10 18-8 20 2-8 8-18 6-20-2z" /></g>
+      </L>
+      <L d="mid">
+        <P base={440}><Tree x={58} y={430} s={1} /></P>
+        <P base={440}><Tree x={352} y={430} s={0.85} /></P>
       </L>
       <L d="floor">
         <path d="M-390 440H-20c80-40 180-50 260-14s110 20 150-6H780v440H-390z" className="f-grass" />
       </L>
       <L d="front">
         {/* bench (front) */}
-        <g transform="translate(195 540)">
+        <P base={592}><g transform="translate(195 540)">
           <rect x="-90" y="-2" width="180" height="14" rx="6" className="f-wood s-ink" />
           <rect x="-90" y="-30" width="180" height="12" rx="6" className="f-wood s-ink" />
           <path d="M-74 12v40M74 12v40M-74 -30v10M74 -30v10" className="s-ink f-none" />
-        </g>
+        </g></P>
         {/* flowers */}
         {[[40, 640], [96, 690], [300, 660], [352, 620], [250, 720]].map(([x, y], i) => (
-          <g key={i} transform={`translate(${x} ${y})`}>
+          <P key={i} base={y!}><g transform={`translate(${x} ${y})`}>
             <path d="M0 0v-18" className="s-ink2 f-none" />
             <circle cy="-22" r="7" className={i % 3 === 0 ? 'f-coral s-ink2' : i % 3 === 1 ? 'f-sun s-ink2' : 'f-sky s-ink2'} />
             <circle cy="-22" r="2.5" className="f-paper" />
-          </g>
+          </g></P>
         ))}
       </L>
     </>
@@ -392,8 +401,8 @@ function River() {
           <path d="M18 6v-14M52 6v-14M86 6v-14M120 6v-14" className="s-ink2 f-none" />
         </g>
       </L>
-      <L d="mid">
-        {/* river */}
+      <L d="floor">
+        {/* river (물은 바닥과 한 평면 — 3D 무대에서 눕는다) */}
         <rect x={-390} y="344" width={1170} height="92" className="f-water" />
         <path d="M-390 344h1170" className="s-ink" opacity=".3" />
         <g opacity=".9">
@@ -401,36 +410,36 @@ function River() {
           <path className="an-wave d1 s-water f-none" d={waves(400)} />
           <path className="an-wave d2 s-paper f-none" d={waves(422)} opacity=".6" />
         </g>
+        {/* near bank */}
+        <path d="M-390 436h1170v408H-390z" className="f-grass" />
+        <path d="M-390 436h1170" className="s-ink" opacity=".35" />
+        <path d="M290 700c30-20 60-10 100 0" className="s-line f-none" />
+      </L>
+      <L d="mid">
         {/* duck */}
-        <g transform="translate(322 388)"><g className="an-duck">
+        <P base={399}><g transform="translate(322 388)"><g className="an-duck">
           <ellipse rx="18" ry="11" className="f-paper s-ink" />
           <circle cx="12" cy="-12" r="9" className="f-paper s-ink" />
           <path d="M20 -11l10 3-10 3z" className="f-sun s-ink2" />
           <circle cx="14" cy="-14" r="1.8" className="f-ink" />
-        </g></g>
+        </g></g></P>
         {/* reeds on the near bank's edge */}
-        <g transform="translate(46 436)"><g className="an-swayb">
+        <P base={436}><g transform="translate(46 436)"><g className="an-swayb">
           <path d="M0 0c-4-30 2-60 6-80M10 0c0-30 8-56 16-72M-10 0c-8-24-8-50-4-66" className="s-mint f-none" />
           <ellipse cx="6" cy="-78" rx="5" ry="12" className="f-wood2 s-ink2" />
-        </g></g>
-      </L>
-      <L d="floor">
-        {/* near bank */}
-        <path d="M-390 436h1170v408H-390z" className="f-grass" />
-        <path d="M-390 436h1170" className="s-ink" opacity=".35" />
+        </g></g></P>
       </L>
       <L d="front">
-        {/* picnic mat + basket */}
-        <g transform="translate(120 590)">
+        {/* picnic mat (눕는다) + basket (선다) */}
+        <P base={590} lie><g transform="translate(120 590)">
           <path d="M-90 0l30-40h120l30 40z" className="f-coral2 s-ink" />
           <path d="M-40 -40l-16 40M0 -40v40M40 -40l16 40M-72 -16h144" className="s-coral f-none" opacity=".7" />
-          <g transform="translate(70 -30)">
-            <rect x="-22" y="-8" width="44" height="30" rx="6" className="f-wood s-ink" />
-            <path d="M-14 -8a14 14 0 0 1 28 0" className="s-ink f-none" />
-            <path d="M-12 8h24" className="s-ink2 f-none" opacity=".5" />
-          </g>
-        </g>
-        <path d="M290 700c30-20 60-10 100 0" className="s-line f-none" />
+        </g></P>
+        <P base={582}><g transform="translate(190 560)">
+          <rect x="-22" y="-8" width="44" height="30" rx="6" className="f-wood s-ink" />
+          <path d="M-14 -8a14 14 0 0 1 28 0" className="s-ink f-none" />
+          <path d="M-12 8h24" className="s-ink2 f-none" opacity=".5" />
+        </g></P>
       </L>
     </>
   );
@@ -447,8 +456,8 @@ function Beach() {
         <g className="an-fly"><path d="M0 0q8-10 16 0q8-10 16 0" className="s-ink2 f-none" transform="translate(0 150)" /></g>
         <g className="an-fly d1"><path d="M0 0q7-8 14 0q7-8 14 0" className="s-ink2 f-none" transform="translate(0 210)" /></g>
       </L>
-      <L d="mid">
-        {/* sea */}
+      <L d="floor">
+        {/* sea + sand (물은 바닥과 한 평면 — 3D 무대에서 눕는다) */}
         <rect x={-390} y="290" width={1170} height="114" className="f-water" />
         <path d="M-390 290h1170" className="s-ink" opacity=".25" />
         <g>
@@ -456,31 +465,28 @@ function Beach() {
           <path className="an-wave d1 s-water f-none" d={waves(350)} />
           <path className="an-wave d2 s-paper f-none" d={waves(386)} opacity=".8" />
         </g>
-      </L>
-      <L d="floor">
-        {/* sand */}
         <path d="M-390 404h1170v440H-390z" className="f-sand" />
         <path className="an-wave s-card f-none" d={waves(410)} strokeWidth="6" />
       </L>
       <L d="front">
         {/* parasol (left; planted at y 510 — in front of the character's feet) */}
-        <g transform="translate(66 250)">
+        <P base={510}><g transform="translate(66 250)">
           <path d="M0 0v260" className="s-ink f-none" />
           <path d="M-70 10a70 70 0 0 1 140 0z" className="f-coral s-ink" />
           <path d="M-42 10a42 42 0 0 1 28-64M-14 10a14 14 0 0 1 28-64M14 10a42 42 0 0 1 28-64" className="s-paper f-none" strokeWidth="9" />
           <path d="M-70 10a70 70 0 0 1 140 0z" className="s-ink f-none" />
-        </g>
+        </g></P>
         {/* beach ball */}
-        <g transform="translate(320 600)"><g className="an-bob">
+        <P base={630}><g transform="translate(320 600)"><g className="an-bob">
           <circle r="30" className="f-paper s-ink" />
           <path d="M0 -30a30 30 0 0 1 0 60a14 30 0 0 1 0-60" className="f-coral" />
           <path d="M0 -30a14 30 0 0 0 0 60a30 30 0 0 0 0-60" className="f-sky" transform="scale(-1 1)" />
           <circle r="30" className="s-ink f-none" />
-        </g></g>
-        {/* starfish + shell */}
-        <g transform="translate(100 660)"><path d="M0 -22l6 14 16 1-12 10 4 16-14-9-14 9 4-16-12-10 16-1z" className="f-coral s-ink" /><circle cx="-4" cy="-2" r="1.6" className="f-ink" /><circle cx="4" cy="-2" r="1.6" className="f-ink" /></g>
-        <g transform="translate(178 612)"><path d="M-14 6a14 14 0 0 1 28 0z" className="f-paper s-ink2" /><path d="M-6 6l6-12M0 6v-13M6 6l-6-12" className="s-ink2 f-none" opacity=".5" /></g>
-        <g transform="translate(300 720)"><ellipse rx="26" ry="8" className="f-cream s-ink2" /><rect x="-14" y="-30" width="28" height="24" rx="3" className="f-sun s-ink2" /><rect x="-20" y="-40" width="40" height="12" rx="3" className="f-sun s-ink2" /></g>
+        </g></g></P>
+        {/* starfish (lies) + shell + sandcastle */}
+        <P base={676} lie><g transform="translate(100 660)"><path d="M0 -22l6 14 16 1-12 10 4 16-14-9-14 9 4-16-12-10 16-1z" className="f-coral s-ink" /><circle cx="-4" cy="-2" r="1.6" className="f-ink" /><circle cx="4" cy="-2" r="1.6" className="f-ink" /></g></P>
+        <P base={618}><g transform="translate(178 612)"><path d="M-14 6a14 14 0 0 1 28 0z" className="f-paper s-ink2" /><path d="M-6 6l6-12M0 6v-13M6 6l-6-12" className="s-ink2 f-none" opacity=".5" /></g></P>
+        <P base={728}><g transform="translate(300 720)"><ellipse rx="26" ry="8" className="f-cream s-ink2" /><rect x="-14" y="-30" width="28" height="24" rx="3" className="f-sun s-ink2" /><rect x="-20" y="-40" width="40" height="12" rx="3" className="f-sun s-ink2" /></g></P>
       </L>
     </>
   );
@@ -516,7 +522,7 @@ function Gym() {
       </L>
       <L d="front">
         {/* dumbbell rack (front right) */}
-        <g transform="translate(262 500)">
+        <P base={602}><g transform="translate(262 500)">
           <rect x="0" y="0" width="120" height="12" rx="4" className="f-ink" />
           <rect x="0" y="50" width="120" height="12" rx="4" className="f-ink" />
           <path d="M8 12v38M112 12v38M8 62v40M112 62v40" className="s-ink4 f-none" />
@@ -534,19 +540,19 @@ function Gym() {
               <path d="M-4 2h8" className="s-ink f-none" />
             </g>
           ))}
-        </g>
-        {/* yoga ball */}
-        <g transform="translate(84 610)"><g className="an-bounce">
+        </g></P>
+        {/* yoga ball (그림자는 바닥에 눕는다) */}
+        <P base={622} lie><ellipse cx="84" cy="616" rx="40" ry="6" className="f-ink" opacity=".12" /></P>
+        <P base={654}><g transform="translate(84 610)"><g className="an-bounce">
           <circle r="44" className="f-mint s-ink" />
           <path d="M-20 -26a30 30 0 0 1 36-6" className="s-paper f-none" strokeWidth="5" opacity=".8" />
-        </g></g>
-        <ellipse cx="84" cy="616" rx="40" ry="6" className="f-ink" opacity=".12" />
+        </g></g></P>
         {/* bottle + towel */}
-        <g transform="translate(170 620)">
+        <P base={624}><g transform="translate(170 620)">
           <rect x="-8" y="-40" width="16" height="44" rx="6" className="f-sky s-ink" />
           <rect x="-5" y="-48" width="10" height="10" rx="3" className="f-coral s-ink2" />
           <path d="M20 -6c20-10 40 6 60-4v14c-20 10-40-6-60 4z" className="f-card s-ink" />
-        </g>
+        </g></P>
       </L>
     </>
   );
@@ -576,7 +582,7 @@ function Library() {
           {[30, 80, 130, 180, 230, 280].map((y, i) => <path key={i} d={`M0 ${y}h22`} className="s-ink f-none" />)}
         </g>
       </L>
-      <L d="mid">
+      <L d="far">
         {/* dust motes */}
         <g transform="translate(150 420)"><circle className="an-mote f-paper" r="3" /></g>
         <g transform="translate(230 440)"><circle className="an-mote d1 f-paper" r="2.5" /></g>
@@ -585,7 +591,7 @@ function Library() {
       <L d="floor"><Floor y={456} className="f-wood2" boards /></L>
       <L d="front">
         {/* reading desk with lamp (front) */}
-        <g transform="translate(195 528)">
+        <P base={630}><g transform="translate(195 528)">
           <rect x="-110" y="-4" width="220" height="16" rx="6" className="f-wood s-ink" />
           <path d="M-92 12v90M92 12v90" className="s-ink4 f-none" />
           <g transform="translate(60 -4)">
@@ -604,7 +610,7 @@ function Library() {
             <rect x="4" y="-10" width="40" height="10" rx="2" className="f-sky s-ink2" />
             <rect x="-2" y="-20" width="42" height="10" rx="2" className="f-sun s-ink2" />
           </g>
-        </g>
+        </g></P>
       </L>
     </>
   );
@@ -641,16 +647,16 @@ function Mall() {
       </L>
       <L d="front">
         {/* balloons on a stand (left) */}
-        <g transform="translate(58 470)">
+        <P base={480}><g transform="translate(58 470)">
           <path d="M0 0v-170M0 0v-180" className="s-ink2 f-none" />
           <rect x="-16" y="0" width="32" height="10" rx="4" className="f-ink" />
           <g className="an-bob"><ellipse cx="-22" cy="-210" rx="20" ry="24" className="f-coral s-ink" /><path d="M-22 -186l-4 6h8z" className="f-coral s-ink2" /></g>
           <g className="an-bob d1"><ellipse cx="14" cy="-236" rx="20" ry="24" className="f-sun s-ink" /><path d="M14 -212l-4 6h8z" className="f-sun s-ink2" /></g>
           <g className="an-bob d2"><ellipse cx="26" cy="-192" rx="18" ry="22" className="f-sky s-ink" /><path d="M26 -170l-4 6h8z" className="f-sky s-ink2" /></g>
           <path d="M0 -180c-10-10-16-20-22-30M0 -180c6-16 10-28 14-40M0 -180c10-4 18-8 26-12" className="s-ink2 f-none" opacity=".6" />
-        </g>
+        </g></P>
         {/* bench + bag (front) */}
-        <g transform="translate(300 560)">
+        <P base={608}><g transform="translate(300 560)">
           <rect x="-70" y="0" width="140" height="14" rx="6" className="f-mint s-ink" />
           <path d="M-56 14v34M56 14v34" className="s-ink4 f-none" />
           <g transform="translate(-30 -40)">
@@ -658,7 +664,7 @@ function Mall() {
             <path d="M-10 0a10 12 0 0 1 20 0" className="s-ink f-none" />
             <circle cy="20" r="6" className="f-paper" />
           </g>
-        </g>
+        </g></P>
       </L>
     </>
   );
@@ -708,14 +714,14 @@ function Museum() {
       </L>
       <L d="front">
         {/* pedestal + vase (front left) */}
-        <g transform="translate(86 520)">
+        <P base={630}><g transform="translate(86 520)">
           <rect x="-40" y="0" width="80" height="110" rx="4" className="f-card s-ink" />
           <rect x="-46" y="-8" width="92" height="12" rx="3" className="f-card s-ink" />
           <path d="M-16 -8c-8-20-8-40 0-52h32c8 12 8 32 0 52z" className="f-coral s-ink" />
           <path d="M-12 -30h24" className="s-paper f-none" />
-        </g>
+        </g></P>
         {/* rope posts (front right) */}
-        <g transform="translate(240 560)">
+        <P base={636}><g transform="translate(240 560)">
           <path d="M0 0c40 26 100 26 140 0" className="s-coral f-none" strokeWidth="5" />
           {[0, 140].map((x, i) => (
             <g key={i} transform={`translate(${x} 0)`}>
@@ -724,7 +730,7 @@ function Museum() {
               <ellipse cy="70" rx="22" ry="6" className="f-sun s-ink2" />
             </g>
           ))}
-        </g>
+        </g></P>
       </L>
     </>
   );
@@ -761,16 +767,18 @@ function Home() {
         </g>
       </L>
       <L d="mid">
-        <Plant x={40} y={430} s={0.8} pot="f-sky" />
+        <P base={457}><Plant x={40} y={430} s={0.8} pot="f-sky" /></P>
       </L>
       <L d="floor"><Floor y={450} className="f-wood" boards /></L>
       <L d="front">
-        {/* rug */}
-        <ellipse cx="195" cy="640" rx="150" ry="46" className="f-coral2 s-ink" />
-        <ellipse cx="195" cy="640" rx="110" ry="30" className="f-paper s-ink2" />
-        <ellipse cx="195" cy="640" rx="60" ry="15" className="f-coral2 s-ink2" />
+        {/* rug (눕는다) */}
+        <P base={686} lie><g>
+          <ellipse cx="195" cy="640" rx="150" ry="46" className="f-coral2 s-ink" />
+          <ellipse cx="195" cy="640" rx="110" ry="30" className="f-paper s-ink2" />
+          <ellipse cx="195" cy="640" rx="60" ry="15" className="f-coral2 s-ink2" />
+        </g></P>
         {/* sofa + cat (front right) */}
-        <g transform="translate(320 520)">
+        <P base={560}><g transform="translate(320 520)">
           <rect x="-70" y="-30" width="140" height="70" rx="14" className="f-mint s-ink" />
           <rect x="-74" y="-40" width="18" height="80" rx="8" className="f-mint s-ink" />
           <rect x="56" y="-40" width="18" height="80" rx="8" className="f-mint s-ink" />
@@ -783,9 +791,9 @@ function Home() {
             <path d="M-22 -2q2 3 4 0M-16 -2q2 3 4 0" className="s-ink2 f-none" />
             <circle cx="-18" cy="3" r="1.6" className="f-coral" />
           </g>
-        </g>
+        </g></P>
         {/* side table with mug + lamp (front left) */}
-        <g transform="translate(76 560)">
+        <P base={642}><g transform="translate(76 560)">
           <rect x="-44" y="0" width="88" height="12" rx="4" className="f-wood2 s-ink" />
           <path d="M-32 12v70M32 12v70" className="s-ink4 f-none" />
           <Cup x={-12} y={-24} color="f-sky" />
@@ -794,7 +802,7 @@ function Home() {
             <path d="M-20 -30h40l-6-22h-28z" className="f-sun s-ink" />
             <circle cy="-36" r="22" className="f-sun an-glow" opacity=".35" />
           </g>
-        </g>
+        </g></P>
       </L>
     </>
   );

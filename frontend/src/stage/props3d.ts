@@ -9,7 +9,7 @@ import type { PropSprite } from './textures';
 import type { SceneType } from '../scenes';
 
 /** 덱 토큰 색 (tokens.css) — scenes.css의 color-mix 파생색은 미리 섞어 둔 값 */
-const C = {
+export const C = {
   ink: 0x2A2118, ink2: 0x6B5B4B, ink3: 0xA08C76, paper: 0xFFF6E6, paper2: 0xFFEBCB, card: 0xFFFFFF, line: 0xE8D6B6, skin: 0xFFD9B8,
   coral: 0xFF6A48, coral2: 0xFFD2C4, sun: 0xFFC64D, sun2: 0xFFE9B3, mint: 0x5FC9A6, mint2: 0xCDEFE3, sky: 0xA9DCF5, sky2: 0xE3F3FC,
   leaf: 0x8FD37E, night2: 0x3A4270, wood: 0xCDA862, wood2: 0xA6864C, grass: 0xB9E0A9, cream: 0xFFF0CF, stone: 0xE2D6C4, sand: 0xFFEEC7,
@@ -26,11 +26,11 @@ function toonGradient(): THREE.DataTexture {
   return gradient;
 }
 
-const toon = (color: number) => new THREE.MeshToonMaterial({ color, gradientMap: toonGradient() });
-const inkMat = () => new THREE.MeshBasicMaterial({ color: C.ink, side: THREE.BackSide });
+export const toon = (color: number | string) => new THREE.MeshToonMaterial({ color, gradientMap: toonGradient() });
+export const inkMat = () => new THREE.MeshBasicMaterial({ color: C.ink, side: THREE.BackSide });
 
 /** 외곽선 껍질: 꼭짓점을 법선 방향으로 w만큼 밀어낸 같은 도형을 뒷면만 잉크색으로 */
-function hull(geo: THREE.BufferGeometry, w: number): THREE.BufferGeometry {
+export function hull(geo: THREE.BufferGeometry, w: number): THREE.BufferGeometry {
   const g = geo.clone();
   if (!g.getAttribute('normal')) g.computeVertexNormals();
   const p = g.getAttribute('position') as THREE.BufferAttribute;
@@ -42,21 +42,22 @@ function hull(geo: THREE.BufferGeometry, w: number): THREE.BufferGeometry {
 
 export interface Built { group: THREE.Group; disposables: { dispose(): void }[] }
 
-class Builder {
+export class Builder {
   group = new THREE.Group();
   disposables: { dispose(): void }[] = [];
   /** 외곽선 두께 (W 단위) — 2D의 3px 잉크선 ≈ 390분의 3 */
   line = 3.2 / STAGE_W;
+  constructor(line?: number) { if (line !== undefined) this.line = line; }
 
   /** 도형 하나 + 외곽선. 위치는 월드, 회전은 라디안 */
-  part(geo: THREE.BufferGeometry, color: number, at: Vec3, rot: [number, number, number] = [0, 0, 0]): THREE.Mesh {
+  part(geo: THREE.BufferGeometry, color: number | string, at: Vec3, rot: [number, number, number] = [0, 0, 0], parent: THREE.Object3D = this.group): THREE.Mesh {
     const m = new THREE.Mesh(geo, toon(color));
     m.position.set(...at);
     m.rotation.set(...rot);
     const h = new THREE.Mesh(hull(geo, this.line), inkMat());
     h.position.copy(m.position);
     h.rotation.copy(m.rotation);
-    this.group.add(m, h);
+    parent.add(m, h);
     this.disposables.push(geo, m.material as THREE.Material, h.geometry, h.material as THREE.Material);
     return m;
   }
@@ -66,10 +67,10 @@ class Builder {
   box(w: number, h: number, d: number, color: number, at: Vec3): THREE.Mesh {
     return this.part(new THREE.BoxGeometry(w, h, d), color, at);
   }
-  ellipsoid(rx: number, ry: number, rz: number, color: number, at: Vec3, rot: [number, number, number] = [0, 0, 0]): THREE.Mesh {
+  ellipsoid(rx: number, ry: number, rz: number, color: number | string, at: Vec3, rot: [number, number, number] = [0, 0, 0], parent?: THREE.Object3D): THREE.Mesh {
     const g = new THREE.SphereGeometry(1, 20, 14);
     g.scale(rx, ry, rz);
-    return this.part(g, color, at, rot);
+    return this.part(g, color, at, rot, parent);
   }
   cone(r: number, h: number, color: number, at: Vec3, rot: [number, number, number] = [0, 0, 0]): THREE.Mesh {
     return this.part(new THREE.CylinderGeometry(0, r, h, 20), color, at, rot);

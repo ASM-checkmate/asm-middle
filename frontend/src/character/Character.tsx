@@ -30,7 +30,7 @@ const ARM: Record<Pose, [number, number]> = {
 };
 const HEAD_TILT: Partial<Record<Pose, number>> = { sleep: -12, think: -5, sit: 3 };
 const ROOT: Partial<Record<Pose, string>> = { sleep: 'rotate(6 100 190)' };
-const LABEL: Record<Pose, string> = {
+export const LABEL: Record<Pose, string> = {
   idle: '가만히 있는 캐릭터', walk: '걷는 캐릭터', sit: '앉아 있는 캐릭터', sleep: '자는 캐릭터', wave: '손 흔드는 캐릭터',
   draw: '그림 그리는 캐릭터', happy: '기뻐하는 캐릭터', eat: '먹는 캐릭터', read: '책 읽는 캐릭터', think: '생각하는 캐릭터',
 };

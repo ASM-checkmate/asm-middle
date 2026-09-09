@@ -12,11 +12,13 @@ import {
   castRect, frameOfCol, frameOfRow, hitGround, hitVertical, rayFromFrame, stageFov, stagePose, wallDepth, wallFootRow, wallZ,
 } from '../sim/stage';
 import type { CastName, StageCrop, Vec3 } from '../sim/stage';
-import { castSprite, onSceneEvict, sceneSet, shadowSprite } from './textures';
+import { onSceneEvict, sceneSet, shadowSprite } from './textures';
+import { buildCharacter, characterCamera, characterLights, ghostify, placeCharacter } from './character3d';
+import type { Character3DModel, CharacterSpec } from './character3d';
 import { build3dProps, toonLights } from './props3d';
 import { sceneTypeFor } from '../scenes';
 import type { SceneType } from '../scenes';
-import type { CastSpec, PropSprite } from './textures';
+import type { PropSprite } from './textures';
 import type { PlaceType } from '../sim/types';
 
 let renderer: THREE.WebGLRenderer | null | undefined;
@@ -37,6 +39,12 @@ export function getRenderer(): THREE.WebGLRenderer | null {
   return renderer;
 }
 export const stage3dSupported = (): boolean => getRenderer() !== null;
+/** 공용 렌더러의 캔버스를 적어도 w×h로 (키우기만 한다) — 바깥 뷰(RiderView)가 쓴다 */
+export function ensureSize(w: number, h: number): { w: number; h: number } {
+  const r = getRenderer();
+  if (r && (w > glW || h > glH)) { glW = Math.max(glW, w); glH = Math.max(glH, h); r.setSize(glW, glH, false); }
+  return { w: glW, h: glH };
+}
 
 const texCache = new Map<HTMLCanvasElement, THREE.CanvasTexture>();
 onSceneEvict(canvases => { for (const c of canvases) { texCache.get(c)?.dispose(); texCache.delete(c); } });
@@ -88,7 +96,7 @@ const groundOrFar = (fx: number, fy: number): Vec3 => hitGround(rayFromFrame(fx,
 
 export interface StageSpec {
   type: PlaceType | SceneType;
-  pose: CastSpec['pose'];
+  pose: CharacterSpec['pose'];
   friendColor?: string;
   metColor?: string;
   seenColor?: string;
@@ -103,7 +111,9 @@ export class StageView {
   private camera: THREE.PerspectiveCamera;
   private own: { dispose(): void }[] = [];
 
-  private constructor(type: PlaceType | SceneType, set: { floorY: number; backdrop: HTMLCanvasElement; ground: HTMLCanvasElement; props: PropSprite[] }, cast: { who: CastName; canvas: HTMLCanvasElement }[], hasFriend: boolean, hasMet: boolean, hush: boolean) {
+  private cast: Character3DModel[] = [];
+
+  private constructor(type: PlaceType | SceneType, set: { floorY: number; backdrop: HTMLCanvasElement; ground: HTMLCanvasElement; props: PropSprite[] }, cast: { who: CastName; spec: CharacterSpec }[], hasFriend: boolean, hasMet: boolean, hush: boolean) {
     this.camera = new THREE.PerspectiveCamera(stageFov(), 1 / FRAME_ASPECT, 0.05, 30);
     const k = wallDepth(set.floorY);
     const zWall = wallZ(k);
@@ -141,16 +151,20 @@ export class StageView {
       this.add(this.bg, projected(tex, p.x0, p.y0, p.x1, p.y1, 4, 4, (fx, fy) => hitVertical(rayFromFrame(fx, fy), z), uv));
       if (base) this.shadow(this.bg, base, (p.x1 - p.x0) / 390 * (CAM_DIST - z) / CAM_DIST * 0.5);
     });
-    // 인물: 2D 상자 그대로 세운 카드, 깊이는 CAST_DEPTH (me = 캐릭터 평면 z 0). 활동 화면은 인물을 DOM으로 얹으니 비어 있다
-    for (const { who, canvas } of cast) {
+    // 인물: 3D 캐릭터(character3d)를 2D 상자의 발 자리·너비에 (깊이는 CAST_DEPTH, me = 캐릭터 평면 z 0). 활동 화면은 인물을 DOM으로 얹으니 비어 있다
+    if (cast.length) this.fg.add(...characterLights());
+    for (const { who, spec } of cast) {
       const r = castRect(who, hasFriend, hasMet);
       const z = CAM_DIST * (1 - CAST_DEPTH[who]);
-      const uv = (col: number, row: number): [number, number] => [(col - r.x0) / (r.x1 - r.x0), 1 - (row - r.y0) / (r.y1 - r.y0)];
-      this.add(this.fg, projected(textureOf(canvas, false), r.x0, r.y0, r.x1, r.y1, 4, 4, (fx, fy) => hitVertical(rayFromFrame(fx, fy), z), uv));
-      if (who !== 'ghost') {
-        const feet = hitVertical(rayFromFrame(frameOfCol((r.x0 + r.x1) / 2), frameOfRow(r.y1 - 0.09 * (r.x1 - r.x0))), z);
-        this.shadow(this.bg, [feet[0], 0, feet[2]], (r.x1 - r.x0) / 390 * 0.42);
-      }
+      const feet = hitVertical(rayFromFrame(frameOfCol((r.x0 + r.x1) / 2), frameOfRow(r.y1 - 0.09 * (r.x1 - r.x0))), z);
+      const width = ((r.x1 - r.x0) / 390) * ((CAM_DIST - z) / CAM_DIST);
+      const model = buildCharacter(spec);
+      if (who === 'ghost') ghostify(model);
+      placeCharacter(model, [feet[0], 0, feet[2]], width);
+      model.animate(0);
+      this.fg.add(model.group);
+      this.cast.push(model);
+      if (who !== 'ghost') this.shadow(this.bg, [feet[0], 0, feet[2]], ((r.x1 - r.x0) / 390) * 0.42);
     }
   }
 
@@ -174,15 +188,15 @@ export class StageView {
   /** 텍스처를 구운 뒤 만든다 (장소·인물별 캐시라 두 번째부터는 바로) */
   static async create(spec: StageSpec, withCast = true): Promise<StageView> {
     const hasFriend = !!spec.friendColor, hasMet = !!spec.metColor;
-    const wanted: { who: CastName; spec: CastSpec }[] = [];
+    const wanted: { who: CastName; spec: CharacterSpec }[] = [];
     if (withCast) {
-      if (spec.seenColor) wanted.push({ who: 'ghost', spec: { pose: 'idle', variant: 'friend', color: spec.seenColor, ghost: true } });
+      if (spec.seenColor) wanted.push({ who: 'ghost', spec: { pose: 'idle', variant: 'friend', color: spec.seenColor } });
       if (spec.friendColor) wanted.push({ who: 'friend', spec: { pose: 'wave', variant: 'friend', color: spec.friendColor } });
       wanted.push({ who: 'me', spec: { pose: spec.pose, variant: 'me' } });
       if (spec.metColor) wanted.push({ who: 'met', spec: { pose: 'wave', variant: 'friend', color: spec.metColor } });
     }
-    const [set, sprites] = await Promise.all([sceneSet(spec.type, !!spec.hush), Promise.all(wanted.map(w => castSprite(w.spec)))]);
-    return new StageView(spec.type, set, wanted.map((w, i) => ({ who: w.who, canvas: sprites[i]! })), hasFriend, hasMet, !!spec.hush);
+    const set = await sceneSet(spec.type, !!spec.hush);
+    return new StageView(spec.type, set, wanted, hasFriend, hasMet, !!spec.hush);
   }
 
   /** 비트맵 w×h로 그려 bg·fg 캔버스에 복사한다(fg가 없으면 세트만). full = 무대 전체를 보는 활동 화면. 렌더러가 없으면 아무것도 안 한다 */
@@ -229,6 +243,34 @@ export class StageView {
 
   dispose(): void {
     for (const o of this.own) o.dispose();
-    this.own = [];
+    for (const m of this.cast) m.dispose();
+    this.own = []; this.cast = [];
   }
+}
+
+/** 캐릭터 한 명의 화면 (Character3D): 자기 장면·카메라, 공용 렌더러로 정사각 캔버스에 그린다 */
+export class CharacterView {
+  private scene = new THREE.Scene();
+  private camera = characterCamera();
+  private model: Character3DModel;
+  constructor(spec: CharacterSpec) {
+    this.model = buildCharacter(spec);
+    this.scene.add(this.model.group, ...characterLights());
+  }
+  render(canvas: HTMLCanvasElement, px: number, t: number): void {
+    const r = getRenderer();
+    if (!r || px < 2) return;
+    if (px > glW || px > glH) { glW = Math.max(glW, px); glH = Math.max(glH, px); r.setSize(glW, glH, false); }
+    this.model.animate(t);
+    r.setViewport(0, 0, px, px);
+    r.setScissor(0, 0, px, px);
+    r.setScissorTest(true);
+    r.clear(true, true, true);
+    r.render(this.scene, this.camera);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, px, px);
+    ctx.drawImage(r.domElement, 0, glH - px, px, px, 0, 0, px, px);
+  }
+  dispose(): void { this.model.dispose(); }
 }

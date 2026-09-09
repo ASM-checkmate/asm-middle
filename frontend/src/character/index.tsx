@@ -3,14 +3,26 @@
 import { useEffect, useId, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { TransportMode } from '../sim/types';
-import { Character } from './Character';
+import { Character as CharacterSvg, LABEL as POSE_LABEL } from './Character';
 import type { CharacterProps, Pose } from './Character';
+import { Character3D } from '../screens/Character3D';
+import { Rider3D } from '../screens/Rider3D';
 import { CharacterDefs } from './defs';
 import { Boat, Car, Plane, Subway, Train, Walk } from './costumes';
 import type { CostumeProps } from './costumes';
 import './character.css';
 
-export { Character, CharacterDefs };
+export { CharacterDefs, CharacterSvg };
+
+/** 3D로 그리는 최소 크기 — 그보다 작은 것(앨범 썸네일·말풍선)은 2D SVG 그대로 */
+export const CHARACTER_3D_MIN = 64;
+
+/** 캐릭터: 64px 이상이면 3D(Character3D, 준비 전·WebGL 없음이면 2D), 작으면 2D SVG (ADR-0014 개정 6) */
+export function Character(props: CharacterProps) {
+  const { pose = 'idle', size = 240, variant = 'me', color, className, style, paused } = props;
+  if (size < CHARACTER_3D_MIN) return <CharacterSvg {...props} />;
+  return <Character3D pose={pose} size={size} variant={variant} color={color} className={className} style={style} paused={paused} label={POSE_LABEL[pose]} fallback={<CharacterSvg {...props} className={undefined} style={{ width: size, height: size }} />} />;
+}
 export type { CharacterProps, Pose };
 
 export interface RiderProps {
@@ -98,12 +110,16 @@ export function Rider({
   } as CSSProperties;
 
   const Costume = COSTUME[mode];
+  const svg = (
+    <svg className="mv-svg" viewBox={box.viewBox} width={box.width} height={box.height} role="img" aria-label={`${LABEL[mode]} 타고 이동 중`}>
+      <Costume friend={friend} night={night} sleeping={sleeping} waving={waving} uid={uid} />
+    </svg>
+  );
+  // 3D 탈것(Rider3D, ADR-0014 개정 6) — 같은 DOM 자리라 지도의 뒤집기·기울임 CSS가 그대로 먹는다. 준비 전·WebGL 없음이면 2D SVG
   return (
     <div className={cls} style={rootStyle} data-mode={mode} data-facing={facing}>
       <div className="mv-tilt">
-        <svg className="mv-svg" viewBox={box.viewBox} width={box.width} height={box.height} role="img" aria-label={`${LABEL[mode]} 타고 이동 중`}>
-          <Costume friend={friend} night={night} sleeping={sleeping} waving={waving} uid={uid} />
-        </svg>
+        <Rider3D mode={mode} width={box.width} height={box.height} moving={moving} friend={friend} night={night} sleeping={sleeping} lineColor={lineColor} friendColor={friendColor} fallback={svg} />
       </div>
     </div>
   );

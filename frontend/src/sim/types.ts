@@ -281,9 +281,10 @@ export type ShotWin = 0 | 1 | 2 | 3;
  * crop.x/y는 촬영 뷰포트 자기 크기 대비 % (translate(x%, y%)), scale=확대(1.0~2.2), rot=기울임(deg, -15~15),
  * pitch=각도(위/아래에서 보는 앵글, deg, -18~18, 없으면 0), light=조도(밝기 배율 0.55~1.45, 없으면 1),
  * dof=심도(0 = 전부 선명 … 1 = 초점 밖이 최대 흐림, 없으면 0), focus=초점(near: 캐릭터가 선명하고 배경이 흐림 ·
- * far: 배경이 선명하고 캐릭터가 흐림 — 톡 눌러서 정한다, 없으면 near).
+ * far: 배경이 선명하고 캐릭터가 흐림 — 톡 눌러서 정한다, 없으면 near), yaw=방향(왼쪽/오른쪽에서 보는 각, deg, -12~12, 오른쪽에서 보면 +,
+ * 없으면 0 — 무대의 깊이 층이 이만큼 다르게 밀리고 캐릭터가 카메라를 본다, ADR-0014).
  */
-export interface ShotCrop { scale: number; x: number; y: number; rot: number; pitch?: number; light?: number; dof?: number; focus?: 'near' | 'far' }
+export interface ShotCrop { scale: number; x: number; y: number; rot: number; pitch?: number; light?: number; dof?: number; focus?: 'near' | 'far'; yaw?: number }
 export interface UserShot { actKey: string; win: ShotWin; at: number; crop: ShotCrop }
 /** 에이전트가 대충 찍은 흔적 (오너 결정 14: 에이전트 컷은 거의 항상 하나 이상). */
 export type PanelFlaw = 'blur' | 'dark' | 'overzoom' | 'cut' | 'tilt';

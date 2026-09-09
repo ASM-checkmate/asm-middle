@@ -1,4 +1,5 @@
 import { memo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect } from 'react';
+import { gyroAvailable, useGyro, type GyroState } from './useGyro';
 import { useWorld } from '../sim/store';
 import { rng } from '../sim/rng';
 import type { Friend, PhaseEncounter, PlaceType, ScheduledActivity, ShotWin, UserShot } from '../sim/types';
@@ -11,10 +12,11 @@ import { GHOST, poseFor } from './util';
 import './camera.css';
 
 type Crop = UserShot['crop'];
-const CROP0: Crop = { scale: 1, x: 0, y: 0, rot: 0, pitch: 0, light: 1, dof: 0, focus: 'near' };
+const CROP0: Crop = { scale: 1, x: 0, y: 0, rot: 0, pitch: 0, light: 1, dof: 0, focus: 'near', yaw: 0 };
 /**
- * 카메라를 열면 구도가 일부러 흐트러져 있다 — 자리·확대·기울임·각도·조도·심도·초점이 조금씩 어긋난 채 시작한다
+ * 카메라를 열면 구도가 일부러 흐트러져 있다 — 자리·확대·기울임·각도·조도·심도·초점·방향이 조금씩 어긋난 채 시작한다
  * (오너 결정 2026-09-08: 맞추는 게 촬영이다). 활동·창마다 같은 값(시드)이라 닫았다 열어도 같은 자리에서 다시 시작한다.
+ * 방향(ADR-0014)은 기존 난수 순서 **뒤**에 뽑는다 — 앞의 값들은 그대로다.
  */
 export function messyStart(actKey: string, win: ShotWin): Crop {
   const r = rng(`cam:${actKey}:${win}`);
@@ -23,10 +25,12 @@ export function messyStart(actKey: string, win: ShotWin): Crop {
   return {
     x: step(sp(-18, 18), 0.1), y: step(sp(-14, 14), 0.1), scale: step(sp(1.0, 1.7), 0.05), rot: step(sp(-10, 10), 0.5),
     pitch: step(sp(-10, 10), 1), light: step(sp(0.7, 1.25), 0.05), dof: step(sp(0.15, 0.8), 0.05), focus: r.next() < 0.5 ? 'near' : 'far',
+    yaw: step(sp(-8, 8), 0.5),
   };
 }
-/** 프레이밍 범위 — types.ts ShotCrop 주석 그대로: x/y ±35 %(뷰포트 자기 크기 대비), 확대 1.0~2.2, 기울임 ±15°, 각도 ±18°, 조도 0.55~1.45, 심도 0~1 */
+/** 프레이밍 범위 — types.ts ShotCrop 주석 그대로: x/y ±35 %(뷰포트 자기 크기 대비), 확대 1.0~2.2, 기울임 ±15°, 각도 ±18°, 방향 ±12°, 조도 0.55~1.45, 심도 0~1 */
 const PAN_MAX = 35;
+const YAW_MAX = 12;
 const SCALE_MIN = 1;
 const SCALE_MAX = 2.2;
 const ROT_MAX = 15;
@@ -37,10 +41,12 @@ const LIGHT_MAX = 1.45;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const round1 = (v: number) => Math.round(v * 10) / 10;
 /** `.cam-shot`의 CSS 변수 — 만화 `.cm-shot`과 같은 이름(--rot/--cs/--cx/--cy), 단위만 %(unit 'pct').
- *  각도(--pitch/--pitchn)와 조도(--light)는 카메라에서만 쓰는 변수 — 옛 샷(필드 없음)은 0°·1배로 그린다 */
+ *  각도(--pitch/--pitchn)·방향(--yaw/--yawn, ADR-0014)·조도(--light)는 카메라에서만 쓰는 변수 — 옛 샷(필드 없음)은 0°·1배로 그린다.
+ *  --yawn은 무대의 깊이 층(camera.css .sc-*)과 캐릭터의 얼굴(character.css)이 같이 읽는다 */
 const cropVars = (c: Crop): CSSProperties => ({
   ['--rot' as string]: `${c.rot}deg`, ['--cs' as string]: String(c.scale), ['--cx' as string]: `${c.x}%`, ['--cy' as string]: `${c.y}%`,
   ['--pitch' as string]: `${c.pitch ?? 0}deg`, ['--pitchn' as string]: String(c.pitch ?? 0), ['--light' as string]: String(c.light ?? 1), ['--dof' as string]: String(c.dof ?? 0),
+  ['--yaw' as string]: `${c.yaw ?? 0}deg`, ['--yawn' as string]: String(c.yaw ?? 0),
   // 초점: near면 배경이 흐리고(bg 1) far면 캐릭터가 흐리다(fg 1) — camera.css의 blur 계수
   ['--bgblur' as string]: (c.focus ?? 'near') === 'far' ? '0' : '1', ['--fgblur' as string]: (c.focus ?? 'near') === 'far' ? '1' : '0',
 });
@@ -50,6 +56,8 @@ const pctVar = (v: number, min: number, max: number): CSSProperties => ({ ['--pc
 /* 드래그 중엔 매 pointermove마다 렌더된다 — 무대 SVG(수백 노드)와 캐릭터는 memo로 diff에서 뺀다 */
 const Still = memo(function Still({ type }: { type: PlaceType }) { return <Scene type={type} className="scene--still" />; });
 const Chara = memo(Character);
+/** 자이로 버튼 글자 — 상태별 (useGyro) */
+const GYRO_LABEL: Record<GyroState, string> = { off: '📱 폰 돌리기', asking: '허락 기다리는 중…', on: '📱 돌리는 중', denied: '자이로 허락 안 됨', none: '자이로 없음' };
 
 export interface ShotStageProps {
   type: PlaceType;
@@ -124,6 +132,10 @@ export function CameraOverlay({ act, progress, nowMs, companions, encounter, pre
   useEffect(() => { if (!ring) return; const id = window.setTimeout(() => setRing(null), 800); return () => window.clearTimeout(id); }, [ring]);
   const frameRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ id: number; sx: number; sy: number; x0: number; y0: number; w: number; h: number; moved: boolean } | null>(null);
+  // 자이로(ADR-0014): 폰을 돌린 만큼 방향·각도에 쓴다 — 슬라이더와 같은 crop이라 셔터·썸네일·만화는 아무것도 모른다
+  const [canGyro] = useState(gyroAvailable);
+  const gyro = useGyro(a => setCrop(c => (c.yaw === a.yaw && c.pitch === a.pitch ? c : { ...c, yaw: a.yaw, pitch: a.pitch })));
+  const reset = () => { setCrop(taken[now]?.crop ?? messyStart(act.key, now)); gyro.rezero(); };
 
   const pose = poseFor(act.option);
   const friend = companions[0];
@@ -204,12 +216,15 @@ export function CameraOverlay({ act, progress, nowMs, companions, encounter, pre
         {flash > 0 && <b key={`s${flash}`} className="cam-snap" aria-hidden="true">찰칵!</b>}
       </div>
       <p className="cam-hint">
-        <span>끌어서 자리 잡고, 톡 눌러 초점 맞추고</span>
-        <Button tone="text" onClick={() => setCrop(taken[now]?.crop ?? messyStart(act.key, now))}>처음으로</Button>
+        <span>{gyro.state === 'on' ? '폰을 돌려서 각도 잡고, 톡 눌러 초점' : '끌어서 자리 잡고, 톡 눌러 초점 맞추고'}</span>
+        <span className="cam-hint-btns">
+          {canGyro && <Button tone="text" className={`cam-gyro is-${gyro.state}`} onClick={gyro.toggle} ariaLabel={gyro.state === 'on' ? '폰 돌리기 끄기' : '폰을 돌려서 각도 잡기'}>{GYRO_LABEL[gyro.state]}</Button>}
+          <Button tone="text" onClick={reset}>처음으로</Button>
+        </span>
       </p>
 
       <div className="cam-ctl">
-        {/* 확대 · 각도(위/아래 앵글) · 기울임(더치 앵글) · 조도 · 심도(배경 흐림) — 다섯 개 다 컷에 그대로 실린다 (ShotStage가 같은 변수를 읽는다) */}
+        {/* 확대 · 각도(위/아래 앵글) · 방향(왼쪽/오른쪽에서, ADR-0014) · 기울임(더치 앵글) · 조도 · 심도(배경 흐림) — 여섯 개 다 컷에 그대로 실린다 (ShotStage가 같은 변수를 읽는다) */}
         <div className="cam-sliders">
           <label className="cam-sl">
             <span>확대</span>
@@ -220,6 +235,11 @@ export function CameraOverlay({ act, progress, nowMs, companions, encounter, pre
             <span>각도</span>
             <input className="cam-range" type="range" min={-PITCH_MAX} max={PITCH_MAX} step={1} value={crop.pitch ?? 0} style={pctVar(crop.pitch ?? 0, -PITCH_MAX, PITCH_MAX)} onChange={e => setCrop(c => ({ ...c, pitch: Number(e.target.value) }))} aria-label="각도 (위에서 · 아래에서)" />
             <output className="num">{(crop.pitch ?? 0) > 0 ? '위 ' : (crop.pitch ?? 0) < 0 ? '아래 ' : ''}{Math.abs(crop.pitch ?? 0)}°</output>
+          </label>
+          <label className="cam-sl">
+            <span>방향</span>
+            <input className="cam-range" type="range" min={-YAW_MAX} max={YAW_MAX} step={0.5} value={crop.yaw ?? 0} style={pctVar(crop.yaw ?? 0, -YAW_MAX, YAW_MAX)} onChange={e => setCrop(c => ({ ...c, yaw: Number(e.target.value) }))} aria-label="방향 (왼쪽에서 · 오른쪽에서)" />
+            <output className="num">{(crop.yaw ?? 0) > 0 ? '→ ' : (crop.yaw ?? 0) < 0 ? '← ' : ''}{Math.abs(crop.yaw ?? 0)}°</output>
           </label>
           <label className="cam-sl">
             <span>기울임</span>

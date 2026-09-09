@@ -18,6 +18,14 @@
 .hand { transform-origin: 50% 100%; }   /* waves about the wrist */
 .ch-root, .ch-head, .ch-arm, .ch-foot, .mv-veh, .mv-chara, .mv-shadow, .wheel, .foot { will-change: transform; }
 
+/* ── 2.5D 방향 (ADR-0014) ─────────────────────────────────────────────────
+   카메라 무대(.cam-stage)의 --yawn(°, 오른쪽에서 보면 +)을 물려받아 눈·입·볼이 카메라 쪽으로, 머리가 조금, 그림자는 반대로
+   밀린다 — 사진을 찍히는 캐릭터는 카메라를 본다. `translate`는 transform 애니메이션(깜빡임·고갯짓)과 따로 합쳐진다.
+   px는 viewBox 200 기준 사용자 단위. 무대 밖(--yawn 없음)에서는 0이라 아무 변화가 없다 */
+.ch .ch-eyes, .ch .ch-mouth, .ch .ch-cheeks { translate: calc(var(--yawn, 0) * .6px) 0; }
+.ch .ch-head { translate: calc(var(--yawn, 0) * .3px) 0; }
+.ch .ch-shadow { translate: calc(var(--yawn, 0) * -.9px) 0; }
+
 /* ── Character poses ─────────────────────────────────────────────────────── */
 .ch .ch-eyes { animation: ch-blink 4400ms linear infinite; }
 .ch[data-face="sleep"] .ch-eyes, .ch[data-face="happy"] .ch-eyes { animation: none; }

@@ -27,23 +27,23 @@
 .cam-x:active { transform: translate(2px, 2px); box-shadow: none; }
 
 /* 뷰파인더: 만화 컷과 같은 비율(1/1.08). 드래그로 x/y — touch-action none이 아니면 시트가 스크롤된다.
-   너비 86 %: 슬라이더가 다섯이 되며 아래가 ≈64px 자랐다 — 390×844에서 "다 찍었어"가 첫 화면에 들어오도록 프레임에서 번다 */
+   너비 80 %: 슬라이더가 여섯이 되며 아래가 ≈94px 자랐다 — 390×844에서 "다 찍었어"가 첫 화면에 들어오도록 프레임에서 번다 */
 .cam-frame {
-  position: relative; flex: none; width: 86%; aspect-ratio: 1 / 1.08; margin: 0 auto;
+  position: relative; flex: none; width: 80%; aspect-ratio: 1 / 1.08; margin: 0 auto;
   border: 2.5px solid var(--ink); border-radius: 16px; overflow: hidden; background: var(--paper-2);
   box-shadow: var(--shadow-hard); touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
 }
 .cam-frame.is-dragging { cursor: grabbing; }
-@media (max-height: 790px) { .cam-frame { width: 76%; } }
+@media (max-height: 790px) { .cam-frame { width: 70%; } }
 /* 아주 낮은 화면: 파일 끝의 @media (max-height: 720px) — 같은 특이도의 기본 규칙(.cam-hint/.cam-film/.cam-shutter…)보다 뒤에 있어야 이긴다 */
 
 /* 무대 + 캐릭터: `.cam-shot`의 transform은 만화 `.cm-shot`과 같은 순서(rotate → scale → translate, origin 50% 78%)에
-   각도(--pitch: 위/아래에서 보는 앵글, perspective + rotateX)가 맨 앞에 붙는다. --cx/--cy는 % (뷰포트 자기 크기 대비)라
+   각도(--pitch: 위/아래에서 보는 앵글, perspective + rotateX)와 방향(--yaw × .3, rotateY — 카드가 살짝 돌아 층 밀림에 두께를 더한다)이 맨 앞에 붙는다. --cx/--cy는 % (뷰포트 자기 크기 대비)라
    크기가 다른 컷 안에서도 그대로 재현된다. 조도(--light)는 무대 전체의 밝기 — 어두우면 푸른 저녁, 밝으면 노란 햇빛이 살짝 얹힌다 */
 .cam-stage { position: absolute; inset: 0; overflow: hidden; filter: brightness(var(--light, 1)); }
 .cam-shot {
   position: absolute; inset: 0; transform-origin: 50% 78%;
-  transform: perspective(560px) rotateX(var(--pitch, 0deg)) rotate(var(--rot, 0deg)) scale(var(--cs, 1)) translate(var(--cx, 0), var(--cy, 0));
+  transform: perspective(560px) rotateX(var(--pitch, 0deg)) rotateY(calc(var(--yaw, 0deg) * .3)) rotate(var(--rot, 0deg)) scale(var(--cs, 1)) translate(var(--cx, 0), var(--cy, 0));
 }
 /* 각도에 따라 무대가 캐릭터와 다르게 움직인다(패럴랙스): 위에서 보면 바닥이, 아래에서 보면 천장이 더 들어온다.
    심도(--dof 0~1)는 초점 밖을 흐린다 — 초점이 캐릭터(--bgblur 1)면 무대가, 배경(--fgblur 1)이면 캐릭터·동행이 흐려진다.
@@ -51,10 +51,20 @@
    배경(.cam-bg)은 프레임보다 넓다: 무대 SVG(390×844)를 세로 2배 상자에 slice로 채워 위아래가 남고, 같은 무대를 양옆에
    거울처럼 뒤집어 한 장씩 더 붙여 가로 3배 — ±35 % 밀고 ±15° 돌려도 종이색 끝이 드러나지 않는다 */
 .cam-bg { position: absolute; inset: 0; transform: translateY(calc(var(--pitchn, 0) * -0.55%)); filter: blur(calc(var(--dof, 0) * var(--bgblur, 1) * 6px)); }
-.cam-bg .scene { position: absolute; top: -50%; bottom: -50%; height: 200%; width: 100%; inset-inline: auto; }
+.cam-bg .scene { position: absolute; top: -50%; bottom: -50%; height: 200%; width: 100%; inset-inline: auto; overflow: visible; }   /* overflow: 층이 밀려 나간 만큼 옆 사본 위로 그려진다 — 아니면 SVG 뷰포트에 잘려 종이색 띠가 선다 (ADR-0014) */
 .cam-bg .scene:nth-child(1) { left: -100%; transform: scaleX(-1); }
 .cam-bg .scene:nth-child(2) { left: 0; }
 .cam-bg .scene:nth-child(3) { left: 100%; transform: scaleX(-1); }
+/* 2.5D (ADR-0014): 무대의 깊이 층(scenes/index.tsx의 L — .sc-far/.sc-mid/.sc-floor/.sc-front)이 방향(--yawn)·각도(--pitchn)에 깊이만큼
+   다르게 밀린다. 캐릭터가 고정점: 뒤(far·mid)는 카메라가 있는 쪽으로, 앞(front)은 반대로 — 고정점 뒤의 물체는 머리를 옮긴 방향으로,
+   앞의 물체는 반대로 움직인다. px는 SVG 사용자 단위(390 폭): 12°면 far 36 · mid 19 · front -24. 위/아래 각도는 far가 더, front가 반대로.
+   양옆의 거울 사본(scaleX(-1))은 --sx로 부호를 뒤집어 이음새가 이어진다. 무대 밖(활동·시간표)의 같은 Scene은 변수가 없어 그대로다 */
+.cam-bg .scene:nth-child(1), .cam-bg .scene:nth-child(3) { --sx: -1; }
+.cam-stage .sc-far { transform: translate(calc(var(--yawn, 0) * var(--sx, 1) * 3px), calc(var(--pitchn, 0) * -0.7px)); }
+.cam-stage .sc-mid { transform: translate(calc(var(--yawn, 0) * var(--sx, 1) * 1.6px), calc(var(--pitchn, 0) * -0.35px)); }
+.cam-stage .sc-floor { transform: translate(calc(var(--yawn, 0) * var(--sx, 1) * 0.6px), 0); }
+.cam-stage .sc-front { transform: translate(calc(var(--yawn, 0) * var(--sx, 1) * -2px), calc(var(--pitchn, 0) * 0.5px)); }
+.cam-frame .sc-l { will-change: transform; }
 .cam-stage .cam-me, .cam-stage .cam-friend, .cam-stage .cam-met { filter: blur(calc(var(--dof, 0) * var(--fgblur, 0) * 5px)); }
 .cam-thumb .cam-bg, .cm-p.is-user .cam-bg { filter: blur(calc(var(--dof, 0) * var(--bgblur, 1) * 2.4px)); }
 .cam-thumb .cam-stage .cam-me, .cam-thumb .cam-stage .cam-friend, .cam-thumb .cam-stage .cam-met,
@@ -106,13 +116,18 @@
   100% { transform: translate(-50%, -70%) rotate(-6deg) scale(1); opacity: 0; }
 }
 
-/* 프레임 아래 한 줄: 안내 + 처음 자리로 — 한 손 촬영 중 누르는 리셋이라 터치 타깃은 36px, 보이는 높이는 음수 마진으로 그대로 */
+/* 프레임 아래 한 줄: 안내 + 폰 돌리기(자이로, ADR-0014) + 처음 자리로 — 한 손 촬영 중 누르는 버튼이라 터치 타깃은 36px, 보이는 높이는 음수 마진으로 그대로 */
 .cam-hint { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex: none; margin-top: -2px; font-size: 11px; color: var(--ink-3); }
-.cam-hint .btn--text { font-size: 11px; min-height: 36px; padding: 6px 8px; margin: -8px -4px -8px 0; }
+.cam-hint > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cam-hint-btns { display: flex; align-items: center; gap: 2px; flex: none; }
+.cam-hint .btn--text { font-size: 11px; min-height: 36px; padding: 6px 8px; margin: -8px -4px -8px 0; white-space: nowrap; }
+/* 켜져 있으면 해 색 칩 — 폰을 돌리는 동안 슬라이더가 따라 움직이는 이유가 보인다. 못 쓰는 상태(허락 안 됨·없음)는 흐리게 */
+.cam-hint .cam-gyro.is-on { background: var(--sun); border: 1.5px solid var(--ink); border-radius: 999px; box-shadow: 2px 2px 0 var(--ink); }
+.cam-hint .cam-gyro.is-denied, .cam-hint .cam-gyro.is-none { opacity: .55; }
 
-/* 슬라이더 5개(왼쪽: 확대 · 각도 · 기울임 · 조도 · 심도) + 셔터(오른쪽) */
+/* 슬라이더 6개(왼쪽: 확대 · 각도 · 방향 · 기울임 · 조도 · 심도) + 셔터(오른쪽) */
 .cam-ctl { display: grid; grid-template-columns: 1fr 84px; gap: 6px 12px; align-items: center; flex: none; }
-.cam-sliders { display: grid; gap: 4px; }
+.cam-sliders { display: grid; gap: 3px; }
 .cam-sl { display: grid; grid-template-columns: 40px 1fr 48px; align-items: center; gap: 8px; font-family: var(--display); font-size: 14px; }
 .cam-sl output { font-family: var(--mono); font-size: 11px; color: var(--ink-2); text-align: right; white-space: nowrap; }
 /* 귀여운 range: 트랙은 종이색, 채운 만큼 코랄(--pct), 손잡이는 ink 테두리 흰 동그라미 + 하드 섀도 */
@@ -197,7 +212,7 @@
    위의 기본 규칙들과 특이도가 같아 파일 **끝**에 둔다 — 앞에 두면 뒤의 기본 규칙이 도로 이긴다 */
 @media (max-height: 720px) {
   .cam { gap: 8px; }
-  .cam-frame { width: 58%; }
+  .cam-frame { width: 52%; }
   .cam-sliders { gap: 1px; }
   .cam-range { height: 21px; }
   .cam-sl { font-size: 13px; }

@@ -8,18 +8,20 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node scripts/sim-tz.test.mjs && node scripts/sim-friends.test.mjs && node scripts/sim-status.test.mjs && node scripts/sim-review.test.mjs && node scripts/sim-friction.test.mjs && node scripts/sim-call.test.mjs && node scripts/sim-chat.test.mjs && node scripts/sim-boot.test.mjs && node scripts/sim-sketch.test.mjs && node scripts/sim-shots.test.mjs && node scripts/sim-trip.test.mjs && node scripts/sim-plan.test.mjs && node scripts/sim-voice.test.mjs && node scripts/sim-sync.test.mjs && node scripts/sim-remote.test.mjs && node scripts/sim-gyro.test.mjs"
+    "test": "node scripts/sim-tz.test.mjs && node scripts/sim-friends.test.mjs && node scripts/sim-status.test.mjs && node scripts/sim-review.test.mjs && node scripts/sim-friction.test.mjs && node scripts/sim-call.test.mjs && node scripts/sim-chat.test.mjs && node scripts/sim-boot.test.mjs && node scripts/sim-sketch.test.mjs && node scripts/sim-shots.test.mjs && node scripts/sim-trip.test.mjs && node scripts/sim-plan.test.mjs && node scripts/sim-voice.test.mjs && node scripts/sim-sync.test.mjs && node scripts/sim-remote.test.mjs && node scripts/sim-gyro.test.mjs && node scripts/sim-stage.test.mjs"
   },
   "dependencies": {
     "maplibre-gl": "^6.7.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "three": "^0.186.0",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^6.1.0",
     "oxlint": "^1.79.0",
     "typescript": "~6.0.2",

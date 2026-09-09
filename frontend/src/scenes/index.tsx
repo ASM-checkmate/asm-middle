@@ -1,5 +1,7 @@
 // ─── Generic place scenes ────────────────────────────────────────────────────
 // One warm illustration per place type in four depth layers (far · mid · floor · front — ADR-0014 2.5D) with 2–3 subtly looping props.
+// far·floor 층의 바탕(벽·하늘·바닥·띠·물결)은 무대 밖으로 ±390 더 그린다(x -390..780): 3D 무대의 텍스처가 넓게 구워져 카메라가 돌아도 끝이 안 보인다.
+// 활동 화면·시간표에서는 <svg>가 뷰포트에서 잘라 아무 차이 없다.
 // The character (350px) is layered on top by ActivityScreen at x 20..370, y 140..490 (feet ≈ 455),
 // so props live at the sides, above y≈150, or in front (y > 480). viewBox = the 390×844 stage.
 import type { CSSProperties, ReactNode } from 'react';
@@ -154,11 +156,18 @@ function Window({ x, y, w = 118, h = 150, curtain }: { x: number; y: number; w?:
 function Floor({ y, className, boards }: { y: number; className: string; boards?: boolean }) {
   return (
     <g>
-      <rect x="0" y={y} width="390" height={844 - y} className={className} />
-      <path d={`M0 ${y}h390`} className="s-ink" opacity=".35" />
-      {boards && <path d={`M0 ${y + 70}h390M0 ${y + 140}h390M0 ${y + 210}h390M0 ${y + 280}h390`} className="s-wood2" opacity=".55" />}
+      <rect x={-390} y={y} width={1170} height={844 - y} className={className} />
+      <path d={`M-390 ${y}h1170`} className="s-ink" opacity=".35" />
+      {boards && <path d={`M-390 ${y + 70}h1170M-390 ${y + 140}h1170M-390 ${y + 210}h1170M-390 ${y + 280}h1170`} className="s-wood2" opacity=".55" />}
     </g>
   );
+}
+
+/** 물결 한 줄 (주기 30·진폭 8) — 무대 밖 ±390까지 이어진다 */
+function waves(y: number, from = -390, to = 780): string {
+  let d = `M${from} ${y}q15-8 30 0`;
+  for (let x = from + 30; x < to; x += 30) d += 't30 0';
+  return d;
 }
 
 function BookRow({ x, y, w, colors }: { x: number; y: number; w: number; colors: string[] }) {
@@ -187,9 +196,9 @@ function Cafe() {
     <>
       <defs><Grad id="sc-cafe-wall" a="st-sun2" b="st-paper2" /></defs>
       <L d="far">
-        <rect width="390" height="844" fill="url(#sc-cafe-wall)" />
-        <rect x="0" y="392" width="390" height="58" className="f-cream" />
-        <path d="M0 392h390" className="s-ink2" opacity=".3" />
+        <rect x={-390} width={1170} height="844" fill="url(#sc-cafe-wall)" />
+        <rect x={-390} y="392" width={1170} height="58" className="f-cream" />
+        <path d="M-390 392h1170" className="s-ink2" opacity=".3" />
         <Window x={34} y={172} curtain="f-coral2" />
         <Window x={238} y={172} curtain="f-coral2" />
         {/* menu board (between the windows, clear of the place tag; hidden under the timetable bubble) */}
@@ -263,9 +272,9 @@ function Restaurant() {
         </pattern>
       </defs>
       <L d="far">
-        <rect width="390" height="844" fill="url(#sc-rest-wall)" />
-        <rect x="0" y="380" width="390" height="70" className="f-paper2" />
-        <path d="M0 380h390" className="s-ink2" opacity=".3" />
+        <rect x={-390} width={1170} height="844" fill="url(#sc-rest-wall)" />
+        <rect x={-390} y="380" width={1170} height="70" className="f-paper2" />
+        <path d="M-390 380h1170" className="s-ink2" opacity=".3" />
         <Window x={30} y={176} w={110} h={140} curtain="f-sun" />
         <Window x={250} y={176} w={110} h={140} curtain="f-sun" />
         {/* open sign (between the windows, clear of the lantern and the place tag) */}
@@ -294,8 +303,8 @@ function Restaurant() {
         <Plant x={352} y={430} s={0.85} pot="f-mint" />
       </L>
       <L d="floor">
-        <rect x="0" y="450" width="390" height="394" fill="url(#sc-rest-tile)" />
-        <path d="M0 450h390" className="s-ink" opacity=".35" />
+        <rect x={-390} y="450" width={1170} height="394" fill="url(#sc-rest-tile)" />
+        <path d="M-390 450h1170" className="s-ink" opacity=".35" />
       </L>
       <L d="front">
         {/* dining table (front centre) */}
@@ -326,11 +335,11 @@ function Park() {
     <>
       <defs><Grad id="sc-park-sky" a="st-sky" b="st-sky2" /></defs>
       <L d="far">
-        <rect width="390" height="844" fill="url(#sc-park-sky)" />
+        <rect x={-390} width={1170} height="844" fill="url(#sc-park-sky)" />
         <Sun x={322} y={160} r={26} />
         <Cloud x={0} y={168} s={1} className="an-drift" />
         <Cloud x={0} y={236} s={0.7} className="an-drift d1" />
-        <path d="M-20 400c60-60 140-70 220-30s130 20 190-20v80h-410z" className="f-grass2" />
+        <path d="M-390 400H-20c60-60 140-70 220-30s130 20 190-20H780v80H-390z" className="f-grass2" />
       </L>
       <L d="mid">
         <Tree x={58} y={430} s={1} />
@@ -341,7 +350,7 @@ function Park() {
         <g transform="translate(110 300)"><path className="an-leaf d2 f-coral s-ink2" d="M0 0c8-10 18-8 20 2-8 8-18 6-20-2z" /></g>
       </L>
       <L d="floor">
-        <path d="M-20 440c80-40 180-50 260-14s110 20 150-6v440h-410z" className="f-grass" />
+        <path d="M-390 440H-20c80-40 180-50 260-14s110 20 150-6H780v440H-390z" className="f-grass" />
       </L>
       <L d="front">
         {/* bench (front) */}
@@ -368,12 +377,12 @@ function River() {
     <>
       <defs><Grad id="sc-river-sky" a="st-sky" b="st-sky2" /></defs>
       <L d="far">
-        <rect width="390" height="844" fill="url(#sc-river-sky)" />
+        <rect x={-390} width={1170} height="844" fill="url(#sc-river-sky)" />
         <Sun x={70} y={150} r={24} />
         <Cloud x={0} y={200} s={0.8} className="an-drift" />
         {/* far bank + tiny trees */}
-        <path d="M0 300h390v44H0z" className="f-grass2" />
-        <path d="M0 300c60-30 120-30 190-10s130 10 200-14v24H0z" className="f-grass2" />
+        <path d="M-390 300h1170v44H-390z" className="f-grass2" />
+        <path d="M-390 300H0c60-30 120-30 190-10s130 10 200-14H780v24H-390z" className="f-grass2" />
         {[30, 90, 150, 230, 290].map((x, i) => <circle key={i} cx={x} cy={296 - (i % 2) * 8} r={12 + (i % 2) * 4} className="f-leaf s-ink2" />)}
         {/* bridge */}
         <g transform="translate(250 300)">
@@ -385,12 +394,12 @@ function River() {
       </L>
       <L d="mid">
         {/* river */}
-        <rect x="0" y="344" width="390" height="92" className="f-water" />
-        <path d="M0 344h390" className="s-ink" opacity=".3" />
+        <rect x={-390} y="344" width={1170} height="92" className="f-water" />
+        <path d="M-390 344h1170" className="s-ink" opacity=".3" />
         <g opacity=".9">
-          <path className="an-wave s-paper f-none" d="M-60 372q15-8 30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0" />
-          <path className="an-wave d1 s-water f-none" d="M-60 400q15-8 30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0" />
-          <path className="an-wave d2 s-paper f-none" d="M-60 422q15-8 30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0" opacity=".6" />
+          <path className="an-wave s-paper f-none" d={waves(372)} />
+          <path className="an-wave d1 s-water f-none" d={waves(400)} />
+          <path className="an-wave d2 s-paper f-none" d={waves(422)} opacity=".6" />
         </g>
         {/* duck */}
         <g transform="translate(322 388)"><g className="an-duck">
@@ -407,8 +416,8 @@ function River() {
       </L>
       <L d="floor">
         {/* near bank */}
-        <path d="M0 436h390v408H0z" className="f-grass" />
-        <path d="M0 436h390" className="s-ink" opacity=".35" />
+        <path d="M-390 436h1170v408H-390z" className="f-grass" />
+        <path d="M-390 436h1170" className="s-ink" opacity=".35" />
       </L>
       <L d="front">
         {/* picnic mat + basket */}
@@ -432,7 +441,7 @@ function Beach() {
     <>
       <defs><Grad id="sc-beach-sky" a="st-sky" b="st-paper" /></defs>
       <L d="far">
-        <rect width="390" height="844" fill="url(#sc-beach-sky)" />
+        <rect x={-390} width={1170} height="844" fill="url(#sc-beach-sky)" />
         <Sun x={310} y={162} r={30} />
         <Cloud x={0} y={190} s={0.75} className="an-drift d1" />
         <g className="an-fly"><path d="M0 0q8-10 16 0q8-10 16 0" className="s-ink2 f-none" transform="translate(0 150)" /></g>
@@ -440,18 +449,18 @@ function Beach() {
       </L>
       <L d="mid">
         {/* sea */}
-        <rect x="0" y="290" width="390" height="114" className="f-water" />
-        <path d="M0 290h390" className="s-ink" opacity=".25" />
+        <rect x={-390} y="290" width={1170} height="114" className="f-water" />
+        <path d="M-390 290h1170" className="s-ink" opacity=".25" />
         <g>
-          <path className="an-wave s-paper f-none" d="M-60 316q15-8 30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0" opacity=".9" />
-          <path className="an-wave d1 s-water f-none" d="M-60 350q15-8 30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0" />
-          <path className="an-wave d2 s-paper f-none" d="M-60 386q15-8 30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0" opacity=".8" />
+          <path className="an-wave s-paper f-none" d={waves(316)} opacity=".9" />
+          <path className="an-wave d1 s-water f-none" d={waves(350)} />
+          <path className="an-wave d2 s-paper f-none" d={waves(386)} opacity=".8" />
         </g>
       </L>
       <L d="floor">
         {/* sand */}
-        <path d="M0 404h390v440H0z" className="f-sand" />
-        <path className="an-wave s-card f-none" d="M-60 410q15-10 30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0" strokeWidth="6" />
+        <path d="M-390 404h1170v440H-390z" className="f-sand" />
+        <path className="an-wave s-card f-none" d={waves(410)} strokeWidth="6" />
       </L>
       <L d="front">
         {/* parasol (left; planted at y 510 — in front of the character's feet) */}
@@ -481,12 +490,12 @@ function Gym() {
   return (
     <>
       <L d="far">
-        <rect width="390" height="844" className="f-mint2" />
+        <rect x={-390} width={1170} height="844" className="f-mint2" />
         {/* mirror band */}
-        <rect x="0" y="130" width="390" height="210" className="f-sky2" />
-        <path d="M0 130h390M0 340h390" className="s-ink" opacity=".35" />
+        <rect x={-390} y="130" width={1170} height="210" className="f-sky2" />
+        <path d="M-390 130h1170M-390 340h1170" className="s-ink" opacity=".35" />
         <path d="M40 150l40 170M300 150l40 170" className="s-card f-none" strokeWidth="8" opacity=".8" />
-        <path d="M0 348h390" className="s-ink4 f-none" />
+        <path d="M-390 348h1170" className="s-ink4 f-none" />
         {/* sign */}
         <g transform="translate(252 82)">
           <rect width="118" height="40" rx="10" className="f-sun s-ink" />
@@ -502,7 +511,7 @@ function Gym() {
       <L d="floor">
         {/* court floor (line 30px above the character's feet so it clearly stands on the boards) */}
         <Floor y={420} className="f-wood" boards />
-        <path d="M0 470h390" className="s-coral f-none" strokeWidth="4" />
+        <path d="M-390 470h1170" className="s-coral f-none" strokeWidth="4" />
         <path d="M195 470a60 60 0 0 0 0 120a60 60 0 0 0 0-120" className="s-coral f-none" strokeWidth="4" opacity=".7" />
       </L>
       <L d="front">
@@ -548,7 +557,7 @@ function Library() {
     <>
       <defs><Grad id="sc-lib-wall" a="st-sun2" b="st-paper2" /></defs>
       <L d="far">
-        <rect width="390" height="844" fill="url(#sc-lib-wall)" />
+        <rect x={-390} width={1170} height="844" fill="url(#sc-lib-wall)" />
         {/* shelves */}
         {[[18, 100], [268, 100]].map(([x, y], k) => (
           <g key={k} transform={`translate(${x} ${y})`}>
@@ -605,12 +614,12 @@ function Mall() {
   return (
     <>
       <L d="far">
-        <rect width="390" height="844" className="f-sky2" />
+        <rect x={-390} width={1170} height="844" className="f-sky2" />
         {/* glass roof */}
         <g>
-          {[0, 78, 156, 234, 312].map((x, i) => <rect key={i} x={x} y="0" width="78" height="120" className="f-sky" opacity={i % 2 ? 0.55 : 0.35} />)}
-          <path d="M0 120h390M78 0v120M156 0v120M234 0v120M312 0v120" className="s-card f-none" strokeWidth="6" />
-          <path d="M0 122h390" className="s-ink" opacity=".3" />
+          {Array.from({ length: 15 }, (_, i) => -390 + i * 78).map((x, i) => <rect key={i} x={x} y="0" width="78" height="120" className="f-sky" opacity={i % 2 ? 0.35 : 0.55} />)}
+          <path d={`M-390 120h1170${Array.from({ length: 14 }, (_, i) => `M${-312 + i * 78} 0v120`).join('')}`} className="s-card f-none" strokeWidth="6" />
+          <path d="M-390 122h1170" className="s-ink" opacity=".3" />
         </g>
         {/* shop fronts */}
         {[[8, 'f-coral', 'BAKERY', 'f-sun'], [140, 'f-mint', 'TOYS', 'f-coral'], [272, 'f-sun', 'CAFE', 'f-mint']].map(([x, awn, name, sign], i) => (
@@ -628,7 +637,7 @@ function Mall() {
       </L>
       <L d="floor">
         <Floor y={450} className="f-cream" />
-        <path d="M0 520h390M0 600h390M0 690h390M0 790h390M60 450l-60 394M130 450l-40 394M260 450l40 394M330 450l60 394" className="s-line f-none" />
+        <path d="M-390 520h1170M-390 600h1170M-390 690h1170M-390 790h1170M60 450l-60 394M130 450l-40 394M260 450l40 394M330 450l60 394" className="s-line f-none" />
       </L>
       <L d="front">
         {/* balloons on a stand (left) */}
@@ -659,9 +668,9 @@ function Museum() {
   return (
     <>
       <L d="far">
-        <rect width="390" height="844" className="f-paper2" />
-        <rect x="0" y="380" width="390" height="70" className="f-cream" />
-        <path d="M0 380h390" className="s-ink2" opacity=".35" />
+        <rect x={-390} width={1170} height="844" className="f-paper2" />
+        <rect x={-390} y="380" width={1170} height="70" className="f-cream" />
+        <path d="M-390 380h1170" className="s-ink2" opacity=".35" />
         {/* paintings */}
         <g transform="translate(46 150)">
           <rect width="112" height="100" rx="4" className="f-sun s-ink4" />
@@ -695,7 +704,7 @@ function Museum() {
       </L>
       <L d="floor">
         <Floor y={450} className="f-stone" />
-        <rect x="0" y="450" width="390" height="394" className="f-paper" opacity=".35" />
+        <rect x={-390} y="450" width={1170} height="394" className="f-paper" opacity=".35" />
       </L>
       <L d="front">
         {/* pedestal + vase (front left) */}
@@ -726,7 +735,7 @@ function Home() {
     <>
       <defs><Grad id="sc-home-wall" a="st-sun2" b="st-paper2" /></defs>
       <L d="far">
-        <rect width="390" height="844" fill="url(#sc-home-wall)" />
+        <rect x={-390} width={1170} height="844" fill="url(#sc-home-wall)" />
         <g opacity=".35">
           {[[40, 80], [120, 60], [330, 100], [60, 300], [340, 330], [200, 110]].map(([x, y], i) => <circle key={i} cx={x} cy={y} r="4" className="f-card" />)}
         </g>

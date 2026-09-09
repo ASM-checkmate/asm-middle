@@ -1,5 +1,6 @@
 import { memo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect } from 'react';
 import { gyroAvailable, useGyro, type GyroState } from './useGyro';
+import { Stage3D } from './Stage3D';
 import { useWorld } from '../sim/store';
 import { rng } from '../sim/rng';
 import type { Friend, PhaseEncounter, PlaceType, ScheduledActivity, ShotWin, UserShot } from '../sim/types';
@@ -77,19 +78,24 @@ export interface ShotStageProps {
 /**
  * 무대 한 장: 정지 Scene + 캐릭터(프레임 너비 84 %, 발이 78 % 높이) + 동행/마주침, 그 위에 사용자 크롭(% 단위).
  * 뷰파인더·필름 썸네일이 같은 컴포넌트를 쓰니 "찍은 그대로"가 보장된다 — 만화의 사용자 컷도 이걸 쓰면 같은 그림이 나온다.
+ * 그림은 3D 무대(Stage3D, ADR-0014 개정)가 그린다: 같은 crop을 카메라 자세로 옮겨 층 4장과 인물 빌보드를 원근으로. three.js와 텍스처가
+ * 준비되기 전이나 WebGL이 없으면 아래의 CSS 무대(.cam-shot)를 그대로 보여 준다 — 같은 값에서 같은 구도라 바뀌는 순간 튀지 않는다.
  */
 export function ShotStage({ type, pose, crop, friendColor, metColor, seenColor, still, className = '' }: ShotStageProps) {
+  const cssShot = (
+    <div className="cam-shot">
+      {/* 배경은 프레임보다 넓게(세로 2배, 무대 바탕은 ±390 더 그려져 있다 — scenes/index.tsx) — 밀고 돌려도 끝이 안 보인다 */}
+      <div className="cam-bg"><Still type={type} /></div>
+      {seenColor && <Chara className="cam-ghost" pose="idle" size={190} variant="friend" color={seenColor} paused={still} />}
+      {friendColor && <Chara className="cam-friend" pose="wave" size={224} variant="friend" color={friendColor} paused={still} />}
+      <Chara className="cam-me" pose={pose} size={300} paused={still} />
+      {metColor && <Chara className="cam-met" pose="wave" size={190} variant="friend" color={metColor} paused={still} />}
+    </div>
+  );
   return (
-    // 변수는 무대(.cam-stage)에 둔다: 밝기·톤은 무대가, transform은 그 안의 .cam-shot이, blur는 .scene/캐릭터가 물려받아 읽는다
+    // 변수는 무대(.cam-stage)에 둔다: 밝기·톤은 무대가, 3D 캔버스 둘(배경·인물)과 CSS 무대가 blur를 물려받아 읽는다
     <div className={`cam-stage ${friendColor ? 'has-friend' : ''} ${metColor ? 'has-met' : ''} ${className}`} style={cropVars(crop)}>
-      <div className="cam-shot">
-        {/* 배경은 프레임보다 넓게(가로 3장·세로 2배) — 밀고 돌려도 끝이 안 보인다. 양옆은 거울처럼 뒤집어 이어 붙인다 */}
-        <div className="cam-bg"><Still type={type} /><Still type={type} /><Still type={type} /></div>
-        {seenColor && <Chara className="cam-ghost" pose="idle" size={190} variant="friend" color={seenColor} paused={still} />}
-        {friendColor && <Chara className="cam-friend" pose="wave" size={224} variant="friend" color={friendColor} paused={still} />}
-        <Chara className="cam-me" pose={pose} size={300} paused={still} />
-        {metColor && <Chara className="cam-met" pose="wave" size={190} variant="friend" color={metColor} paused={still} />}
-      </div>
+      <Stage3D type={type} pose={pose} crop={crop} friendColor={friendColor} metColor={metColor} seenColor={seenColor} fallback={cssShot} />
     </div>
   );
 }

@@ -48,23 +48,27 @@
 /* 각도에 따라 무대가 캐릭터와 다르게 움직인다(패럴랙스): 위에서 보면 바닥이, 아래에서 보면 천장이 더 들어온다.
    심도(--dof 0~1)는 초점 밖을 흐린다 — 초점이 캐릭터(--bgblur 1)면 무대가, 배경(--fgblur 1)이면 캐릭터·동행이 흐려진다.
    변수는 .cam-stage에 있고(ShotStage) 아래로 물려받는다.
-   배경(.cam-bg)은 프레임보다 넓다: 무대 SVG(390×844)를 세로 2배 상자에 slice로 채워 위아래가 남고, 같은 무대를 양옆에
-   거울처럼 뒤집어 한 장씩 더 붙여 가로 3배 — ±35 % 밀고 ±15° 돌려도 종이색 끝이 드러나지 않는다 */
+   배경(.cam-bg)은 프레임보다 넓다: 무대 SVG(390×844)를 세로 2배 상자에 slice로 채워 위아래가 남고, overflow: visible이라 무대 밖
+   ±390까지 그려 둔 바탕(scenes/index.tsx)이 양옆으로 이어진다 — ±35 % 밀고 ±15° 돌려도 종이색 끝이 드러나지 않는다 */
 .cam-bg { position: absolute; inset: 0; transform: translateY(calc(var(--pitchn, 0) * -0.55%)); filter: blur(calc(var(--dof, 0) * var(--bgblur, 1) * 6px)); }
-.cam-bg .scene { position: absolute; top: -50%; bottom: -50%; height: 200%; width: 100%; inset-inline: auto; overflow: visible; }   /* overflow: 층이 밀려 나간 만큼 옆 사본 위로 그려진다 — 아니면 SVG 뷰포트에 잘려 종이색 띠가 선다 (ADR-0014) */
-.cam-bg .scene:nth-child(1) { left: -100%; transform: scaleX(-1); }
-.cam-bg .scene:nth-child(2) { left: 0; }
-.cam-bg .scene:nth-child(3) { left: 100%; transform: scaleX(-1); }
+.cam-bg .scene { position: absolute; top: -50%; bottom: -50%; left: 0; height: 200%; width: 100%; overflow: visible; }
 /* 2.5D (ADR-0014): 무대의 깊이 층(scenes/index.tsx의 L — .sc-far/.sc-mid/.sc-floor/.sc-front)이 방향(--yawn)·각도(--pitchn)에 깊이만큼
    다르게 밀린다. 캐릭터가 고정점: 뒤(far·mid)는 카메라가 있는 쪽으로, 앞(front)은 반대로 — 고정점 뒤의 물체는 머리를 옮긴 방향으로,
    앞의 물체는 반대로 움직인다. px는 SVG 사용자 단위(390 폭): 12°면 far 36 · mid 19 · front -24. 위/아래 각도는 far가 더, front가 반대로.
-   양옆의 거울 사본(scaleX(-1))은 --sx로 부호를 뒤집어 이음새가 이어진다. 무대 밖(활동·시간표)의 같은 Scene은 변수가 없어 그대로다 */
-.cam-bg .scene:nth-child(1), .cam-bg .scene:nth-child(3) { --sx: -1; }
-.cam-stage .sc-far { transform: translate(calc(var(--yawn, 0) * var(--sx, 1) * 3px), calc(var(--pitchn, 0) * -0.7px)); }
-.cam-stage .sc-mid { transform: translate(calc(var(--yawn, 0) * var(--sx, 1) * 1.6px), calc(var(--pitchn, 0) * -0.35px)); }
-.cam-stage .sc-floor { transform: translate(calc(var(--yawn, 0) * var(--sx, 1) * 0.6px), 0); }
-.cam-stage .sc-front { transform: translate(calc(var(--yawn, 0) * var(--sx, 1) * -2px), calc(var(--pitchn, 0) * 0.5px)); }
+   무대 밖(활동·시간표)의 같은 Scene은 변수가 없어 그대로다. 3D 무대(Stage3D)가 있으면 이 규칙은 폴백에서만 쓰인다 */
+.cam-stage .sc-far { transform: translate(calc(var(--yawn, 0) * 3px), calc(var(--pitchn, 0) * -0.7px)); }
+.cam-stage .sc-mid { transform: translate(calc(var(--yawn, 0) * 1.6px), calc(var(--pitchn, 0) * -0.35px)); }
+.cam-stage .sc-floor { transform: translate(calc(var(--yawn, 0) * 0.6px), 0); }
+.cam-stage .sc-front { transform: translate(calc(var(--yawn, 0) * -2px), calc(var(--pitchn, 0) * 0.5px)); }
 .cam-frame .sc-l { will-change: transform; }
+/* 3D 무대 (Stage3D, ADR-0014 개정): 배경 캔버스 + 인물 캔버스. 심도 흐림은 CSS 무대(.cam-bg/.cam-me)와 같은 계수로 각각에 */
+.st3d { position: absolute; inset: 0; }
+.st3d-bg, .st3d-fg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.st3d-fg { z-index: 3; }
+.cam-stage .st3d-bg { filter: blur(calc(var(--dof, 0) * var(--bgblur, 1) * 6px)); }
+.cam-stage .st3d-fg { filter: blur(calc(var(--dof, 0) * var(--fgblur, 0) * 5px)); }
+.cam-thumb .st3d-bg, .cm-p.is-user .st3d-bg { filter: blur(calc(var(--dof, 0) * var(--bgblur, 1) * 2.4px)); }
+.cam-thumb .st3d-fg, .cm-p.is-user .st3d-fg { filter: blur(calc(var(--dof, 0) * var(--fgblur, 0) * 2px)); }
 .cam-stage .cam-me, .cam-stage .cam-friend, .cam-stage .cam-met { filter: blur(calc(var(--dof, 0) * var(--fgblur, 0) * 5px)); }
 .cam-thumb .cam-bg, .cm-p.is-user .cam-bg { filter: blur(calc(var(--dof, 0) * var(--bgblur, 1) * 2.4px)); }
 .cam-thumb .cam-stage .cam-me, .cam-thumb .cam-stage .cam-friend, .cam-thumb .cam-stage .cam-met,

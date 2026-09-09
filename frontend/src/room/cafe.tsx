@@ -21,7 +21,7 @@ function Table({ rx, ry, cup, notes }: { rx: number; ry: number; cup?: boolean; 
         <path d={`M${cx - rx} ${cy} a${rx} ${ry} 0 0 0 ${rx * 2} 0 v8 a${rx} ${ry} 0 0 1 -${rx * 2} 0 z`} fill="var(--rm-wood-2)" {...INK} />
         <ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="var(--rm-wood)" {...INK} />
         {cup && (
-          <g transform={`translate(${cx + rx * 0.3} ${cy - 4})`}>
+          <g className="room-cup" transform={`translate(${cx + rx * 0.3} ${cy - 4})`}>
             <path d="M-8 -6 h16 l-2 14 h-12 z" fill="var(--coral)" {...INK2} />
             <path d="M8 -3 a5 5 0 0 1 0 9" fill="none" {...INK2} />
             <path d="M-3 -10 q2 -4 0 -8 M3 -10 q2 -4 0 -8" fill="none" stroke="var(--ink-3)" strokeWidth="2" strokeLinecap="round" opacity=".6" />
@@ -87,6 +87,9 @@ const PROPS: RoomProp[] = [
       <rect x="26" y="16" width="26" height="8" rx="3" fill="var(--rm-cream)" />
       <circle cx="39" cy="34" r="4" fill="var(--sun)" />
       <path d="M62 30 h10 l-1 12 h-8 z" fill="var(--paper)" {...INK2} />
+      <g className="room-steam" fill="none" stroke="var(--ink-3)" strokeWidth="2" strokeLinecap="round">
+        <path d="M64 28 q2 -4 0 -8" /><path d="M68 26 q2 -4 0 -8" /><path d="M66 24 q-2 -4 0 -8" />
+      </g>
       {/* 계산대 */}
       <rect x="112" y="18" width="34" height="28" rx="5" fill="var(--rm-cream)" {...INK} />
       <rect x="117" y="23" width="24" height="9" rx="2" fill="var(--mint-2)" />
@@ -133,8 +136,11 @@ const BACK = (
       <rect x="0" y="86" width="390" height="12" fill="var(--rm-wood)" />
       <path d="M0 14 h390 M0 86 h390 M0 98 h390" stroke="var(--ink)" strokeWidth="3" />
       {/* 창 */}
+      <clipPath id="room-win"><rect x="28" y="22" width="124" height="60" rx="6" /></clipPath>
       <rect x="28" y="22" width="124" height="60" rx="6" fill="var(--sky)" stroke="var(--ink)" strokeWidth="3" />
-      <ellipse cx="60" cy="48" rx="16" ry="8" fill="var(--card)" /><ellipse cx="112" cy="38" rx="13" ry="7" fill="var(--card)" />
+      <g clipPath="url(#room-win)">
+        <ellipse className="room-cloud" cx="60" cy="48" rx="16" ry="8" fill="var(--card)" /><ellipse className="room-cloud" cx="112" cy="38" rx="13" ry="7" fill="var(--card)" />
+      </g>
       <path d="M90 22 v60 M28 52 h124" stroke="var(--ink)" strokeWidth="3" />
       <path d="M28 22 q10 30 0 60 z M152 22 q-10 30 0 60 z" fill="var(--coral-2)" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round" />
       <rect x="22" y="80" width="136" height="7" rx="3" fill="var(--card)" stroke="var(--ink)" strokeWidth="3" />
@@ -182,6 +188,7 @@ export const CAFE: RoomSpec = {
     met: { x: 352, y: 452 },
   },
   seat: 'seat', friendSeat: 'friend', metSpot: 'met', ghostSeat: 'side', door: 'door',
+  strolls: [{ spot: 'window', pose: 'think' }, { spot: 'counter', pose: 'idle' }, { spot: 'door', pose: 'idle' }],
   seatItem: { x: 150, y: 366, base: 429 },
   cueOf,
 };

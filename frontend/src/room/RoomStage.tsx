@@ -6,6 +6,7 @@ import type { CSSProperties } from 'react';
 import { Character, type Pose } from '../character';
 import type { LogLine } from '../sim/actlog';
 import type { Friend, PhaseEncounter } from '../sim/types';
+import { rng } from '../sim/rng';
 import { Props, SeatItem, type Cue, type RoomSpec, type Spot } from './Room';
 import './room.css';
 
@@ -13,6 +14,18 @@ const SIZE = 96;              // 인물 한 변 (px). 발은 그림의 91 % 행
 const FEET = 0.91;
 const WALK_MS = 1400;
 const DWELL_MS = 4000;
+const POSE_MS = 8000;         // 걷지 않는 큐의 자세(생각·기쁨)는 잠깐 — 지나면 자리의 자세로
+// 살아 있기 (ADR-0015 개정 1): 실제 시간 기준. 잔동작 20~40초, 자리 비우기 60~180초(3~6초 머묾), 옆 손님 40~160초마다 30~60초 앉았다 감
+const FIDGET_MS: [number, number] = [20_000, 40_000];
+const STROLL_MS: [number, number] = [60_000, 180_000];
+const STAY_MS: [number, number] = [3_000, 6_000];
+const GUEST_MS: [number, number] = [40_000, 160_000];
+const GUEST_STAY_MS: [number, number] = [30_000, 60_000];
+const GUEST_COLORS = ['#FFC64D', '#A9DCF5', '#8FD37E', '#FFD2C4'];
+type Fidget = 'look' | 'stretch' | 'nod' | 'sip';
+const reducedMotion = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** QA: `&life=10`이면 잔동작·산책·손님 간격이 10배 빨라진다 (dev 빌드만) */
+const lifeSpeed = (): number => { if (!import.meta.env.DEV) return 1; const v = Number(new URLSearchParams(location.search).get('life')); return v > 0 ? v : 1; };
 
 interface Bubble { key: number; spot: Spot; text: string; kind?: Cue['kind']; stay?: boolean }
 
@@ -24,6 +37,8 @@ export interface RoomStageProps {
   seatPose: Pose;
   companions: Friend[];
   encounter?: PhaseEncounter;
+  /** 결정론적 난수 시드 (활동 키) — 같은 활동은 다시 봐도 같은 순서로 움직인다 */
+  seed: string;
 }
 
 /** 큐가 최종적으로 남기는 자리·자세 — 처음 그릴 때 dwell을 건너뛰고 바로 여기에 선다 */
@@ -33,12 +48,12 @@ function restingSpot(room: RoomSpec, log: LogLine[]): { spot: string; pose?: Cue
     const c = room.cueOf(l);
     if (!c) continue;
     if (c.go) { spot = c.then ?? c.go; pose = c.then ? undefined : c.pose; }
-    else if (c.pose) pose = c.pose;
+    // 걷지 않는 큐의 자세는 잠깐뿐이라 처음 그릴 때는 무시한다
   }
   return { spot, pose };
 }
 
-export function RoomStage({ room, log, seatPose, companions, encounter }: RoomStageProps) {
+export function RoomStage({ room, log, seatPose, companions, encounter, seed }: RoomStageProps) {
   const rest = restingSpot(room, log);
   const [spot, setSpot] = useState(rest.spot);
   const [pose, setPose] = useState<Cue['pose'] | undefined>(rest.pose);
@@ -51,13 +66,17 @@ export function RoomStage({ room, log, seatPose, companions, encounter }: RoomSt
   const seq = useRef(0);                              // 말풍선 키 — StrictMode가 효과를 두 번 돌려도 겹치지 않게
   const spotRef = useRef(spot);
   spotRef.current = spot;
+  const [fidget, setFidget] = useState<Fidget | null>(null);
+  const [guest, setGuest] = useState<{ spot: string; color: string; gone: boolean; walking: boolean } | null>(null);
+  const busy = useRef(false);                          // 걷는 중·자리 비운 중 — 잔동작·산책이 겹치지 않게
+  const seatedRef = useRef(false);
 
   /** 자리로 걸어간다 — 방향은 출발·도착 자리로, 도착하면 자리의 자세 */
   const walkTo = (to: string, after?: () => void) => {
     const from = room.spots[spotRef.current]!, dest = room.spots[to]!;
     setHeading({ back: dest.y < from.y - 30, left: dest.x < from.x - 10 });
-    setStill(false); setWalking(true); setSpot(to);
-    timers.current.push(window.setTimeout(() => { setWalking(false); setHeading(h => ({ ...h, back: false })); after?.(); }, WALK_MS));
+    setStill(false); setWalking(true); setSpot(to); busy.current = true; setFidget(null);
+    timers.current.push(window.setTimeout(() => { setWalking(false); setHeading(h => ({ ...h, back: false })); busy.current = false; after?.(); }, WALK_MS));
   };
   const show = (c: Cue, line: LogLine) => {
     const at = room.spots[c.at ?? spotRef.current] ?? room.spots[room.seat]!;
@@ -78,10 +97,56 @@ export function RoomStage({ room, log, seatPose, companions, encounter }: RoomSt
           show(c, line);
           if (c.then) timers.current.push(window.setTimeout(() => walkTo(c.then!, () => setPose(undefined)), DWELL_MS));
         });
-      } else { if (c.pose) setPose(c.pose); show(c, line); }
+      } else {
+        if (c.pose) { const p = c.pose; setPose(p); timers.current.push(window.setTimeout(() => setPose(cur => (cur === p ? undefined : cur)), POSE_MS)); }
+        show(c, line);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [log.length]);
+  // 살아 있기: 로그와 무관한 잔동작·자리 비우기·옆 손님. 시드로 결정론적, 로그 큐가 오면 그쪽이 우선(busy면 건너뛴다)
+  useEffect(() => {
+    const r = rng(`room:${seed}`);
+    const k = lifeSpeed();
+    const span = ([a, b]: [number, number]) => (a + r.next() * (b - a)) / k;
+    const later = (ms: number, fn: () => void) => { timers.current.push(window.setTimeout(fn, ms)); };
+    const fidgets: Fidget[] = ['look', 'stretch', 'nod', 'sip'];
+    const tickFidget = () => later(span(FIDGET_MS), () => {
+      if (!busy.current && seatedRef.current) {
+        const f = r.pick(fidgets);
+        setFidget(f);
+        later(2600, () => setFidget(cur => (cur === f ? null : cur)));
+      }
+      tickFidget();
+    });
+    const tickStroll = () => later(span(STROLL_MS), () => {
+      if (!busy.current && seatedRef.current && !reducedMotion() && room.strolls.length) {
+        const s = r.pick(room.strolls);
+        busy.current = true;
+        walkTo(s.spot, () => {
+          busy.current = true; setPose(s.pose);
+          later(span(STAY_MS), () => walkTo(room.seat, () => { setPose(undefined); }));
+        });
+      }
+      tickStroll();
+    });
+    const tickGuest = () => later(span(GUEST_MS), () => {
+      if (!encounter && !reducedMotion()) {
+        const color = r.pick(GUEST_COLORS);
+        setGuest({ spot: room.door, color, gone: false, walking: true });
+        later(60, () => setGuest(g => g && { ...g, spot: room.ghostSeat }));
+        later(1700, () => setGuest(g => g && { ...g, walking: false }));
+        later(span(GUEST_STAY_MS), () => {
+          setGuest(g => g && { ...g, spot: room.door, walking: true });
+          later(1600, () => setGuest(g => g && { ...g, gone: true }));
+          later(2100, () => setGuest(null));
+        });
+      }
+      tickGuest();
+    });
+    tickFidget(); tickStroll(); tickGuest();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed]);
   // 첫 그림: 마지막 줄의 표시는 보여 준다 (방금 벌어진 일처럼)
   useEffect(() => {
     const last = log[log.length - 1];
@@ -93,6 +158,7 @@ export function RoomStage({ room, log, seatPose, companions, encounter }: RoomSt
 
   const me = room.spots[spot]!;
   const seated = !walking && spot === room.seat;
+  seatedRef.current = seated && !pose;
   const myPose: Pose = walking ? 'walk' : (pose ?? (seated ? seatPose : 'idle'));
   const friend = companions[0];
   const met = encounter?.talked ? encounter.agent : null;
@@ -100,10 +166,10 @@ export function RoomStage({ room, log, seatPose, companions, encounter }: RoomSt
   const at = (s: Spot): CSSProperties => ({ transform: `translate(${s.x - SIZE / 2}px, ${s.y - SIZE * FEET}px)`, zIndex: Math.round(s.y) });
 
   return (
-    <div className="room" style={{ width: room.w, height: room.h }} aria-hidden="true">
+    <div className={`room ${fidget === 'sip' ? 'is-sipping' : ''}`} style={{ width: room.w, height: room.h }} aria-hidden="true">
       {room.back}
       <Props props={room.props} />
-      <div className={`room-actor ${still ? 'is-still' : ''} ${heading.left ? 'face-left' : ''} ${seated ? 'is-seated' : ''}`} style={at(me)}>
+      <div className={`room-actor ${still ? 'is-still' : ''} ${heading.left ? 'face-left' : ''} ${seated ? 'is-seated' : ''} ${fidget && fidget !== 'sip' ? `fidget-${fidget}` : ''}`} style={at(me)}>
         <Character pose={myPose} size={SIZE} back={heading.back && walking} />
       </div>
       {seated && !pose && (
@@ -121,6 +187,12 @@ export function RoomStage({ room, log, seatPose, companions, encounter }: RoomSt
           </div>
           <div className="room-bubble is-stay" style={{ left: room.spots[room.metSpot]!.x, top: room.spots[room.metSpot]!.y - SIZE * FEET - 4, zIndex: 999 }}>안녕!</div>
         </>
+      )}
+      {guest && (
+        <div className={`room-actor is-guest ${guest.gone ? 'is-gone' : ''} ${guest.walking ? '' : 'is-seated'} ${guest.walking && guest.spot === room.ghostSeat ? 'face-left' : ''}`} style={at(room.spots[guest.spot]!)}>
+          {/* 들어올 땐 위로 걸으니 뒷모습, 앉으면 정면, 나갈 땐 아래로 걸으니 정면 */}
+          <Character pose={guest.walking ? 'walk' : 'sit'} size={SIZE} variant="friend" color={guest.color} back={guest.walking && guest.spot === room.ghostSeat} />
+        </div>
       )}
       {ghost && (
         <div className="room-actor is-still is-ghost" style={at(room.spots[room.ghostSeat]!)}>

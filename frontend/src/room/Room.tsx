@@ -33,6 +33,8 @@ export interface RoomSpec {
   spots: Record<string, Spot>;
   /** 활동 중 앉는 자리·그 옆 동행 자리·마주친 사람 자리·못 걸어 본 사람(실루엣) 자리 */
   seat: string; friendSeat: string; metSpot: string; ghostSeat: string; door: string;
+  /** 로그와 무관하게 1~3분마다 잠깐 다녀오는 곳들 (창가에 밖 보기, 카운터에 물 가지러, 입구 쪽 화장실) */
+  strolls: { spot: string; pose: Cue['pose'] }[];
   /** 로그 줄 → 큐. 도착 줄은 '도착'으로 시작하니 prefix로 잡는다 */
   cueOf(line: LogLine): Cue | null;
   /** 앉은 자리 앞(테이블 위)에 놓이는 활동 물건의 자리와 앞뒤 — 손에 든 것은 테이블에 가리니 테이블 위에 따로 놓는다 */

@@ -39,7 +39,7 @@ export function ActivityScreen({ phase }: { phase: Active }) {
   return (
     <div className={`act ${friend ? 'has-friend' : ''} ${met ? 'has-met' : ''} ${room ? 'has-room' : ''}`}>
       <div className="act-iris" />
-      {room && <RoomStage room={room} log={fullLog} seatPose={poseFor(act.option)} companions={companions} encounter={encounter} />}
+      {room && <RoomStage room={room} log={fullLog} seatPose={poseFor(act.option)} companions={companions} encounter={encounter} seed={act.key} />}
       <div className="act-scene"><Scene type={act.place.type} /></div>
       {/* 말은 못 걸었지만 그 자리에 있던 사람 — 배경의 흐린 실루엣 */}
       {seen && <Character className="act-ghost" pose="idle" size={190} variant="friend" color="#A08C76" />}

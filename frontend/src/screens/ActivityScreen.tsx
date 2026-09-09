@@ -1,10 +1,11 @@
+import { useRef } from 'react';
 import type { Phase } from '../sim/types';
 import { useWorld } from '../sim/store';
 import { cityNameKo } from '../sim/places';
 import { shotsFor } from '../sim/shots';
 import { Character } from '../character';
 import { Button, CompanionChip, JetlagChip, ProgressBar, type ChipFriend } from '../ui';
-import { Scene } from '../scenes';
+import { ActivityStage } from './ActivityStage';
 import { activityLog } from '../sim/actlog';
 import { hhmmIn } from '../sim/tz';
 import { fmtRemain, poseFor, progressLabel } from './util';
@@ -12,7 +13,7 @@ import './camera.css';
 
 type Active = Extract<Phase, { kind: 'active' }>;
 
-/** State 3 — generic place scene (350px character on top), place tag, bottom status card.
+/** State 3 — generic place scene as a 3D stage (350px live character on top), place tag, bottom status card.
  *  동행은 이름이 아니라 얼굴로 (FRIENDS_SPEC 동행 표시 규칙): the friend stands beside, the chip under the place tag.
  *  마주침(§4): 말을 걸었으면 상대가 옆에 서서 "안녕!", 못 걸었으면 배경에 실루엣만. */
 export function ActivityScreen({ phase }: { phase: Active }) {
@@ -31,11 +32,13 @@ export function ActivityScreen({ phase }: { phase: Active }) {
   const metChip: ChipFriend[] = met ? [{ id: met.id, name: met.name, color: met.color }] : [];
   // real place: 동네 (+ city when abroad) — no implementation vocabulary in the tag
   const where = act.place.country === 'KR' ? act.place.area : `${act.place.area} · ${cityNameKo(act.place.city)}`;
+  const root = useRef<HTMLDivElement>(null);
 
   return (
-    <div className={`act ${friend ? 'has-friend' : ''} ${met ? 'has-met' : ''}`}>
+    <div ref={root} className={`act ${friend ? 'has-friend' : ''} ${met ? 'has-met' : ''}`}>
       <div className="act-iris" />
-      <div className="act-scene"><Scene type={act.place.type} /></div>
+      {/* 3D 무대 (ADR-0014 개정 4): 카메라와 같은 세트를 무대 전체로 보고 천천히 흔들린다. 인물은 DOM 그대로(살아 움직인다) 세트에 맞춰 따라간다 */}
+      <div className="act-scene"><ActivityStage type={act.place.type} pose={poseFor(act.option)} root={root} /></div>
       {/* 말은 못 걸었지만 그 자리에 있던 사람 — 배경의 흐린 실루엣 */}
       {seen && <Character className="act-ghost" pose="idle" size={190} variant="friend" color="#A08C76" />}
       {friend && <Character className="act-friend" pose="wave" size={224} variant="friend" color={friend.color} />}

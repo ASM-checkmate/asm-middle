@@ -107,9 +107,10 @@ export class StageView {
     const foot = wallFootRow(k);
     const X0 = TEX_LEFT - 390, X1 = TEX_LEFT + TEX_W + 390;   // 3 W: 그 밖은 거울 반복
     // 뒷막: 벽 발치 위쪽 전부 (바닥 경계선이 발치보다 높으면 그 사이의 바닥 그림도 뒷막에 — 먼 물·먼 풀밭처럼 읽힌다)
-    this.add(this.bg, projected(textureOf(set.backdrop, true), X0, 0, X1, foot, 24, 16, (fx, fy) => hitVertical(rayFromFrame(fx, fy), zWall), stageUv, { alphaTest: 0.02 }));
-    // 바닥: 벽 발치부터 그림 끝(프레임 아래 한 프레임)까지, 눕힌 평면에
-    this.add(this.bg, projected(textureOf(set.ground, true), X0, foot, X1, STAGE_H, 24, 32, groundOrFar, stageUv, { alphaTest: 0.02 }));
+    // 그림 위아래 너머(행 <0, >844)는 텍스처 끝 행이 늘어난다(wrapT clamp) — 활동 화면의 흔들림·위아래 각도에서 종이색이 안 드러나게
+    this.add(this.bg, projected(textureOf(set.backdrop, true), X0, -400, X1, foot, 24, 20, (fx, fy) => hitVertical(rayFromFrame(fx, fy), zWall), stageUv, { alphaTest: 0.02 }));
+    // 바닥: 벽 발치부터 그림 끝(프레임 아래 한 프레임)과 그 너머까지, 눕힌 평면에
+    this.add(this.bg, projected(textureOf(set.ground, true), X0, foot, X1, STAGE_H + 160, 24, 36, groundOrFar, stageUv, { alphaTest: 0.02 }));
     // 3D 소품(props3d.ts)이 있는 장소는 그 소품의 종이 카드를 생략한다 (그림자는 남긴다)
     const built = build3dProps(sceneTypeFor(type), set.props);
     if (built) {
@@ -134,7 +135,7 @@ export class StageView {
       this.add(this.bg, projected(tex, p.x0, p.y0, p.x1, p.y1, 4, 4, (fx, fy) => hitVertical(rayFromFrame(fx, fy), z), uv));
       if (base) this.shadow(this.bg, base, (p.x1 - p.x0) / 390 * (CAM_DIST - z) / CAM_DIST * 0.5);
     });
-    // 인물: 2D 상자 그대로 세운 카드, 깊이는 CAST_DEPTH (me = 캐릭터 평면 z 0)
+    // 인물: 2D 상자 그대로 세운 카드, 깊이는 CAST_DEPTH (me = 캐릭터 평면 z 0). 활동 화면은 인물을 DOM으로 얹으니 비어 있다
     for (const { who, canvas } of cast) {
       const r = castRect(who, hasFriend, hasMet);
       const z = CAM_DIST * (1 - CAST_DEPTH[who]);
@@ -165,23 +166,26 @@ export class StageView {
   }
 
   /** 텍스처를 구운 뒤 만든다 (장소·인물별 캐시라 두 번째부터는 바로) */
-  static async create(spec: StageSpec): Promise<StageView> {
+  static async create(spec: StageSpec, withCast = true): Promise<StageView> {
     const hasFriend = !!spec.friendColor, hasMet = !!spec.metColor;
     const wanted: { who: CastName; spec: CastSpec }[] = [];
-    if (spec.seenColor) wanted.push({ who: 'ghost', spec: { pose: 'idle', variant: 'friend', color: spec.seenColor, ghost: true } });
-    if (spec.friendColor) wanted.push({ who: 'friend', spec: { pose: 'wave', variant: 'friend', color: spec.friendColor } });
-    wanted.push({ who: 'me', spec: { pose: spec.pose, variant: 'me' } });
-    if (spec.metColor) wanted.push({ who: 'met', spec: { pose: 'wave', variant: 'friend', color: spec.metColor } });
+    if (withCast) {
+      if (spec.seenColor) wanted.push({ who: 'ghost', spec: { pose: 'idle', variant: 'friend', color: spec.seenColor, ghost: true } });
+      if (spec.friendColor) wanted.push({ who: 'friend', spec: { pose: 'wave', variant: 'friend', color: spec.friendColor } });
+      wanted.push({ who: 'me', spec: { pose: spec.pose, variant: 'me' } });
+      if (spec.metColor) wanted.push({ who: 'met', spec: { pose: 'wave', variant: 'friend', color: spec.metColor } });
+    }
     const [set, sprites] = await Promise.all([sceneSet(spec.type), Promise.all(wanted.map(w => castSprite(w.spec)))]);
     return new StageView(spec.type, set, wanted.map((w, i) => ({ who: w.who, canvas: sprites[i]! })), hasFriend, hasMet);
   }
 
-  /** 비트맵 w×h로 그려 bg·fg 캔버스에 복사한다. 렌더러가 없으면 아무것도 안 한다 */
-  render(crop: StageCrop, bg: HTMLCanvasElement, fg: HTMLCanvasElement, w: number, h: number): void {
+  /** 비트맵 w×h로 그려 bg·fg 캔버스에 복사한다(fg가 없으면 세트만). full = 무대 전체를 보는 활동 화면. 렌더러가 없으면 아무것도 안 한다 */
+  render(crop: StageCrop, bg: HTMLCanvasElement, fg: HTMLCanvasElement | null, w: number, h: number, full = false): void {
     const r = getRenderer();
     if (!r || w < 2 || h < 2) return;
     if (w > glW || h > glH) { glW = Math.max(glW, w); glH = Math.max(glH, h); r.setSize(glW, glH, false); }
-    const pose = stagePose(crop);
+    const pose = stagePose(crop, CAM_DIST, full);
+    this.size = [w, h];
     const cam = this.camera;
     cam.aspect = w / h;
     cam.position.set(...pose.pos);
@@ -203,9 +207,18 @@ export class StageView {
     r.clear(true, true, true);
     r.render(this.bg, cam);
     blit(bg);
+    if (!fg) return;
     r.clear(true, false, false);   // 색만 지우고 깊이는 남긴다 — 앞의 소품이 인물을 가린다
     r.render(this.fg, cam);
     blit(fg);
+  }
+
+  private size: [number, number] = [0, 0];
+  /** 마지막 render의 카메라로 월드 점을 캔버스 픽셀로 (DOM 인물을 세트에 맞춰 옮길 때). 카메라 뒤면 null */
+  project(p: Vec3): [number, number] | null {
+    const v = new THREE.Vector3(...p).project(this.camera);
+    if (v.z > 1) return null;
+    return [((v.x + 1) / 2) * this.size[0], ((1 - v.y) / 2) * this.size[1]];
   }
 
   dispose(): void {

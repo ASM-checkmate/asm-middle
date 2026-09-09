@@ -129,8 +129,9 @@ export interface StagePose {
  * ShotCrop → 카메라 자세. 기본 카메라(0, h, D)가 CAM_PITCH만큼 숙인 채 발(원점)을 축으로 yaw(오른쪽에서 보면 +)·pitch(위에서 보면 +)만큼
  * 돈다 — 뒤의 세트는 카메라 쪽으로, 앞의 세트는 반대로 밀리고 원근이 실제로 계산된다. rot(화면 시계 방향 +)은 롤, scale은 줌.
  * 2D에서 확대·기울임의 중심이 발(transform-origin 50 % 78 %)이었으므로 화면 이동(offset)으로 발이 제자리에 남게 보정하고 끌기를 더한다.
+ * 활동 화면(full)은 같은 카메라로 무대 전체를 본다: zoom 0.5(세로 844행 = 프레임 두 배), 보정 없음 — 기본 각도에서 2D 무대 그대로.
  */
-export function stagePose(c: StageCrop, dist = CAM_DIST): StagePose {
+export function stagePose(c: StageCrop, dist = CAM_DIST, full = false): StagePose {
   const H = FRAME_ASPECT;
   const yaw = (c.yaw ?? 0) * RAD, pitch = (c.pitch ?? 0) * RAD, tilt = -CAM_PITCH * RAD;
   const orbit = (v: Vec3): Vec3 => rotY(rotX(v, -pitch), yaw);
@@ -143,7 +144,8 @@ export function stagePose(c: StageCrop, dist = CAM_DIST): StagePose {
   // 화면 이동 (W 단위, 아래가 +): o = p − S·R·p + S·R·t, p = 발 − 중심, t = 끌기
   const s = c.scale, a = c.rot * RAD, cr = Math.cos(a), sr = Math.sin(a);
   const R = (v: [number, number]): [number, number] => [v[0] * cr - v[1] * sr, v[0] * sr + v[1] * cr];
-  const p: [number, number] = [0, (ANCHOR_Y - 0.5) * H];
+  // full: 무대 전체(390×844)를 보는 활동 화면 — 확대·기울임의 중심이 화면 가운데라 발 기준 보정이 없다
+  const p: [number, number] = full ? [0, 0] : [0, (ANCHOR_Y - 0.5) * H];
   const t: [number, number] = [c.x / 100, (c.y / 100) * H];
   const Rp = R(p), Rt = R(t);
   const o: [number, number] = [p[0] - s * Rp[0] + s * Rt[0], p[1] - s * Rp[1] + s * Rt[1]];

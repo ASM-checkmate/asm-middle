@@ -110,7 +110,7 @@ export class StageView {
     this.add(this.bg, projected(textureOf(set.backdrop, true), X0, 0, X1, foot, 24, 16, (fx, fy) => hitVertical(rayFromFrame(fx, fy), zWall), stageUv, { alphaTest: 0.02 }));
     // 바닥: 벽 발치부터 그림 끝(프레임 아래 한 프레임)까지, 눕힌 평면에
     this.add(this.bg, projected(textureOf(set.ground, true), X0, foot, X1, STAGE_H, 24, 32, groundOrFar, stageUv, { alphaTest: 0.02 }));
-    // 3D 소품(props3d.ts)이 있는 장소는 그 소품의 종이 카드를 생략한다 (프로토타입: 카페)
+    // 3D 소품(props3d.ts)이 있는 장소는 그 소품의 종이 카드를 생략한다 (그림자는 남긴다)
     const built = build3dProps(sceneTypeFor(type), set.props);
     if (built) {
       this.bg.add(built.built.group, ...toonLights());
@@ -118,7 +118,11 @@ export class StageView {
     }
     // 소품: 서는 카드는 바닥 접점의 깊이에 세운 평면, 눕는 것은 바닥에
     set.props.forEach((p, i) => {
-      if (built?.handled.has(i)) return;
+      if (built?.handled.has(i)) {
+        const g = hitGround(rayFromFrame(frameOfCol((p.x0 + p.x1) / 2), frameOfRow(p.base)));
+        if (g) this.shadow(this.bg, g, (p.x1 - p.x0) / 390 * (CAM_DIST - g[2]) / CAM_DIST * 0.5);
+        return;
+      }
       const tex = textureOf(p.canvas, false);
       const uv = (col: number, row: number): [number, number] => [(col - p.x0) / (p.x1 - p.x0), 1 - (row - p.y0) / (p.y1 - p.y0)];
       if (p.lie) {

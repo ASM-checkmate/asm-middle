@@ -209,7 +209,7 @@ export function buildCharacter(spec: CharacterSpec): Character3DModel {
       head.position.y = 1.5 * breathe;
       // 깜빡임: 4.4초마다 120ms (자거나 웃는 얼굴은 안 감는다)
       if (face !== 'sleep' && face !== 'happy') {
-        const cyc = t % 4.4;
+        const cyc = (t + 2.2) % 4.4;   // t = 0(정지 무대)에 눈을 감고 있지 않도록 어긋나게
         const closed = cyc < 0.12;
         if (closed !== (blinkT > 0)) { blinkT = closed ? 1 : -1; setFace(closed, pose === 'eat' && Math.sin(t * Math.PI * 2 / 0.9) > 0); }
         else if (pose === 'eat') setFace(closed, Math.sin(t * Math.PI * 2 / 0.9) > 0);

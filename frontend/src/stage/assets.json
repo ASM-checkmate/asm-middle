@@ -1,0 +1,5 @@
+{
+  "_": "밖에서 만든 3D 모델(glb) 매니페스트 — ADR-0014 개정 7. props: 장소별 소품 번호(scenes/index.tsx의 P 순서) → { url, line?, simplify?, yaw? }. character: me/friend. 없는 것은 코드 도형(props3d/character3d)이 맡는다. glb는 frontend/public/assets/models/ 에 둔다.",
+  "props": {},
+  "character": {}
+}

@@ -16,6 +16,8 @@ import { onSceneEvict, sceneSet, shadowSprite } from './textures';
 import { buildCharacter, characterCamera, characterLights, ghostify, placeCharacter } from './character3d';
 import type { Character3DModel, CharacterSpec } from './character3d';
 import { build3dProps, toonLights } from './props3d';
+import { characterAsset, loadCharacterModel, loadModel, placeInBox, propAsset } from './assets';
+import type { LoadedModel } from './assets';
 import { sceneTypeFor } from '../scenes';
 import type { SceneType } from '../scenes';
 import type { PropSprite } from './textures';
@@ -85,7 +87,8 @@ function projected(
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geo.setIndex(idx);
-  const material = new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.5, depthWrite: true, side: THREE.DoubleSide, ...mat });
+  // 잘라낸 가장자리(alphaTest)는 MSAA로 부드럽게(alphaToCoverage) — 카메라가 돌 때 가장자리가 지글거리지 않는다
+  const material = new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.5, alphaToCoverage: true, depthWrite: true, side: THREE.DoubleSide, ...mat });
   return new THREE.Mesh(geo, material);
 }
 
@@ -113,20 +116,38 @@ export class StageView {
 
   private cast: Character3DModel[] = [];
 
-  private constructor(type: PlaceType | SceneType, set: { floorY: number; backdrop: HTMLCanvasElement; ground: HTMLCanvasElement; props: PropSprite[] }, cast: { who: CastName; spec: CharacterSpec }[], hasFriend: boolean, hasMet: boolean, hush: boolean) {
-    this.camera = new THREE.PerspectiveCamera(stageFov(), 1 / FRAME_ASPECT, 0.05, 30);
+  private constructor(type: PlaceType | SceneType, set: { floorY: number; backdrop: HTMLCanvasElement; ground: HTMLCanvasElement; props: PropSprite[] }, cast: { who: CastName; spec: CharacterSpec; model?: Character3DModel }[], hasFriend: boolean, hasMet: boolean, hush: boolean, assets: Map<number, LoadedModel>) {
+    // near·far를 세트 크기(수 W)에 맞춰 좁힌다 — 깊이 정밀도가 좋아져 겹친 면이 깜빡이지 않는다
+    this.camera = new THREE.PerspectiveCamera(stageFov(), 1 / FRAME_ASPECT, 0.15, 16);
     const k = wallDepth(set.floorY);
     const zWall = wallZ(k);
     const foot = wallFootRow(k);
     const X0 = TEX_LEFT - 390, X1 = TEX_LEFT + TEX_W + 390;   // 3 W: 그 밖은 거울 반복
     // 뒷막: 벽 발치 위쪽 전부 (바닥 경계선이 발치보다 높으면 그 사이의 바닥 그림도 뒷막에 — 먼 물·먼 풀밭처럼 읽힌다)
     // 그림 위아래 너머(행 <0, >844)는 텍스처 끝 행이 늘어난다(wrapT clamp) — 활동 화면의 흔들림·위아래 각도에서 종이색이 안 드러나게
-    this.add(this.bg, projected(textureOf(set.backdrop, true), X0, -400, X1, foot, 24, 20, (fx, fy) => hitVertical(rayFromFrame(fx, fy), zWall), stageUv, { alphaTest: 0.02 }));
+    // 뒷막은 발치보다 조금 아래(+6행)까지 내려와 바닥과 겹치고, 바닥은 polygonOffset으로 겹친 곳에서 진다 — 이음새가 깜빡이지 않는다
+    const backdrop = projected(textureOf(set.backdrop, true), X0, -400, X1, foot + 6, 24, 20, (fx, fy) => hitVertical(rayFromFrame(fx, fy), zWall), stageUv, { alphaTest: 0.02, alphaToCoverage: false });
+    backdrop.renderOrder = -3;
+    this.add(this.bg, backdrop);
     // 바닥: 벽 발치부터 그림 끝(프레임 아래 한 프레임)과 그 너머까지, 눕힌 평면에
-    this.add(this.bg, projected(textureOf(set.ground, true), X0, foot, X1, STAGE_H + 160, 24, 36, groundOrFar, stageUv, { alphaTest: 0.02 }));
+    const ground = projected(textureOf(set.ground, true), X0, foot, X1, STAGE_H + 160, 24, 36, groundOrFar, stageUv, { alphaTest: 0.02, alphaToCoverage: false, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 });
+    ground.renderOrder = -2;
+    this.add(this.bg, ground);
     // 3D 소품(props3d.ts)이 있는 장소는 그 소품의 종이 카드를 생략한다 (그림자는 남긴다)
-    // hush(시간표)면 말풍선 아래 소품은 빈자리로 넘긴다 — 빌더는 없는 번호를 건너뛴다
-    const visible = set.props.map(p => (hush && p.top ? undefined : p)) as PropSprite[];
+    // hush(시간표)면 말풍선 아래 소품은 빈자리로, glb가 있는 소품도 코드 빌더에 넘기지 않는다 — 빌더는 없는 번호를 건너뛴다
+    const visible = set.props.map((p, i) => (hush && p.top) || assets.has(i) ? undefined : p) as PropSprite[];
+    if (assets.size) this.bg.add(...toonLights());
+    // glb 소품 (assets.json): 톤 패스를 거친 모델을 2D 상자의 자리·크기에
+    for (const [i, model] of assets) {
+      const p = set.props[i]!;
+      if (hush && p.top) continue;
+      const base = hitGround(rayFromFrame(frameOfCol((p.x0 + p.x1) / 2), frameOfRow(p.base)));
+      if (!base) continue;
+      const s = (CAM_DIST - base[2]) / CAM_DIST / 390;   // 그림 1열 = 몇 W (그 깊이에서)
+      const g = placeInBox(model, [base[0], 0, base[2]], (p.x1 - p.x0) * s, (p.base - p.y0) * s);
+      this.bg.add(g);
+      this.shadow(this.bg, base, ((p.x1 - p.x0) / 390) * ((CAM_DIST - base[2]) / CAM_DIST) * 0.5);
+    }
     const built = build3dProps(sceneTypeFor(type), visible);
     if (built) {
       this.bg.add(built.built.group, ...toonLights());
@@ -134,7 +155,7 @@ export class StageView {
     }
     // 소품: 서는 카드는 바닥 접점의 깊이에 세운 평면, 눕는 것은 바닥에
     set.props.forEach((p, i) => {
-      if (hush && p.top) return;
+      if ((hush && p.top) || assets.has(i)) return;
       if (built?.handled.has(i)) {
         const g = hitGround(rayFromFrame(frameOfCol((p.x0 + p.x1) / 2), frameOfRow(p.base)));
         if (g) this.shadow(this.bg, g, (p.x1 - p.x0) / 390 * (CAM_DIST - g[2]) / CAM_DIST * 0.5);
@@ -143,7 +164,10 @@ export class StageView {
       const tex = textureOf(p.canvas, false);
       const uv = (col: number, row: number): [number, number] => [(col - p.x0) / (p.x1 - p.x0), 1 - (row - p.y0) / (p.y1 - p.y0)];
       if (p.lie) {
-        this.add(this.bg, projected(tex, p.x0, p.y0, p.x1, p.y1, 6, 6, groundOrFar, uv, { depthWrite: false, alphaTest: 0.05 }));
+        // 눕는 것은 바닥과 같은 높이라 깊이 검사 없이 바닥 바로 다음에 그린다 (z-fighting 없음). 서는 것은 그 뒤에 깊이로 겹친다
+        const lying = projected(tex, p.x0, p.y0, p.x1, p.y1, 6, 6, groundOrFar, uv, { depthWrite: false, depthTest: false, alphaTest: 0.05 });
+        lying.renderOrder = -1;
+        this.add(this.bg, lying);
         return;
       }
       const base = hitGround(rayFromFrame(frameOfCol((p.x0 + p.x1) / 2), frameOfRow(p.base)));
@@ -153,12 +177,12 @@ export class StageView {
     });
     // 인물: 3D 캐릭터(character3d)를 2D 상자의 발 자리·너비에 (깊이는 CAST_DEPTH, me = 캐릭터 평면 z 0). 활동 화면은 인물을 DOM으로 얹으니 비어 있다
     if (cast.length) this.fg.add(...characterLights());
-    for (const { who, spec } of cast) {
+    for (const { who, spec, model: loaded } of cast) {
       const r = castRect(who, hasFriend, hasMet);
       const z = CAM_DIST * (1 - CAST_DEPTH[who]);
       const feet = hitVertical(rayFromFrame(frameOfCol((r.x0 + r.x1) / 2), frameOfRow(r.y1 - 0.09 * (r.x1 - r.x0))), z);
       const width = ((r.x1 - r.x0) / 390) * ((CAM_DIST - z) / CAM_DIST);
-      const model = buildCharacter(spec);
+      const model = loaded ?? buildCharacter(spec);
       if (who === 'ghost') ghostify(model);
       placeCharacter(model, [feet[0], 0, feet[2]], width);
       model.animate(0);
@@ -176,7 +200,8 @@ export class StageView {
   /** 발밑 그림자: 바닥에 눕힌 타원 (텍스처는 공유) */
   private shadow(scene: THREE.Scene, at: Vec3, w: number): void {
     const geo = new THREE.PlaneGeometry(w, w * 0.5);
-    const mat = new THREE.MeshBasicMaterial({ map: textureOf(shadowSprite(), false), transparent: true, opacity: 0.32, depthWrite: false });
+    // 바닥과 같은 높이: 깊이 검사 없이 바닥 다음에 (z-fighting 없음)
+    const mat = new THREE.MeshBasicMaterial({ map: textureOf(shadowSprite(), false), transparent: true, opacity: 0.32, depthWrite: false, depthTest: false });
     const m = new THREE.Mesh(geo, mat);
     m.rotation.x = -Math.PI / 2;
     m.position.set(at[0], 0.002, at[2]);
@@ -195,8 +220,17 @@ export class StageView {
       wanted.push({ who: 'me', spec: { pose: spec.pose, variant: 'me' } });
       if (spec.metColor) wanted.push({ who: 'met', spec: { pose: 'wave', variant: 'friend', color: spec.metColor } });
     }
+    const scene = sceneTypeFor(spec.type);
     const set = await sceneSet(spec.type, !!spec.hush);
-    return new StageView(spec.type, set, wanted, hasFriend, hasMet, !!spec.hush);
+    // glb 소품·캐릭터가 매니페스트에 있으면 미리 읽는다 (캐시라 두 번째부터는 즉시)
+    const assets = new Map<number, LoadedModel>();
+    await Promise.all(set.props.map(async (_, i) => { const e = propAsset(scene, i); if (e) { try { assets.set(i, await loadModel(e)); } catch { /* 못 읽으면 코드 도형 */ } } }));
+    const castWithModels = await Promise.all(wanted.map(async w => {
+      const e = characterAsset(w.spec.variant);
+      if (!e) return w;
+      try { return { ...w, model: await loadCharacterModel(e) as Character3DModel }; } catch { return w; }
+    }));
+    return new StageView(spec.type, set, castWithModels, hasFriend, hasMet, !!spec.hush, assets);
   }
 
   /** 비트맵 w×h로 그려 bg·fg 캔버스에 복사한다(fg가 없으면 세트만). full = 무대 전체를 보는 활동 화면. 렌더러가 없으면 아무것도 안 한다 */
@@ -253,9 +287,15 @@ export class CharacterView {
   private scene = new THREE.Scene();
   private camera = characterCamera();
   private model: Character3DModel;
-  constructor(spec: CharacterSpec) {
-    this.model = buildCharacter(spec);
+  private constructor(model: Character3DModel) {
+    this.model = model;
     this.scene.add(this.model.group, ...characterLights());
+  }
+  /** 매니페스트에 glb 캐릭터가 있으면 그것(톤 패스 거침), 없으면 코드 캐릭터 */
+  static async create(spec: CharacterSpec): Promise<CharacterView> {
+    const e = characterAsset(spec.variant);
+    if (e) { try { return new CharacterView(await loadCharacterModel(e) as Character3DModel); } catch { /* 코드 캐릭터로 */ } }
+    return new CharacterView(buildCharacter(spec));
   }
   render(canvas: HTMLCanvasElement, px: number, t: number): void {
     const r = getRenderer();

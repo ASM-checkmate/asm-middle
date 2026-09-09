@@ -38,7 +38,7 @@ export function Character3D({ pose, size, variant, color, className, style, paus
       const mod = await loadStage();
       if (!alive) return;
       if (!mod.stage3dSupported()) { setState('off'); return; }
-      const v = new mod.CharacterView({ pose, variant, color });
+      const v = await mod.CharacterView.create({ pose, variant, color });
       if (!alive) { v.dispose(); return; }
       view.current?.dispose();
       view.current = v;

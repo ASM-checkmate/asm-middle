@@ -15,6 +15,7 @@ import type { CastName, StageCrop, Vec3 } from '../sim/stage';
 import { castSprite, onSceneEvict, sceneSet, shadowSprite } from './textures';
 import { build3dProps, toonLights } from './props3d';
 import { sceneTypeFor } from '../scenes';
+import type { SceneType } from '../scenes';
 import type { CastSpec, PropSprite } from './textures';
 import type { PlaceType } from '../sim/types';
 
@@ -86,11 +87,13 @@ const stageUv = (col: number, row: number): [number, number] => [(col - TEX_LEFT
 const groundOrFar = (fx: number, fy: number): Vec3 => hitGround(rayFromFrame(fx, fy)) ?? hitVertical(rayFromFrame(fx, fy), wallZ(8));
 
 export interface StageSpec {
-  type: PlaceType;
+  type: PlaceType | SceneType;
   pose: CastSpec['pose'];
   friendColor?: string;
   metColor?: string;
   seenColor?: string;
+  /** 시간표 화면: 말풍선 아래 소품(.sc-top)을 뺀다 */
+  hush?: boolean;
 }
 
 /** 무대 하나: 세트 + 카메라. 텍스처는 캐시에서 공유하고, 지오메트리·머티리얼만 자기 것이다 */
@@ -100,7 +103,7 @@ export class StageView {
   private camera: THREE.PerspectiveCamera;
   private own: { dispose(): void }[] = [];
 
-  private constructor(type: PlaceType, set: { floorY: number; backdrop: HTMLCanvasElement; ground: HTMLCanvasElement; props: PropSprite[] }, cast: { who: CastName; canvas: HTMLCanvasElement }[], hasFriend: boolean, hasMet: boolean) {
+  private constructor(type: PlaceType | SceneType, set: { floorY: number; backdrop: HTMLCanvasElement; ground: HTMLCanvasElement; props: PropSprite[] }, cast: { who: CastName; canvas: HTMLCanvasElement }[], hasFriend: boolean, hasMet: boolean, hush: boolean) {
     this.camera = new THREE.PerspectiveCamera(stageFov(), 1 / FRAME_ASPECT, 0.05, 30);
     const k = wallDepth(set.floorY);
     const zWall = wallZ(k);
@@ -112,13 +115,16 @@ export class StageView {
     // 바닥: 벽 발치부터 그림 끝(프레임 아래 한 프레임)과 그 너머까지, 눕힌 평면에
     this.add(this.bg, projected(textureOf(set.ground, true), X0, foot, X1, STAGE_H + 160, 24, 36, groundOrFar, stageUv, { alphaTest: 0.02 }));
     // 3D 소품(props3d.ts)이 있는 장소는 그 소품의 종이 카드를 생략한다 (그림자는 남긴다)
-    const built = build3dProps(sceneTypeFor(type), set.props);
+    // hush(시간표)면 말풍선 아래 소품은 빈자리로 넘긴다 — 빌더는 없는 번호를 건너뛴다
+    const visible = set.props.map(p => (hush && p.top ? undefined : p)) as PropSprite[];
+    const built = build3dProps(sceneTypeFor(type), visible);
     if (built) {
       this.bg.add(built.built.group, ...toonLights());
       this.own.push(...built.built.disposables);
     }
     // 소품: 서는 카드는 바닥 접점의 깊이에 세운 평면, 눕는 것은 바닥에
     set.props.forEach((p, i) => {
+      if (hush && p.top) return;
       if (built?.handled.has(i)) {
         const g = hitGround(rayFromFrame(frameOfCol((p.x0 + p.x1) / 2), frameOfRow(p.base)));
         if (g) this.shadow(this.bg, g, (p.x1 - p.x0) / 390 * (CAM_DIST - g[2]) / CAM_DIST * 0.5);
@@ -175,8 +181,8 @@ export class StageView {
       wanted.push({ who: 'me', spec: { pose: spec.pose, variant: 'me' } });
       if (spec.metColor) wanted.push({ who: 'met', spec: { pose: 'wave', variant: 'friend', color: spec.metColor } });
     }
-    const [set, sprites] = await Promise.all([sceneSet(spec.type), Promise.all(wanted.map(w => castSprite(w.spec)))]);
-    return new StageView(spec.type, set, wanted.map((w, i) => ({ who: w.who, canvas: sprites[i]! })), hasFriend, hasMet);
+    const [set, sprites] = await Promise.all([sceneSet(spec.type, !!spec.hush), Promise.all(wanted.map(w => castSprite(w.spec)))]);
+    return new StageView(spec.type, set, wanted.map((w, i) => ({ who: w.who, canvas: sprites[i]! })), hasFriend, hasMet, !!spec.hush);
   }
 
   /** 비트맵 w×h로 그려 bg·fg 캔버스에 복사한다(fg가 없으면 세트만). full = 무대 전체를 보는 활동 화면. 렌더러가 없으면 아무것도 안 한다 */

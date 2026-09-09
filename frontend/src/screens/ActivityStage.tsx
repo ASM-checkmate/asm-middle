@@ -1,4 +1,4 @@
-// ─── 활동 화면의 3D 무대 (ADR-0014 개정 4) ─────────────────────────────────
+// ─── 활동·시간표 화면의 3D 무대 (ADR-0014 개정 4) ──────────────────────────
 // 카메라와 같은 세트(뒷막·눕힌 바닥·3D 소품)를 무대 전체(390×844)로 본다 — 기본 각도에서는 2D 무대 그대로. 카메라가 천천히 숨 쉬듯
 // 흔들려(yaw ±4° · pitch ±2°) 정지 화면에서도 입체가 보인다. 인물(.act-chara/.act-friend/.act-met/.act-ghost)은 DOM 그대로 살아 움직이고,
 // 발 자리를 캐릭터 평면(z 0)의 월드 점으로 잡아 프레임마다 투영해 `translate`로 따라간다(그림·breathe 애니메이션의 transform과 따로 합쳐진다).
@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { Pose } from '../character';
 import type { PlaceType } from '../sim/types';
+import type { SceneType } from '../scenes';
 import { STAGE_H, STAGE_W, frameOfCol, frameOfRow, hitVertical, rayFromFrame } from '../sim/stage';
 import type { StageCrop, Vec3 } from '../sim/stage';
 import { Scene } from '../scenes';
@@ -22,7 +23,7 @@ const reduced = () => { try { return matchMedia('(prefers-reduced-motion: reduce
 
 interface Anchor { el: HTMLElement; world: Vec3; rest: [number, number] }
 
-export function ActivityStage({ type, pose, root }: { type: PlaceType; pose: Pose; root: RefObject<HTMLDivElement | null> }) {
+export function ActivityStage({ type, pose, root, cast = CAST, hush = false }: { type: PlaceType | SceneType; pose: Pose; root: RefObject<HTMLDivElement | null>; /** 세트를 따라갈 DOM 인물 선택자 */ cast?: string; /** 시간표: 말풍선 아래 소품을 뺀다 */ hush?: boolean }) {
   const [crop, setCrop] = useState<StageCrop>(FULL);
   const anchors = useRef<Anchor[] | null>(null);
   const sizeRef = useRef({ w: 0, h: 0 });
@@ -50,7 +51,7 @@ export function ActivityStage({ type, pose, root }: { type: PlaceType; pose: Pos
     const host = root.current;
     if (!host) return [];
     const k = h / STAGE_H;   // 세로 844행이 h px
-    return Array.from(host.querySelectorAll<HTMLElement>(CAST)).map(el => {
+    return Array.from(host.querySelectorAll<HTMLElement>(cast)).map(el => {
       const fx = el.offsetLeft + el.offsetWidth / 2, fy = el.offsetTop + el.offsetHeight * 0.91;
       const col = STAGE_W / 2 + (fx - w / 2) / k, row = STAGE_H / 2 + (fy - h / 2) / k;
       return { el, world: hitVertical(rayFromFrame(frameOfCol(col), frameOfRow(row)), 0), rest: [fx, fy] };
@@ -72,5 +73,5 @@ export function ActivityStage({ type, pose, root }: { type: PlaceType; pose: Pos
   // 인물이 바뀌면(동행·마주침) 다시 잰다
   useEffect(() => { anchors.current = null; });
 
-  return <Stage3D type={type} pose={pose} crop={crop} full fallback={<Scene type={type} />} onFrame={onFrame} />;
+  return <Stage3D type={type} pose={pose} crop={crop} full hush={hush} fallback={<Scene type={type} hush={hush} />} onFrame={onFrame} />;
 }

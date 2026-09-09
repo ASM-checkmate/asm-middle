@@ -481,6 +481,14 @@
 .cm-p.has-flaw.is-blur.is-dark .cm-shot { filter: brightness(.45) contrast(.85) blur(2.2px); }
 .cm-p.is-dark .cm-cap { background: var(--paper); }
 
+/* 에이전트 컷의 3D 무대 (ShotStage .cm-agt): 열화는 무대 전체에 — .cm-shot에 걸던 것과 같은 값 */
+.cm-p .cm-agt { position: absolute; inset: 0; }
+.cm-p.is-blur .cm-agt { filter: blur(1.6px); opacity: .82; }
+.cm-p.is-dark .cm-agt { filter: brightness(.45) contrast(.85); }
+.cm-p.is-blur.is-dark .cm-agt { filter: brightness(.45) contrast(.85) blur(1.6px); }
+.cm-p.has-flaw.is-blur .cm-agt { filter: blur(2.2px); opacity: .9; }
+.cm-p.has-flaw.is-blur.is-dark .cm-agt { filter: brightness(.45) contrast(.85) blur(2.2px); }
+
 .cm-me { position: absolute; left: 6px; bottom: calc(84px + var(--safe-bottom)); z-index: 2; animation: act-breathe 3s ease-in-out infinite; }
 .cm-me-bubble { position: absolute; left: 150px; bottom: calc(200px + var(--safe-bottom)); z-index: 3; }
 .cm-stamp {

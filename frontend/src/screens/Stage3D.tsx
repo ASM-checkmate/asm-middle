@@ -6,13 +6,14 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Pose } from '../character';
 import type { PlaceType } from '../sim/types';
+import type { SceneType } from '../scenes';
 import type { StageCrop, Vec3 } from '../sim/stage';
 import type { StageView } from '../stage';
 
 export type Projector = (p: Vec3) => [number, number] | null;
 
 export interface Stage3DProps {
-  type: PlaceType;
+  type: PlaceType | SceneType;
   pose: Pose;
   crop: StageCrop;
   friendColor?: string;
@@ -22,6 +23,8 @@ export interface Stage3DProps {
   fallback: ReactNode;
   /** 무대 전체(390×844)를 보는 활동 화면 — 인물 캔버스 없이 세트만 */
   full?: boolean;
+  /** 시간표: 말풍선 아래 소품을 뺀다 */
+  hush?: boolean;
   /** 그린 뒤: 월드 점 → 캔버스 픽셀 투영과 캔버스 크기 (DOM 인물 배치용) */
   onFrame?: (project: Projector, size: { w: number; h: number }) => void;
 }
@@ -34,7 +37,7 @@ const DPR = () => Math.min(2, typeof devicePixelRatio === 'number' ? devicePixel
 /** QA 훅: `?…&stage=css`면 3D를 끄고 CSS 무대만 — 같은 crop에서 두 그림을 견준다 (dev/preview.ts와 같은 어법) */
 const FORCE_CSS = typeof location !== 'undefined' && new URLSearchParams(location.search).get('stage') === 'css';
 
-export function Stage3D({ type, pose, crop, friendColor, metColor, seenColor, fallback, full = false, onFrame }: Stage3DProps) {
+export function Stage3D({ type, pose, crop, friendColor, metColor, seenColor, fallback, full = false, hush = false, onFrame }: Stage3DProps) {
   const wrap = useRef<HTMLDivElement>(null);
   const bgRef = useRef<HTMLCanvasElement>(null);
   const fgRef = useRef<HTMLCanvasElement>(null);
@@ -70,7 +73,7 @@ export function Stage3D({ type, pose, crop, friendColor, metColor, seenColor, fa
       if (!alive) return;
       if (!mod.stage3dSupported()) { setState('off'); return; }
       let v: StageView;
-      try { v = await mod.StageView.create({ type, pose, friendColor, metColor, seenColor }, !full); }
+      try { v = await mod.StageView.create({ type, pose, friendColor, metColor, seenColor, hush }, !full); }
       catch { if (alive) setState('off'); return; }
       if (!alive) { v.dispose(); return; }
       view.current?.dispose();
@@ -85,7 +88,7 @@ export function Stage3D({ type, pose, crop, friendColor, metColor, seenColor, fa
       if (raf.current) { cancelAnimationFrame(raf.current); raf.current = 0; }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, pose, friendColor, metColor, seenColor, full]);
+  }, [type, pose, friendColor, metColor, seenColor, full, hush]);
 
   // 크기: 프레임·썸네일·만화 컷·활동 화면마다 다르다. DPR 2 상한 (MOVEMENT_SPEC §8)
   useEffect(() => {

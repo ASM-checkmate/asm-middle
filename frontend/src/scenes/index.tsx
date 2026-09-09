@@ -8,17 +8,17 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { PlaceType } from '../sim/types';
 import './scenes.css';
 
-export type SceneType = 'cafe' | 'restaurant' | 'park' | 'river' | 'beach' | 'gym' | 'library' | 'mall' | 'museum' | 'home';
+export type SceneType = 'cafe' | 'restaurant' | 'park' | 'river' | 'beach' | 'gym' | 'library' | 'mall' | 'museum' | 'home' | 'yard';
 
-export const SCENE_TYPES: SceneType[] = ['cafe', 'restaurant', 'park', 'river', 'beach', 'gym', 'library', 'mall', 'museum', 'home'];
+export const SCENE_TYPES: SceneType[] = ['cafe', 'restaurant', 'park', 'river', 'beach', 'gym', 'library', 'mall', 'museum', 'home', 'yard'];
 
 export const SCENE_LABEL: Record<SceneType, string> = {
-  cafe: '카페', restaurant: '식당', park: '공원', river: '강변', beach: '해변', gym: '헬스장', library: '도서관', mall: '쇼핑몰', museum: '박물관', home: '집',
+  cafe: '카페', restaurant: '식당', park: '공원', river: '강변', beach: '해변', gym: '헬스장', library: '도서관', mall: '쇼핑몰', museum: '박물관', home: '집', yard: '마당',
 };
 
 /** 그림의 바닥 경계선(벽·하늘과 바닥이 만나는 행) — 3D 무대가 뒷막의 거리를 여기서 정한다 (ADR-0014 개정 2) */
 export const SCENE_FLOOR_Y: Record<SceneType, number> = {
-  cafe: 450, restaurant: 450, park: 440, river: 344, beach: 290, gym: 420, library: 456, mall: 450, museum: 450, home: 450,
+  cafe: 450, restaurant: 450, park: 440, river: 344, beach: 290, gym: 420, library: 456, mall: 450, museum: 450, home: 450, yard: 300,
 };
 
 const MAP: Partial<Record<PlaceType, SceneType>> = {
@@ -808,6 +808,47 @@ function Home() {
   );
 }
 
+/** 시간표(활동 전, 집)의 마당 — 옛 CSS 그림(.tt-sky/.tt-hill/Yard)을 무대로 옮긴 것. 캐릭터 발 ≈ 334 (tt-chara: top 70 + 290·0.91) */
+function Yard() {
+  const post = (x: number) => <path key={x} d={`M${x} 294l8-10 8 10v30h-16z`} className="f-paper s-ink" />;
+  return (
+    <>
+      <defs><Grad id="sc-yard-sky" a="st-sky" b="st-sky2" /></defs>
+      <L d="far">
+        <rect x={-390} width={1170} height="844" className="f-paper" />
+        <rect x={-390} width={1170} height="380" fill="url(#sc-yard-sky)" />
+        <Sun x={46} y={172} r={34} />
+        <Cloud x={40} y={134} s={1.1} className="an-drift" />
+        <Cloud x={0} y={212} s={0.75} className="an-drift d1" />
+        {/* far hill: the top arc is the horizon */}
+        <path d="M-390 383 H-70 a265 115 0 0 1 530 0 H780 v460 H-390 z" className="f-grass" />
+      </L>
+      <L d="floor">
+        <path d="M-390 300 H-140 a175 100 0 0 1 350 0 H780 v544 H-390 z" className="f-grass2" />
+        <path d="M-390 400 H780 v444 H-390 z" className="f-grass" opacity=".6" />
+      </L>
+      <L d="mid">
+        <P base={324}><g>{[14, 44, 74, 104].map(post)}<rect x="6" y="302" width="122" height="6" rx="3" className="f-paper s-ink" /></g></P>
+        <P base={324}><g>{[290, 320, 350, 380].map(post)}<rect x="282" y="302" width="112" height="6" rx="3" className="f-paper s-ink" /></g></P>
+        <P base={332}><g transform="translate(330 328)">
+          <rect x="-4" y="-30" width="8" height="34" className="f-ink" />
+          <rect x="-16" y="-44" width="32" height="20" rx="6" className="f-coral s-ink" />
+          <circle cx="8" cy="-34" r="2.5" className="f-paper" />
+        </g></P>
+      </L>
+      <L d="front">
+        {[[150, 336, 'f-coral'], [172, 344, 'f-sun'], [236, 342, 'f-sky'], [258, 334, 'f-coral'], [130, 346, 'f-sun'], [275, 348, 'f-sun']].map(([x, y, c], i) => (
+          <P key={i} base={y as number}><g transform={`translate(${x} ${y})`}>
+            <path d="M0 0v-12" className="s-ink2 f-none" />
+            <circle cy="-15" r="5.5" className={`${c} s-ink2`} />
+            <circle cy="-15" r="1.8" className="f-paper" />
+          </g></P>
+        ))}
+      </L>
+    </>
+  );
+}
+
 const SCENES: Record<SceneType, () => ReactNode> = {
-  cafe: Cafe, restaurant: Restaurant, park: Park, river: River, beach: Beach, gym: Gym, library: Library, mall: Mall, museum: Museum, home: Home,
+  cafe: Cafe, restaurant: Restaurant, park: Park, river: River, beach: Beach, gym: Gym, library: Library, mall: Mall, museum: Museum, home: Home, yard: Yard,
 };

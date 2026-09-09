@@ -126,22 +126,24 @@ export function ComicPanels({ comic, option, friendColor, tz, cast }: { comic: C
   );
 }
 
+/** 에이전트 컷의 px 크롭을 %로 옮길 때의 컷 너비 (2열 격자, 390px 화면 기준) */
+const AGENT_PANEL_PX = 170;
+
 function Panel({ p, i, option, friendColor, tz, placeType, agentName, cast }: { p: ComicPanel; i: number; option?: ActivityOption; friendColor?: string; tz?: string; placeType: PlaceType; agentName: string; cast?: ShotCast }) {
   const mine = p.by === 'user';
   // 사용자 컷은 카메라 뷰파인더에 보이던 포즈(poseFor) 그대로 — 옵션을 못 찾는 옛 만화(book)에서만 비트 포즈로 대신한다
   const pose = mine ? (option ? poseFor(option) : beatPose(p.beat)) : beatPose(p.beat, option);
-  const left = p.withFriend || p.beat === 'arrive';
   // 옛 만화(질감 이전에 저장된 것)에는 crop/t가 없다 — 그때는 원래대로 정중앙 전신으로 그린다
   const c = p.crop ?? { scale: 1, x: 0, y: 0, rot: 0 };
-  // 에이전트 컷의 --cx/--cy는 px (사용자 컷은 ShotStage가 %로 직접 받는다 — CONTRACT ComicPanel.unit)
-  const vars = mine ? {} : { ['--rot' as string]: `${c.rot}deg`, ['--cs' as string]: String(c.scale), ['--cx' as string]: `${c.x}${p.unit === 'pct' ? '%' : 'px'}`, ['--cy' as string]: `${c.y}${p.unit === 'pct' ? '%' : 'px'}` };
+  // 에이전트 컷의 x/y는 px(CONTRACT ComicPanel.unit) — 3D 무대(ShotStage)는 %로 받으니 컷 너비(≈170px)로 나눈다
+  const agentCrop = p.unit === 'pct' ? c : { ...c, x: Math.round((c.x / AGENT_PANEL_PX) * 1000) / 10, y: Math.round((c.y / (AGENT_PANEL_PX * 1.08)) * 1000) / 10 };
   // 에이전트가 대충 찍은 흔적 (ADR-0004 오너 결정 14): is-dark/is-blur는 CSS가, overzoom/cut/tilt는 crop에 이미 반영돼 있다
   const flaws = p.flaws ?? [];
   const cls = ['cm-p', mine ? 'is-user' : '', p.withFriend ? 'has-f' : '', p.blur ? 'is-blur is-miss' : '', flaws.length ? 'has-flaw' : '', ...flaws.map(f => `is-${f}`)]
     .filter(Boolean).join(' ');
   return (
-    <div className={cls} style={{ background: p.bg, ...vars }}>
-      {!mine && <div className="cm-floor" />}
+    <div className={cls} style={{ background: p.bg }}>
+
       {/* 컷 번호 대신 그 컷이 찍힌 시각 — 이거 하나로 "삽화 → 기록"이 뒤집힌다 */}
       <span className="cm-k num">{p.t && tz ? hhmmIn(p.t, tz) : i + 1}</span>
       {/* 누가 찍었나 스티커 — 옛 만화(by 없음)에는 붙이지 않는다 (헤더 줄은 전부 에이전트로 센다: util.shotCount) */}
@@ -151,11 +153,11 @@ function Panel({ p, i, option, friendColor, tz, placeType, agentName, cast }: { 
            컷 비율(1/1.08)도 같아 "찍은 그대로"다. 인물 구성을 모르면(cast 없음) 컷의 withFriend로 동행만 */
         <ShotStage type={placeType} pose={pose} crop={c} friendColor={cast ? cast.friendColor : p.withFriend ? friendColor : undefined} metColor={cast?.metColor} seenColor={cast?.seenColor} still className="cm-usr" />
       ) : (
-        <div className="cm-shot">
+        /* 에이전트 컷도 같은 3D 무대 (ADR-0014 개정 4): 열화(흐림·어둠)는 CSS가 .cam-stage에, overzoom/cut/tilt는 crop에 */
+        <>
+          <ShotStage type={placeType} pose={pose} crop={agentCrop} friendColor={p.withFriend ? friendColor : undefined} still className="cm-agt" />
           <Prop beat={p.beat} withFriend={!!p.withFriend} />
-          <Character className={`cm-c ${left ? 'is-left' : ''}`} pose={pose} size={118} />
-          {p.withFriend && <Character className="cm-f" pose="wave" size={100} variant="friend" color={friendColor} />}
-        </div>
+        </>
       )}
       <div className="cm-cap">{p.caption}</div>
     </div>

@@ -8,6 +8,7 @@ import type { ReactElement } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { SCENE_FLOOR_Y, Scene, sceneTypeFor } from '../scenes';
+import type { SceneType } from '../scenes';
 import { Character } from '../character';
 import type { Pose } from '../character/Character';
 import type { Variant } from '../character/shapes';
@@ -37,6 +38,8 @@ export interface PropSprite {
   base: number;
   /** 바닥에 눕는 것(러그·돗자리) */
   lie: boolean;
+  /** 시간표 말풍선 아래 소품(.sc-top) — hush면 뺀다 */
+  top: boolean;
   canvas: HTMLCanvasElement;
 }
 export interface SceneSet {
@@ -49,7 +52,7 @@ export interface SceneSet {
   all: HTMLCanvasElement[];
 }
 
-interface Mounted { svg: string; props: { x0: number; y0: number; x1: number; y1: number; base: number; lie: boolean }[] }
+interface Mounted { svg: string; props: { x0: number; y0: number; x1: number; y1: number; base: number; lie: boolean; top: boolean }[] }
 
 /** 컴포넌트를 문서 밖(보이지 않는) 루트에 그려 SVG 문자열과 소품 상자를 얻는다. getBBox는 문서에 붙어 있어야 잰다 */
 function mount(el: ReactElement, measureProps: boolean): Mounted {
@@ -65,7 +68,7 @@ function mount(el: ReactElement, measureProps: boolean): Mounted {
       svg.querySelectorAll<SVGGElement>('.sc-p').forEach((g, i) => {
         g.setAttribute('data-p', String(i));
         const b = g.getBBox();
-        props.push({ x0: b.x - PROP_PAD, y0: b.y - PROP_PAD, x1: b.x + b.width + PROP_PAD, y1: b.y + b.height + PROP_PAD, base: Number(g.dataset.base ?? b.y + b.height), lie: g.dataset.lie === '1' });
+        props.push({ x0: b.x - PROP_PAD, y0: b.y - PROP_PAD, x1: b.x + b.width + PROP_PAD, y1: b.y + b.height + PROP_PAD, base: Number(g.dataset.base ?? b.y + b.height), lie: g.dataset.lie === '1', top: g.classList.contains('sc-top') || !!g.querySelector('.sc-top') });
       });
     }
     return { svg: svg ? new XMLSerializer().serializeToString(svg) : '', props };
@@ -107,18 +110,19 @@ const sceneCache = new Map<string, Promise<SceneSet>>();
 const evictListeners: ((canvases: HTMLCanvasElement[]) => void)[] = [];
 export const onSceneEvict = (fn: (canvases: HTMLCanvasElement[]) => void): void => { evictListeners.push(fn); };
 
-/** 장소 유형의 세트: 뒷막 · 바닥 · 소품들 */
-export function sceneSet(type: PlaceType): Promise<SceneSet> {
+/** 장소 유형의 세트: 뒷막 · 바닥 · 소품들. hush = 시간표 말풍선 아래 소품(.sc-top)을 뺀 판 (따로 캐시) */
+export function sceneSet(type: PlaceType | SceneType, hush = false): Promise<SceneSet> {
   const t = sceneTypeFor(type);
-  let p = sceneCache.get(t);
+  const key = hush ? `${t}|hush` : t;
+  let p = sceneCache.get(key);
   if (!p) {
     p = (async () => {
-      const m = mount(createElement(Scene, { type: t, className: 'scene--still' }), true);
+      const m = mount(createElement(Scene, { type: t, className: `scene--still${hush ? ' scene--hush' : ''}` }), true);
       const wideBox = `${TEX_LEFT} 0 ${TEX_W} ${STAGE_H}`;
       const bw = Math.round(TEX_W * BACKDROP_SCALE), bh = Math.round(STAGE_H * BACKDROP_SCALE);
       const gw = Math.round(TEX_W * GROUND_SCALE), gh = Math.round(STAGE_H * GROUND_SCALE);
       const [backdrop, ground, ...props] = await Promise.all([
-        rasterize(withStyle(m.svg, `${BASE_CSS}.sc-p{display:none}`, bw, bh, wideBox), bw, bh),
+        rasterize(withStyle(m.svg, `${BASE_CSS}.sc-p{display:none}${hush ? '.sc-top{display:none}' : ''}`, bw, bh, wideBox), bw, bh),
         rasterize(withStyle(m.svg, `${BASE_CSS}.sc-far,.sc-p{display:none}`, gw, gh, wideBox), gw, gh),
         ...m.props.map((b, i) => {
           const w = Math.round((b.x1 - b.x0) * PROP_SCALE), h = Math.round((b.y1 - b.y0) * PROP_SCALE);
@@ -129,8 +133,8 @@ export function sceneSet(type: PlaceType): Promise<SceneSet> {
       const sprites: PropSprite[] = m.props.map((b, i) => ({ ...b, canvas: props[i]! }));
       return { floorY: SCENE_FLOOR_Y[t], backdrop, ground, props: sprites, all: [backdrop, ground, ...props] };
     })();
-    sceneCache.set(t, p);
-    p.catch(() => sceneCache.delete(t));
+    sceneCache.set(key, p);
+    p.catch(() => sceneCache.delete(key));
     if (sceneCache.size > SCENE_CACHE_MAX) {
       const oldest = sceneCache.keys().next().value as string;
       const gone = sceneCache.get(oldest);

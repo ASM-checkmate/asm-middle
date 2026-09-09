@@ -410,7 +410,28 @@ const home = scene({
   },
 });
 
-const BUILDERS: Partial<Record<SceneType, Build>> = { cafe, restaurant, park, river, beach, gym, library, mall, museum, home };
+// ── 마당(시간표): 0·1 울타리 · 2 우편함 · 3~8 꽃 ──
+const fence = (xs: number[], railX: number, railW: number) => (a: Anchor, b: Builder) => {
+  const s = a.s;
+  for (const x of xs) {
+    b.box(16 * s, 30 * s, 8 * s, C.paper, [a.X(x + 8), a.Y(309), a.Z()]);
+    b.part(new THREE.ConeGeometry(9 * s, 10 * s, 4), C.paper, [a.X(x + 8), a.Y(289), a.Z()], [0, Math.PI / 4, 0]);
+  }
+  b.box(railW * s, 6 * s, 5 * s, C.paper, [a.X(railX + railW / 2), a.Y(305), a.Z(2)]);
+};
+const yard = scene({
+  0: fence([14, 44, 74, 104], 6, 122),
+  1: fence([290, 320, 350, 380], 282, 112),
+  2: (a, b) => {
+    const s = a.s, X = (c: number) => a.X(330 + c), Y = (r: number) => a.Y(328 + r);
+    b.cylinder(4 * s, 4 * s, 34 * s, C.ink, [X(0), Y(-13), a.Z()], 8);
+    b.box(32 * s, 20 * s, 18 * s, C.coral, [X(0), Y(-34), a.Z()]);
+    b.ellipsoid(2.5 * s, 2.5 * s, 2 * s, C.paper, [X(8), Y(-34), a.Z(9)]);
+  },
+  3: flower(150, 336, C.coral), 4: flower(172, 344, C.sun), 5: flower(236, 342, C.sky), 6: flower(258, 334, C.coral), 7: flower(130, 346, C.sun), 8: flower(275, 348, C.sun),
+});
+
+const BUILDERS: Partial<Record<SceneType, Build>> = { cafe, restaurant, park, river, beach, gym, library, mall, museum, home, yard };
 
 /** 장소에 3D 소품이 있으면 만든다. 없으면 null (종이 카드 그대로) */
 export function build3dProps(type: SceneType, props: PropSprite[]): { built: Built; handled: Set<number> } | null {

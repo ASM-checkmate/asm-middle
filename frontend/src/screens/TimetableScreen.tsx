@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useWorld } from '../sim/store';
 import type { BlockId, Category, Phase, ScheduledActivity } from '../sim/types';
 import { BLOCKS, BLOCK_ORDER, CATEGORIES, blockDef, blockEndAt, blockStartAt, categoryDef, hhmmIn } from '../sim/blocks';
@@ -12,7 +12,7 @@ import { wonKo } from '../sim/status';
 import type { TimetableWorld } from '../dev/preview';
 import { Character, type Pose } from '../character';
 import { Bubble, Button, Chip, CompanionChip, Glyph, JetlagChip, type ChipFriend } from '../ui';
-import { Scene } from '../scenes';
+import { ActivityStage } from './ActivityStage';
 import { CATEGORY_FILL, Ring, type RingSeg } from './Ring';
 import { blockRange, bookIntent, dayTitle, progressLabel, shortTitle, transitNote, vehicleName } from './util';
 import './sketch.css';
@@ -173,6 +173,7 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
   const todayComic = shown ? book.find(c => c.id === `c:${shown.key}`) : undefined;
   /** waiting somewhere other than home (the previous activity's place) → that place's scene instead of the yard */
   const away = phase.at.type !== 'home' && phase.at.id !== memory.homePlaceId;
+  const ttRoot = useRef<HTMLDivElement>(null);
   const openComic = (id: string) => { bookIntent.comicId = id; setBookOpen(true); };
 
   // ── block info column ──
@@ -410,19 +411,13 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
   }
 
   return (
-    <div className={`tt ${verdict ? 'is-judging' : ''} ${skEntry ? 'has-sk-entry' : ''}`}>
+    <div ref={ttRoot} className={`tt ${verdict ? 'is-judging' : ''} ${skEntry ? 'has-sk-entry' : ''}`}>
       {away ? (
-        <div className="tt-scene"><Scene type={phase.at.type} hush /></div>
+        /* 집 밖에서 기다리는 중: 활동 화면과 같은 3D 무대 (ADR-0014 개정 4). 말풍선 아래 소품은 뺀다(hush), 캐릭터가 세트를 따라간다 */
+        <div className="tt-scene"><ActivityStage type={phase.at.type} pose={pose} root={ttRoot} cast=".tt-chara" hush /></div>
       ) : (
-        <>
-          <div className="tt-sky" />
-          <div className="tt-sun" />
-          <div className="tt-cloud c1" />
-          <div className="tt-cloud c2" />
-          <div className="tt-hill" />
-          <div className="tt-hill2" />
-          <Yard />
-        </>
+        /* 집 마당도 같은 3D 무대 (scenes 'yard') — 울타리·우편함·꽃이 서고 카메라가 숨 쉰다 */
+        <div className="tt-scene"><ActivityStage type="yard" pose={pose} root={ttRoot} cast=".tt-chara" /></div>
       )}
       <Bubble key={bubble} className="tt-bubble">
         {bubble}
@@ -454,26 +449,3 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
 }
 
 /** Fence + flowers on the hill (the character's 마당). */
-function Yard() {
-  return (
-    <svg className="tt-yard" viewBox="0 0 390 120" preserveAspectRatio="none" aria-hidden="true">
-      <g fill="#FFF6E6" stroke="#2A2118" strokeWidth="2.5" strokeLinejoin="round">
-        {[14, 44, 74, 104].map(x => <path key={x} d={`M${x} 62l8-10 8 10v30h-16z`} />)}
-        {[290, 320, 350, 380].map(x => <path key={x} d={`M${x} 62l8-10 8 10v30h-16z`} />)}
-        <rect x="6" y="70" width="122" height="6" rx="3" /><rect x="282" y="70" width="112" height="6" rx="3" />
-      </g>
-      {[[150, 104, '#FF6A48'], [172, 112, '#FFC64D'], [236, 110, '#A9DCF5'], [258, 102, '#FF6A48'], [130, 114, '#FFC64D'], [275, 116, '#FFC64D']].map(([x, y, c], i) => (
-        <g key={i} transform={`translate(${x} ${y})`}>
-          <path d="M0 0v-12" stroke="#2A2118" strokeWidth="2" strokeLinecap="round" />
-          <circle cy="-15" r="5.5" fill={c as string} stroke="#2A2118" strokeWidth="2" />
-          <circle cy="-15" r="1.8" fill="#FFF6E6" />
-        </g>
-      ))}
-      <g transform="translate(330 96)">
-        <rect x="-4" y="-30" width="8" height="34" fill="#2A2118" />
-        <rect x="-16" y="-44" width="32" height="20" rx="6" fill="#FF6A48" stroke="#2A2118" strokeWidth="2.5" />
-        <circle cx="8" cy="-34" r="2.5" fill="#FFF6E6" />
-      </g>
-    </svg>
-  );
-}

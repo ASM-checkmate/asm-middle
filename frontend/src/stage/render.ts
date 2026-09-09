@@ -13,6 +13,8 @@ import {
 } from '../sim/stage';
 import type { CastName, StageCrop, Vec3 } from '../sim/stage';
 import { castSprite, onSceneEvict, sceneSet, shadowSprite } from './textures';
+import { build3dProps, toonLights } from './props3d';
+import { sceneTypeFor } from '../scenes';
 import type { CastSpec, PropSprite } from './textures';
 import type { PlaceType } from '../sim/types';
 
@@ -98,7 +100,7 @@ export class StageView {
   private camera: THREE.PerspectiveCamera;
   private own: { dispose(): void }[] = [];
 
-  private constructor(set: { floorY: number; backdrop: HTMLCanvasElement; ground: HTMLCanvasElement; props: PropSprite[] }, cast: { who: CastName; canvas: HTMLCanvasElement }[], hasFriend: boolean, hasMet: boolean) {
+  private constructor(type: PlaceType, set: { floorY: number; backdrop: HTMLCanvasElement; ground: HTMLCanvasElement; props: PropSprite[] }, cast: { who: CastName; canvas: HTMLCanvasElement }[], hasFriend: boolean, hasMet: boolean) {
     this.camera = new THREE.PerspectiveCamera(stageFov(), 1 / FRAME_ASPECT, 0.05, 30);
     const k = wallDepth(set.floorY);
     const zWall = wallZ(k);
@@ -108,19 +110,26 @@ export class StageView {
     this.add(this.bg, projected(textureOf(set.backdrop, true), X0, 0, X1, foot, 24, 16, (fx, fy) => hitVertical(rayFromFrame(fx, fy), zWall), stageUv, { alphaTest: 0.02 }));
     // 바닥: 벽 발치부터 그림 끝(프레임 아래 한 프레임)까지, 눕힌 평면에
     this.add(this.bg, projected(textureOf(set.ground, true), X0, foot, X1, STAGE_H, 24, 32, groundOrFar, stageUv, { alphaTest: 0.02 }));
+    // 3D 소품(props3d.ts)이 있는 장소는 그 소품의 종이 카드를 생략한다 (프로토타입: 카페)
+    const built = build3dProps(sceneTypeFor(type), set.props);
+    if (built) {
+      this.bg.add(built.built.group, ...toonLights());
+      this.own.push(...built.built.disposables);
+    }
     // 소품: 서는 카드는 바닥 접점의 깊이에 세운 평면, 눕는 것은 바닥에
-    for (const p of set.props) {
+    set.props.forEach((p, i) => {
+      if (built?.handled.has(i)) return;
       const tex = textureOf(p.canvas, false);
       const uv = (col: number, row: number): [number, number] => [(col - p.x0) / (p.x1 - p.x0), 1 - (row - p.y0) / (p.y1 - p.y0)];
       if (p.lie) {
         this.add(this.bg, projected(tex, p.x0, p.y0, p.x1, p.y1, 6, 6, groundOrFar, uv, { depthWrite: false, alphaTest: 0.05 }));
-        continue;
+        return;
       }
       const base = hitGround(rayFromFrame(frameOfCol((p.x0 + p.x1) / 2), frameOfRow(p.base)));
       const z = base ? base[2] : zWall + 0.01;
       this.add(this.bg, projected(tex, p.x0, p.y0, p.x1, p.y1, 4, 4, (fx, fy) => hitVertical(rayFromFrame(fx, fy), z), uv));
       if (base) this.shadow(this.bg, base, (p.x1 - p.x0) / 390 * (CAM_DIST - z) / CAM_DIST * 0.5);
-    }
+    });
     // 인물: 2D 상자 그대로 세운 카드, 깊이는 CAST_DEPTH (me = 캐릭터 평면 z 0)
     for (const { who, canvas } of cast) {
       const r = castRect(who, hasFriend, hasMet);
@@ -160,7 +169,7 @@ export class StageView {
     wanted.push({ who: 'me', spec: { pose: spec.pose, variant: 'me' } });
     if (spec.metColor) wanted.push({ who: 'met', spec: { pose: 'wave', variant: 'friend', color: spec.metColor } });
     const [set, sprites] = await Promise.all([sceneSet(spec.type), Promise.all(wanted.map(w => castSprite(w.spec)))]);
-    return new StageView(set, wanted.map((w, i) => ({ who: w.who, canvas: sprites[i]! })), hasFriend, hasMet);
+    return new StageView(spec.type, set, wanted.map((w, i) => ({ who: w.who, canvas: sprites[i]! })), hasFriend, hasMet);
   }
 
   /** 비트맵 w×h로 그려 bg·fg 캔버스에 복사한다. 렌더러가 없으면 아무것도 안 한다 */

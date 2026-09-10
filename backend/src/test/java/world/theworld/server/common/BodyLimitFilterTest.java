@@ -72,6 +72,7 @@ class BodyLimitFilterTest {
   void limitsPerPath() {
     BodyLimitFilter f = new BodyLimitFilter(PROPS);
     assertThat(f.limitFor("/api/sketch/read")).isEqualTo(BodyLimitFilter.SKETCH_MAX);
+    assertThat(f.limitFor("/api/character/look")).isEqualTo(BodyLimitFilter.LOOK_MAX);
     assertThat(f.limitFor("/api/me/docs/world")).isEqualTo(4_194_304);
     assertThat(f.limitFor("/api/chat/reply")).isEqualTo(BodyLimitFilter.DEFAULT_MAX);
     // 문서 경로의 chunked 본문은 4 MB까지 읽힌다

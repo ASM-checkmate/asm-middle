@@ -31,6 +31,20 @@ public final class LlmDtos {
   public record SketchReadResponse(String optionId, String seen, String category, String model, long ms) {}
   public record SketchParsed(String optionId, String seen, String category) {}
 
+  // ── 사진 → 겉모습 (docs/CONTRACT.md POST /api/character/look) ──
+  public static final List<String> LOOK_SKINS = List.of("light", "fair", "tan", "brown", "dark");
+  public static final List<String> LOOK_HAIR_COLORS = List.of("black", "dark-brown", "brown", "blond", "red", "gray", "white");
+  public static final List<String> LOOK_HAIR_STYLES = List.of("bowl", "short", "buzz", "bob", "long", "curly", "bald");
+  public static final List<String> LOOK_GLASSES = List.of("none", "round", "square");
+  public static final List<String> LOOK_BEARDS = List.of("none", "stubble", "mustache", "full");
+  public static final List<String> LOOK_TOPS = List.of("coral", "sun", "mint", "sky", "night", "paper", "leaf");
+  public record LookRequest(String tier, String photo) {}
+  /** 프런트 캐릭터의 겉모습 옵션 — 값은 위 enum 문자열 그대로. */
+  public record Look(String skin, String hairColor, String hairStyle, String glasses, String beard, String top) {}
+  public static final Look LOOK_DEFAULT = new Look("fair", "dark-brown", "bowl", "none", "none", "coral");
+  public record LookResponse(Look look, String seen, String model, long ms) {}
+  public record LookParsed(Look look, String seen) {}
+
   // ── 모델 ──
   public record TierInfo(String model, boolean installed) {}
   public record Tiers(TierInfo small, TierInfo good) {}

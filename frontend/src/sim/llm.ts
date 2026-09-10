@@ -1,4 +1,5 @@
-import type { ActivityOption, BlockId, Category, CityInfo, Memory, Phase, Place, WorryKey } from './types';
+import type { ActivityOption, BlockId, Category, CityInfo, Memory, Phase, Place, WorryKey, Look } from './types';
+import { isLook } from './types';
 import { PLACES, cityNameKo, placeById } from './places';
 import type { Status } from './status';
 import { pickupRule } from './call';
@@ -139,6 +140,19 @@ export function scheduleReply(batch: string, req: ReplyRequest, budgetMs: number
     });
   }, DEBOUNCE_MS);
   pending.set(batch, { timer, ctl });
+}
+
+// ─── 사진 → 겉모습 (ADR-0019) ──────────────────────────────────────────────────
+
+/** docs/CONTRACT.md의 POST /api/character/look 응답 */
+export interface LookResponse { look: Look; seen: string; model: string; ms: number }
+const LOOK_TIMEOUT_MS = 60_000;
+/**
+ * 사진 하나를 보내 캐릭터 옵션 여섯 개를 받는다. 실패는 null. 작은 모델은 피부색을 자주 틀리므로 tier는 good이 기본이다 (계약 참고).
+ * @param photo 512px 안쪽으로 줄인 JPEG dataURL (본문 상한 1.5 MB)
+ */
+export async function fetchLook(photo: string, tier: Exclude<LlmTier, 'off'> = 'good', timeoutMs = LOOK_TIMEOUT_MS): Promise<LookResponse | null> {
+  return ask<LookResponse>('/api/character/look', { tier, photo }, timeoutMs, j => isLook(j.look) && typeof j.seen === 'string');
 }
 
 // ─── 그림 읽기 (ADR-0007) ─────────────────────────────────────────────────────

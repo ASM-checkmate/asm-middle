@@ -8,9 +8,11 @@ import type { CharacterProps, Pose } from './Character';
 import { CharacterDefs } from './defs';
 import { Boat, Car, Plane, Subway, Train, Walk } from './costumes';
 import type { CostumeProps } from './costumes';
+import { lookVars, useOwnerLook } from './look';
 import './character.css';
 
 export { Character, CharacterDefs };
+export { OwnerLookContext, lookVars, SKIN, HAIR, TOP } from './look';
 export type { CharacterProps, Pose };
 
 export interface RiderProps {
@@ -87,7 +89,10 @@ export function Rider({
     className ?? '',
   ].filter(Boolean).join(' ');
 
+  // 탈것의 얼굴·손·발은 <use>·C.skin이라 뿌리의 겉모습 변수를 받는다 (친구 얼굴은 고정색이라 안 물든다)
+  const ownerLook = useOwnerLook();
   const rootStyle = {
+    ...lookVars(ownerLook),
     width: box.width, height: box.height,
     '--face': facing === 'left' ? -1 : 1,
     '--friend': friendColor,

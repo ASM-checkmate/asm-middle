@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { ActivityOption, Anchor, BlockId, BlockPlan, Category, Friend, Comic, DayKey, DaySummaryItem, Journey, LlmDayPlan, LlmPlans, Memory, Phase, RemoteCache, ScheduledActivity, ShotWin, UserShot } from './types';
-import { splitDayKey } from './types';
+import type { ActivityOption, Anchor, BlockId, BlockPlan, Category, Friend, Comic, DayKey, DaySummaryItem, Journey, LlmDayPlan, LlmPlans, Look, Memory, Phase, RemoteCache, ScheduledActivity, ShotWin, UserShot } from './types';
+import { isLook, splitDayKey } from './types';
 import type { WorryKey } from './types';
 import { BLOCK_ORDER, CATEGORIES, blockEndAt, blockSlotIn, blockStartAt } from './blocks';
 import { DAY_MS, HOUR_MS, addDaysKey, compareDayKeys, dayEndOfKey, dayKeyIn, dayStartIn, dayStartOfKey, isValidTz, ownerTz } from './tz';
@@ -114,6 +114,7 @@ const loadMemory = (): Memory => {
     visited: Array.isArray(m.visited) ? m.visited.filter(v => v && typeof v.placeId === 'string' && Number.isFinite(v.at)).slice(-VISITED_CAP) : [],
     worry: m.worry && isWorryKey(m.worry.key) && Number.isFinite(m.worry.at) ? m.worry : undefined,
     wish: m.wish && typeof m.wish.city === 'string' && Number.isFinite(m.wish.at) ? m.wish : undefined,
+    look: isLook(m.look) ? m.look : undefined,
   };
 };
 
@@ -619,6 +620,8 @@ export interface WorldState {
   applySketchRead: (dayKey: DayKey, id: BlockId, dataUrl: string, r: SketchReadResponse) => void;
   /** '카드로 고를래' — 그림을 지우고 카드 상태로 돌아온다 (옵션이 있으면 제안, 없으면 빈 칸). */
   unsketchBlock: (id: BlockId) => void;
+  /** 내 캐릭터의 겉모습을 바꾼다 (ADR-0019). undefined면 기본 모모로 */
+  setLook: (look: Look | undefined) => void;
   setSketchOpen: (id: BlockId | null) => void;
   setCameraOpen: (open: boolean) => void;
   /** 한 장 찍는다. 같은 actKey+win은 교체(뒤가 이김). 활동 종료 전(now < endAt)에만 — 만화는 endAt에 한 번 만들어진다. */
@@ -1093,6 +1096,13 @@ export const useWorld = create<WorldState>((set, get) => {
       setPlans({ ...s.plans, [id]: { ...p, options, chosenId: null, chosenBy: null, status: 'proposed', verdict: undefined, sketch: undefined, sketchRead: undefined, sketchVerdict: undefined } });
       // "다른 제안 보기": 방금 보여 준 제목들을 넘겨 다른 걸 받는다
       if (ask) askCards(id, p.category as PlanCategory, p.options.map(o => o.title));
+    },
+    setLook: (look) => {
+      const s = get();
+      if (look !== undefined && !isLook(look)) return;
+      const memory: Memory = { ...s.memory, look };
+      if (look === undefined) delete memory.look;
+      set({ memory }); save(MEMORY_KEY, memory);
     },
     sketchBlock: (id, dataUrl) => {
       const s = get();

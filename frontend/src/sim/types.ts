@@ -133,8 +133,36 @@ export interface RemoteCache {
 /** 사용자가 골라 준 오늘의 고민 (docs/adr/0001-agentness.md — 고민 듣기). 하루 뒤 감쇠한다. */
 export type WorryKey = 'work' | 'people' | 'body' | 'money' | 'focus' | 'blue' | 'bored' | 'none';
 
+// ─── 겉모습 (ADR-0019): 사진에서 비전 모델이 고른 옵션 여섯 개. 그리기는 character/가 한다 ───
+export const LOOK_SKINS = ['light', 'fair', 'tan', 'brown', 'dark'] as const;
+export const LOOK_HAIR_COLORS = ['black', 'dark-brown', 'brown', 'blond', 'red', 'gray', 'white'] as const;
+export const LOOK_HAIR_STYLES = ['bowl', 'short', 'buzz', 'bob', 'long', 'curly', 'bald'] as const;
+export const LOOK_GLASSES = ['none', 'round', 'square'] as const;
+export const LOOK_BEARDS = ['none', 'stubble', 'mustache', 'full'] as const;
+export const LOOK_TOPS = ['coral', 'sun', 'mint', 'sky', 'night', 'paper', 'leaf'] as const;
+export interface Look {
+  skin: (typeof LOOK_SKINS)[number];
+  hairColor: (typeof LOOK_HAIR_COLORS)[number];
+  hairStyle: (typeof LOOK_HAIR_STYLES)[number];
+  glasses: (typeof LOOK_GLASSES)[number];
+  beard: (typeof LOOK_BEARDS)[number];
+  top: (typeof LOOK_TOPS)[number];
+}
+/** 기본 캐릭터(모모)의 겉모습 — look이 없을 때 그려지는 그대로 */
+export const DEFAULT_LOOK: Look = { skin: 'fair', hairColor: 'dark-brown', hairStyle: 'bowl', glasses: 'none', beard: 'none', top: 'coral' };
+/** 저장본·응답의 look 검증 — 여섯 칸이 모두 허용값일 때만 */
+export const isLook = (v: unknown): v is Look => {
+  const o = v as Partial<Record<keyof Look, unknown>> | null;
+  return !!o && typeof o === 'object'
+    && (LOOK_SKINS as readonly unknown[]).includes(o.skin) && (LOOK_HAIR_COLORS as readonly unknown[]).includes(o.hairColor)
+    && (LOOK_HAIR_STYLES as readonly unknown[]).includes(o.hairStyle) && (LOOK_GLASSES as readonly unknown[]).includes(o.glasses)
+    && (LOOK_BEARDS as readonly unknown[]).includes(o.beard) && (LOOK_TOPS as readonly unknown[]).includes(o.top);
+};
+
 export interface Memory {
   name: string;                 // 캐릭터 이름
+  /** 내 캐릭터의 겉모습 (ADR-0019). 없으면 기본 모모 */
+  look?: Look;
   likes: string[];
   dislikes: string[];
   traits: string[];

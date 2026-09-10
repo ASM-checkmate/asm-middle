@@ -1,7 +1,7 @@
 import { Component, Suspense, lazy, useEffect, type ComponentType, type ReactNode } from 'react';
 import { useWorld } from './sim/store';
 import { PLACES } from './sim/places';
-import { CharacterDefs } from './character';
+import { CharacterDefs, OwnerLookContext } from './character';
 import { Home } from './screens/Home';
 import { DevPanel } from './dev/DevPanel';
 
@@ -34,6 +34,7 @@ class Boundary extends Component<{ children: ReactNode; fallback: ReactNode }, {
 }
 
 export default function App() {
+  const ownerLook = useWorld(s => s.memory.look);
   const tick = useWorld(s => s.tick);
   const planDay = useWorld(s => s.planDay);
   useEffect(() => {
@@ -47,24 +48,25 @@ export default function App() {
 
   if (LAB === 'character') {
     return (
-      <>
+      <OwnerLookContext.Provider value={ownerLook}>
         <CharacterDefs />
         <Boundary fallback={<div className="lab-note">캐릭터 랩을 열 수 없어요 — src/dev/CharacterLab.tsx 를 확인해 주세요.</div>}>
           <Suspense fallback={<div className="lab-note">캐릭터 랩 여는 중…</div>}>
             <CharacterLab />
           </Suspense>
         </Boundary>
-      </>
+      </OwnerLookContext.Provider>
     );
   }
 
+  // 내 캐릭터의 겉모습 (ADR-0019): memory.look을 캐릭터·얼굴 심볼·탈것이 읽는다
   return (
-    <>
+    <OwnerLookContext.Provider value={ownerLook}>
       <CharacterDefs />
       <div className="stage">
         <Home />
         {DEV && <DevPanel />}
       </div>
-    </>
+    </OwnerLookContext.Provider>
   );
 }

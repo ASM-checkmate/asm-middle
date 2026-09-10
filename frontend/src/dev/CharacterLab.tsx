@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react';
 import { Character, CharacterDefs, Rider } from '../character';
 import type { Pose } from '../character';
 import type { TransportMode } from '../sim/types';
+import { LookLab } from './LookLab';
 
 const POSES: Pose[] = ['idle', 'walk', 'sit', 'sleep', 'wave', 'draw', 'happy', 'eat', 'read', 'think'];
 const POSE_KO: Record<Pose, string> = { idle: '가만히', walk: '걷기', sit: '앉기', sleep: '잠', wave: '인사', draw: '그리기', happy: '기쁨', eat: '먹기', read: '읽기', think: '생각' };
@@ -62,7 +63,8 @@ export function CharacterLab() {
       <style>{CSS}</style>
       <CharacterDefs />
       <h1>캐릭터 랩</h1>
-      <div className="sub">CHARACTER LAB · 포즈 10 · 탈것 6 · 2 사이즈</div>
+      <div className="sub">CHARACTER LAB · 포즈 10 · 탈것 6 · 2 사이즈 · 겉모습</div>
+      <LookLab />
 
       <h2>포즈 <small>Character · 150 / 72px</small></h2>
       <div className="bar">

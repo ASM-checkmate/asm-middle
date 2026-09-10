@@ -5,6 +5,8 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { C, Head, INK, INK3 } from './shapes';
 import type { Face, Variant } from './shapes';
+import type { Look } from '../sim/types';
+import { lookVars, useOwnerLook } from './look';
 
 export type Pose = 'idle' | 'walk' | 'sit' | 'sleep' | 'wave' | 'draw' | 'happy' | 'eat' | 'read' | 'think';
 
@@ -19,6 +21,8 @@ export interface CharacterProps {
   paused?: boolean;
   /** 뒷모습 (방 안에서 위로 걸어갈 때): 얼굴 없이 뒤통수, 팔은 그대로 */
   back?: boolean;
+  /** 겉모습 (ADR-0019). 없으면 'me'는 OwnerLookContext(내 캐릭터), 'friend'는 기본 */
+  look?: Look;
 }
 
 const FACE: Record<Pose, Face> = {
@@ -37,13 +41,15 @@ const LABEL: Record<Pose, string> = {
   draw: '그림 그리는 캐릭터', happy: '기뻐하는 캐릭터', eat: '먹는 캐릭터', read: '책 읽는 캐릭터', think: '생각하는 캐릭터',
 };
 
-export function Character({ pose = 'idle', size = 240, variant = 'me', color, className, style, paused, back = false }: CharacterProps) {
+export function Character({ pose = 'idle', size = 240, variant = 'me', color, className, style, paused, back = false, look: lookProp }: CharacterProps) {
+  const owner = useOwnerLook();
+  const look = lookProp ?? (variant === 'me' ? owner : undefined);
   const face = FACE[pose];
   const [al, ar] = ARM[pose];
   const sit = pose === 'sit';
   const armsFront = pose === 'think' || pose === 'eat' || pose === 'wave' || pose === 'draw';
   const tilt = HEAD_TILT[pose];
-  const st = { ...(color ? { '--friend': color } : null), ...style } as CSSProperties;
+  const st = { ...(color ? { '--friend': color } : null), ...lookVars(look), ...style } as CSSProperties;
   const cls = ['ch', paused ? 'is-paused' : '', className ?? ''].filter(Boolean).join(' ');
 
   const arms = (
@@ -60,14 +66,14 @@ export function Character({ pose = 'idle', size = 240, variant = 'me', color, cl
         <g className="ch-root">
           {!armsFront && arms}
           <g className="ch-body">
-            <path d="M68 156 a14 14 0 0 1 14 -14 h36 a14 14 0 0 1 14 14 v10 a14 14 0 0 1 -14 14 H82 a14 14 0 0 1 -14 -14z" fill={C.coral} {...INK} />
+            <path d="M68 156 a14 14 0 0 1 14 -14 h36 a14 14 0 0 1 14 14 v10 a14 14 0 0 1 -14 14 H82 a14 14 0 0 1 -14 -14z" fill={variant === 'friend' && !look ? C.coral : C.top} {...INK} />
           </g>
           <g className="ch-foot ch-foot-l"><ellipse cx={sit ? 84 : 86} cy={sit ? 184 : 182} rx={sit ? 15 : 13} ry={sit ? 9 : 7} fill={C.skin} {...INK} /></g>
           <g className="ch-foot ch-foot-r"><ellipse cx={sit ? 116 : 114} cy={sit ? 184 : 182} rx={sit ? 15 : 13} ry={sit ? 9 : 7} fill={C.skin} {...INK} /></g>
           {pose === 'read' && <Book />}
           <g transform={`translate(100 96)${tilt ? ` rotate(${tilt})` : ''}`}>
             <g className="ch-head">
-              <Head face={face} variant={variant} chew={pose === 'eat'} back={back} eyesClass="ch-eyes" mouthClass="ch-mouth" cheeksClass="ch-cheeks" />
+              <Head face={face} variant={variant} chew={pose === 'eat'} back={back} look={look} eyesClass="ch-eyes" mouthClass="ch-mouth" cheeksClass="ch-cheeks" />
             </g>
           </g>
           {armsFront && arms}

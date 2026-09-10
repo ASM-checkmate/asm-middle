@@ -16,7 +16,7 @@
     아이디 하나 = 에이전트 하나 = 서버 문서 한 벌.
 *   **오류 본문**은 항상 `{ "error": string }`. `400` 검증, `401` 인증, `403` 권한(친구 아님), `404` 없음,
     `409` 문서 충돌, `413` 본문 초과, `422` 얇은 여행 팩, `502` 외부(LLM·검색·지오코딩) 실패, `503` 검색 키 없음.
-*   **본문 상한**: `/api/sketch/read` 512 KB, `/api/me/docs/*` 4 MB, 그 외 256 KB. 넘으면 `413 { "error": "body too large" }`
+*   **본문 상한**: `/api/sketch/read` 512 KB, `/api/character/look` 1.5 MB, `/api/me/docs/*` 4 MB, 그 외 256 KB. 넘으면 `413 { "error": "body too large" }`
     (Content-Length로 먼저 자른다).
 *   **시각**은 전부 epoch ms, id는 문자열. CORS는 `CORS_ORIGIN`(기본 `http://localhost:5173`), 헤더 `content-type, x-user-id`.
 
@@ -269,6 +269,37 @@ interface PublishedActivity { key: string /* `${dayKey}:${blockId}` */; agentId:
 *   `seen`은 무엇으로 봤는지 한국어 한 조각(≤12자). 출발 줄에 끼워진다.
 
 오류: `400` 계약 위반, `502` Ollama 오류·제한 시간. 프론트는 못 읽은 것으로 본다.
+
+### POST /api/character/look
+
+사람 사진 한 장을 캐릭터의 **겉모습 옵션**(피부·머리·안경·수염·상의)으로 옮긴다. 비전 모델은 겉모습만 보고 신원은 묻지도 답하지도
+않는다. 그림은 프론트가 옵션으로 그린다 — 서버는 이미지를 만들지 않고 저장하지도 않는다.
+
+요청
+
+```json
+{ "tier": "small" | "good", "photo": "data:image/jpeg;base64,…" }
+```
+
+*   `photo`는 JPEG·PNG·WebP dataURL. 프론트가 긴 변 512px JPEG로 줄여 보낸다. 본문 상한 1.5 MB.
+*   **`good`을 기본으로 쓴다.** 2026-09-10 실측: 어두운 피부의 인물 사진을 27B(good)만 `dark/black`으로 읽었고 9B(small)·gemma4:12b는
+    `light/gray`라고 답했다. 피부·머리 색은 작은 모델이 자주 틀린다.
+
+응답 (200)
+
+```json
+{ "look": { "skin": "dark", "hairColor": "black", "hairStyle": "short", "glasses": "none", "beard": "none", "top": "night" },
+  "seen": "검은 정장에 넥타이를 매고 환하게 웃고 있는 짧은 머리 남성",
+  "model": "qwen3.8:27b", "ms": 5500 }
+```
+
+*   `look`의 값은 정해진 문자열뿐이다: `skin` light|fair|tan|brown|dark · `hairColor` black|dark-brown|brown|blond|red|gray|white ·
+    `hairStyle` bowl|short|buzz|bob|long|curly|bald · `glasses` none|round|square · `beard` none|stubble|mustache|full ·
+    `top` coral|sun|mint|sky|night|paper|leaf. 모델이 빠뜨리거나 벗어난 칸은 서버가 기본값(fair · dark-brown · bowl · none · none · coral)으로
+    메운다 — 응답에 null은 없다.
+*   `seen`은 모델이 본 겉모습 한 문장(≤60자, 없으면 ""). 화면에 보여 줄 필요는 없다.
+
+오류: `400` 계약 위반(`tier must be small|good` · `photo must be an image dataURL`), `413` 본문 초과, `502` Ollama 오류·제한 시간.
 
 ### POST /api/trip/plan
 

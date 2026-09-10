@@ -16,7 +16,7 @@ import world.theworld.server.llm.LlmDtos.LookResponse;
 public class LookService {
   private static final Logger log = LoggerFactory.getLogger(LookService.class);
   static final double TEMPERATURE = 0.2;
-  static final int NUM_PREDICT = 200;
+  static final int NUM_PREDICT = 320;
 
   private final OllamaClient ollama;
   private final TheworldProps props;
@@ -42,7 +42,8 @@ public class LookService {
     LookResponse out = new LookResponse(p.look(), p.seen(), model, System.currentTimeMillis() - t0);
     Look l = out.look();
     // INFO에는 옵션만 — 모델이 본 문장(seen)은 사람의 겉모습 묘사라 DEBUG에만
-    log.info("[look] {} {}ms skin={} hair={}/{} glasses={} beard={} top={}", out.model(), out.ms(), l.skin(), l.hairColor(), l.hairStyle(), l.glasses(), l.beard(), l.top());
+    log.info("[look] {} {}ms skin={} hair={}/{} glasses={} beard={} top={} face={} eyes={} brows={} nose={} mouth={} ears={} build={}", out.model(), out.ms(),
+        l.skin(), l.hairColor(), l.hairStyle(), l.glasses(), l.beard(), l.top(), l.face(), l.eyes(), l.brows(), l.nose(), l.mouth(), l.ears(), l.build());
     if (log.isDebugEnabled()) log.debug("[look] seen=\"{}\"", out.seen());
     return out;
   }

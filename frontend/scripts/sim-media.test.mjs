@@ -176,7 +176,8 @@ await M.putLocal(E3, webp(13, 128), 'shot'); await sleep(20);   // 안 올라감
 server.mediaStatus = 201;
 check('상한 안(384 B ≤ 400 B)이면 안 지운다', (await M.hasLocal(E1)) && (await M.hasLocal(E2)) && (await M.hasLocal(E3)) && M.isUploaded(E1) && M.isUploaded(E2) && !M.isUploaded(E3), '');
 await M.putLocal(E4, webp(14, 128), 'shot'); await sleep(20);   // 512 B > 400 B → 올라간 것 중 가장 오래된 E1만 (→ 384 B)
-check('넘으면 올라간 것 중 가장 오래된 것부터, 상한 아래로 내려오면 멈춘다', !(await M.hasLocal(E1)) && !M.isUploaded(E1) && (await M.hasLocal(E2)) && (await M.hasLocal(E3)) && (await M.hasLocal(E4)), JSON.stringify([E1, E2, E3, E4].map(M.isUploaded)));
+check('넘으면 올라간 것 중 가장 오래된 것부터, 상한 아래로 내려오면 멈춘다', !(await M.hasLocal(E1)) && (await M.hasLocal(E2)) && (await M.hasLocal(E3)) && (await M.hasLocal(E4)), JSON.stringify([E1, E2, E3, E4].map(M.isUploaded)));
+check('지운 사진도 서버가 가진 건 안다 — isUploaded는 그대로 true (글에 실을 수 있다)', M.isUploaded(E1) && M.isUploaded(E2) && !M.isUploaded(E3), JSON.stringify([E1, E2, E3].map(M.isUploaded)));
 check('지운 사진의 blob URL은 revoke된다', typeof urlE1 === 'string' && revoked.includes(urlE1), JSON.stringify(revoked));
 M.setMediaCacheMax(100);
 server.mediaStatus = 403;

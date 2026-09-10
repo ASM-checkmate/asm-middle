@@ -10,7 +10,8 @@ import { rng } from './rng';
 // 쪽지는 마음이 오가는 것만이다 — 지금은 고민을 묻는 것 하나. 일을 시키는 부탁(일정 골라 달라, 사진 찍어 달라)은 쪽지로도
 // 문자로도 하지 않고(오너 결정 2026-09-07), 돈이 빠듯한 것도 묻지 않는다 — 알아서 아끼거나 벌러 간다 (store.decide, 2026-09-08).
 export type RequestKind =
-  | 'worry';      // "오늘 왜 그래? 하나만 골라줘" (고민 듣기 PR에서 켜진다)
+  | 'worry'       // "오늘 왜 그래? 하나만 골라줘" (고민 듣기 PR에서 켜진다)
+  | 'post';       // "하늘이랑 같이 찍힌 건데 올려도 돼?" — 글 초안 확인 (SNS_SPEC §8·§9, sim/agentPosts). refId = 초안 id, 마감 15분
 
 export interface RequestChoice {
   id: string;
@@ -56,6 +57,11 @@ export const WORRY_CHOICES: RequestChoice[] = [
   { id: 'blue', label: '그냥 안 좋아' },
   { id: 'bored', label: '그냥 심심함' },
   { id: 'none', label: '아무것도 아냐', isDefault: true },
+];
+/** 글 초안 확인의 두 답 (SNS_SPEC §8). 기본은 그대로 올리기 — 마감을 넘기면 에이전트가 그렇게 한다. `edit`은 글쓰기 화면(책의 고르기 모드)을 연다 */
+export const POST_CHOICES: RequestChoice[] = [
+  { id: 'post', label: '그대로 올려', isDefault: true },
+  { id: 'edit', label: '컷 고치기' },
 ];
 
 
@@ -118,6 +124,8 @@ export function expire(rs: AgentRequest[], now: number): AgentRequest[] {
 export function toldLine(r: AgentRequest): string {
   switch (r.kind) {
     case 'worry': return '말 안 해줘서 그냥 조용한 데 있었어.';
+    // 마감이 지난 순간의 말이다 — 올리기는 그 뒤(컷 업로드·서버)라, 올렸다고 하지 않는다. 올라가면 "올렸어 · 보러 가기"가 따로 온다
+    case 'post': return '답이 없어서 그냥 올릴게';
   }
 }
 

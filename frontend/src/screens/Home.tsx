@@ -8,14 +8,15 @@ import { sceneTypeFor } from '../scenes';
 import { roomFor } from '../room';
 import { MapScene } from '../map';
 import { TopChrome } from '../ui';
-import { usePreview, usePreviewOverlay } from '../dev/preview';
+import { usePreview, usePreviewOverlay, usePreviewSns } from '../dev/preview';
 import { TimetableScreen } from './TimetableScreen';
 import { ActivityScreen } from './ActivityScreen';
 import { ComicScreen } from './ComicScreen';
 import { SleepScreen } from './SleepScreen';
 import { SummarySheet } from './SummarySheet';
 import { BookOverlay } from './BookOverlay';
-import { FriendsOverlay } from './FriendsOverlay';
+import { SnsOverlay } from './SnsOverlay';
+import { useSns } from '../sim/sns';
 import { RequestCard } from './RequestCard';
 import { CallOverlay } from './CallOverlay';
 import { ChatOverlay } from './ChatOverlay';
@@ -82,8 +83,11 @@ export function Home() {
   const ttOpen = useWorld(s => s.ttOpen);
   const setTtOpen = useWorld(s => s.setTtOpen);
   const selectBlock = useWorld(s => s.selectBlock);
-  const friendsOpen = useWorld(s => s.friendsOpen) || (typeof location !== 'undefined' && new URLSearchParams(location.search).get('preview') === 'friends');
-  const setFriendsOpen = useWorld(s => s.setFriendsOpen);
+  // SNS (ADR-0021): 상태는 useSns — 서버 자원이라 시뮬 저장본과 따로 산다. `?preview=sns…`는 usePreviewSns가 픽스처를 넣고 연다
+  const snsOpen = useSns(s => s.snsOpen);
+  const setSnsOpen = useSns(s => s.setSnsOpen);
+  const snsDraft = useSns(s => s.draft);
+  const previewSns = usePreviewSns();
   const dismissSummary = useWorld(s => s.dismissSummary);
   const markRequestTold = useWorld(s => s.markRequestTold);
 
@@ -225,25 +229,25 @@ export function Home() {
   // 혼잣말이 **실제로 떠 있는지** — 시트·통화·요약이 가리거나 지도 위(이동 중·도착 홀드)면 말풍선이 안 그려지고, say는 SayBubble의
   // onDone(dismissSay)으로만 지워진다. 그래서 쪽지 카드는 say 자체가 아니라 이 값에만 비킨다: 지도 위에서 고민에 답해 say가 생긴 채
   // 비행처럼 긴 이동을 하면 카드가 이동 내내 숨어 마감(dueAt)이 지나가 버린다 (ADR-0001 §1의 "한 번에 하나"는 보이는 것끼리의 규칙)
-  const sayVisible = !!say && !showChat && !activeCall && !summaryItems?.length && screen !== 'map';
+  const sayVisible = !!say && !showChat && !snsOpen && !activeCall && !summaryItems?.length && screen !== 'map';
 
   return (
     <div className={`home home--${screen}`}>
       {layers.map(l => <div key={l.key} className={l.cls}>{l.node}</div>)}
-      <TopChrome now={now} tz={phase.tz} label={chromeLabel(now, phase, homeCity)} tone={screen === 'sleep' ? 'paper' : 'ink'} onBook={() => setBookOpen(true)} onTimetable={() => setTtOpen(true)} onFriends={() => setFriendsOpen(true)} onChat={() => setChatOpen(true)} unread={unread} scale={scale} />
+      <TopChrome now={now} tz={phase.tz} label={chromeLabel(now, phase, homeCity)} tone={screen === 'sleep' ? 'paper' : 'ink'} onBook={() => setBookOpen(true)} onTimetable={() => setTtOpen(true)} onSns={() => setSnsOpen(true)} snsBadge={snsDraft !== null} onChat={() => setChatOpen(true)} unread={unread} scale={scale} />
       {showChat && <ChatOverlay tz={phase.tz} onClose={() => setChatOpen(false)} />}
       {/* 혼잣말: 대가 없이 지나가는 1단계 (ADR-0001 §1). 시트가 떠 있으면 자리를 비켜 주고, 지도 위(이동 중·도착 홀드)에는 안 띄운다 —
           도착 혼잣말(store tick 'arrive-ask', ADR-0004 오너 결정 6)은 활동 화면에서 보인다 */}
       {sayVisible && say && <SayBubble text={say.text} onDone={dismissSay} />}
       {activeCall && <CallOverlay key={activeCall.id} call={activeCall} tz={phase.tz} onDone={previewOverlay.call && activeCall === previewOverlay.call ? closePreviewCall : undefined} />}
-      {friendsOpen && <FriendsOverlay onClose={() => setFriendsOpen(false)} />}
+      {snsOpen && <SnsOverlay onClose={() => setSnsOpen(false)} preview={previewSns ?? undefined} />}
       {(ttOpen || previewSheetOpen) && <TimetableScreen phase={pseudoWaiting(phase, now)} asSheet onClose={() => { setTtOpen(false); setPreviewSheetOpen(false); }} world={previewWorld ?? undefined} />}
       {/* 그려서 알려줘 (ADR-0004): 시간표 시트(z 45) 위. 카드 분기의 "✎ 카드 대신 그려서 알려줄래" / 그림 카드의 "다시 그리기"가 연다 */}
       {sketchOpen && <SketchOverlay blockId={sketchOpen} onClose={() => setSketchOpen(null)} />}
       {/* 카메라: nowMs는 ActivityScreen과 같은 식으로 progress에서 되짚는다 — 화면은 스토어의 now를 따로 안 읽는다. preview면 샷은 오버레이 로컬 */}
       {camPhase && <CameraOverlay act={camPhase.act} progress={camPhase.progress} nowMs={camPhase.act.arriveAt + (camPhase.act.endAt - camPhase.act.arriveAt) * Math.min(1, Math.max(0, camPhase.progress))} companions={camPhase.companions} encounter={camPhase.encounter} preview={isPreview} onClose={closeCamera} />}
       {/* 쪽지: 시트·그림·카메라가 떠 있지 않고 혼잣말이 (보이는 채로) 지나가는 중도 아닐 때만, 한 번에 하나 (ADR-0001 §1) */}
-      {pendingReq && !summaryItems?.length && !ttOpen && !showBook && !friendsOpen && !sketchOpen && !camPhase && !sayVisible && <RequestCard req={pendingReq} tz={phase.tz} />}
+      {pendingReq && !summaryItems?.length && !ttOpen && !showBook && !snsOpen && !sketchOpen && !camPhase && !sayVisible && <RequestCard req={pendingReq} tz={phase.tz} />}
       {summaryItems && summaryItems.length > 0 && <SummarySheet items={summaryItems} gap={summaryGap} tz={phase.tz} untold={untold} missed={summaryGap ? calls.filter(c => c.dir === 'in' && c.result !== 'answered' && c.at >= summaryGap.from && c.at <= summaryGap.to) : []} onClose={closeSummary} />}
       {showBook && <BookOverlay onClose={closeBook} comics={previewOverlay.book ?? undefined} />}
     </div>

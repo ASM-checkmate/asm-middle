@@ -39,6 +39,11 @@ type Meta = Omit<Rec, 'blob'>;
 
 /** 메모리 색인 id → 메타. isUploaded·LRU가 동기적으로 본다. IDB가 있으면 첫 호출 때 한 번 채운다 (`at`은 여기서만 갱신 — LRU는 근사) */
 const index = new Map<string, Meta>();
+/**
+ * 서버에 있는 걸 아는 id들 — 올린 것과 서버에서 받은 것. evict가 색인에서 지워도 여기엔 남는다(서버가 가진 컷은 글에 실을 수 있다,
+ * `cut not yours`가 아니다). clearMedia만 비운다. 이 탭이 사는 동안만 — 다시 뜨면 IDB 색인(uploaded)에서 다시 채운다
+ */
+const uploadedIds = new Set<string>();
 /** IDB가 없거나(node) 못 쓰는(프라이빗 모드·용량·막힌 웹뷰) 환경의 blob 자리 — 이 탭이 사는 동안만 */
 const memBlobs = new Map<string, Blob>();
 /** id → blob URL. 지울 때 revoke */
@@ -81,14 +86,18 @@ const idbClear = async (): Promise<void> => { try { const s = await tx('readwrit
 
 /** 첫 호출 때 IDB의 색인을 메모리에 올린다 (한 번) */
 let ready: Promise<void> | null = null;
+let indexed = false;
 const ensureReady = (): Promise<void> => {
-  if (!ready) ready = (async () => { for (const r of await idbAll()) if (r && isShotId(r.id)) index.set(r.id, metaOf(r)); })();
+  if (!ready) ready = (async () => { for (const r of await idbAll()) if (r && isShotId(r.id)) { index.set(r.id, metaOf(r)); if (r.uploaded) uploadedIds.add(r.id); } indexed = true; })();
   return ready;
 };
+/** 색인이 메모리에 올라왔나 — 그 전엔(부팅 직후) isUploaded가 전부 false다. 올라간 컷을 모른다고 오늘 글을 접지 않게 스토어가 본다 */
+export const mediaReady = (): boolean => indexed;
 
 // ─── 저장·읽기 ────────────────────────────────────────────────────────────────────
 const writeRec = async (rec: Rec) => {
   index.set(rec.id, metaOf(rec));
+  if (rec.uploaded) uploadedIds.add(rec.id);
   // IDB에 못 쓰면 메모리에 — 조용히 잃으면 문서엔 id가 남는데 픽셀이 없어 영영 옛 경로로 그리게 된다
   if (hasIdb() && (await idbPut(rec))) memBlobs.delete(rec.id); else memBlobs.set(rec.id, rec.blob);
 };
@@ -133,8 +142,8 @@ export async function putLocal(id: string, blob: Blob, kind: MediaKind): Promise
 }
 /** 이 폰에 있나 (올렸든 안 올렸든) */
 export async function hasLocal(id: string): Promise<boolean> { await ensureReady(); return index.has(id); }
-/** 서버가 받아 줬나 — 색인에서 동기로. 글에 실을 수 있는 컷은 이것뿐이다 (서버가 `cut not yours`로 막는다) */
-export const isUploaded = (id: string): boolean => index.get(id)?.uploaded === true;
+/** 서버가 가진 걸 아나 — 올렸거나 서버에서 받은 id (evict로 픽셀이 지워졌어도). 글에 실을 수 있는 컷은 이것뿐이다 (서버가 `cut not yours`로 막는다) */
+export const isUploaded = (id: string): boolean => uploadedIds.has(id) || index.get(id)?.uploaded === true;
 
 /**
  * 픽셀: 폰에 있으면 그것, 없으면 `GET /api/media/{id}`(X-User-Id)로 받아 uploaded:true로 캐시한다. 못 받으면 null
@@ -154,6 +163,8 @@ export async function getBlob(id: string): Promise<Blob | null> {
     const blob = await res.blob();
     await writeRec({ id, blob, mime: res.headers?.get?.('content-type') || blob.type || 'application/octet-stream', bytes: blob.size, kind: 'shot', at: Date.now(), uploaded: true });
     await evict();
+    // 서버에서 받은 것도 "서버가 가진 컷"이다 — 듣는 쪽(글쓰기 화면의 '업로드 중…')이 걷히게 알린다
+    for (const fn of uploadedListeners) { try { fn(id); } catch { /* 듣는 쪽의 오류는 받기를 막지 않는다 */ } }
     return blob;
   } catch { return null; }
 }
@@ -288,8 +299,9 @@ export async function clearMedia(): Promise<void> {
   for (const u of urls.values()) { try { URL.revokeObjectURL(u); } catch { /* ignore */ } }
   urls.clear();
   index.clear();
+  uploadedIds.clear();
   memBlobs.clear();
   try { localStorage.removeItem(MEDIA_QUEUE_KEY); } catch { /* ignore */ }
-  ready = Promise.resolve();   // 비운 뒤엔 IDB를 다시 읽을 게 없다
+  ready = Promise.resolve(); indexed = true;   // 비운 뒤엔 IDB를 다시 읽을 게 없다
   if (hasIdb()) await idbClear();
 }

@@ -154,9 +154,10 @@ button.chip:active { transform: translate(1px, 1px); box-shadow: none; }
 .cchip .cchip-heads { display: inline-flex; width: auto; }
 .cchip .cchip-tx { display: inline-block; width: auto; margin: 0; color: var(--ink); }
 
-/* third round button: friends (left of the timetable) */
-.chrome-friends { left: 16px; right: auto; }
-/* 대화 — 친구 버튼 옆 (좌 2 / 우 2 대칭). 안 읽은 줄이 있으면 코랄 배지. 전화는 대화 안에서 건다 (ADR-0002). */
+/* third round button: SNS (ADR-0021 — 옛 친구 버튼 자리; 친구 목록은 SNS의 탭). 초안이 있으면 작은 코랄 점 */
+.chrome-sns { left: 16px; right: auto; }
+.chrome-badge--dot { min-width: 14px; width: 14px; height: 14px; padding: 0; top: -2px; right: -2px; }
+/* 대화 — SNS 버튼 옆 (좌 2 / 우 2 대칭). 안 읽은 줄이 있으면 코랄 배지. 전화는 대화 안에서 건다 (ADR-0002). */
 .chrome-chat { left: 68px; right: auto; }   /* position은 .chrome-book의 absolute를 그대로 쓴다 (배지의 기준이 된다) */
 .chrome-badge {
   position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 4px;

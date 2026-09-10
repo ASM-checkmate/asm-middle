@@ -10,8 +10,15 @@ import { companionsOf, encounterOf } from '../sim/timeline';
 import { ComicPanels, ShotsLine } from './ComicScreen';
 import { beatPose, bookIntent, castOf, shotCount } from './util';
 import { PhotoImg } from '../photo/PhotoImg';
+import type { PostCut } from '../sim/posts';
+import { currentUser } from '../sim/api';
+import { switchUser } from '../sim/sync';
+import { cutOfPanel } from './sns/util';
 
 type Group = 'day' | 'week';
+
+/** 고르기 모드 (SNS_SPEC §7 글쓰기): 컷을 탭하면 번호가 붙는다. 순서 = 고른 순서. 구운 컷(shotId)만 고를 수 있다 */
+export interface BookPick { selected: PostCut[]; onChange(next: PostCut[]): void; max: number }
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 
 /** "2026-09-08" → 그 날 정오의 UTC ms. dateKey는 캐릭터가 산 날짜라 시간대 없이 날짜 산수만 한다 */
@@ -24,8 +31,9 @@ const weekStartOf = (dateKey: string) => { const ms = dayMs(dateKey); const wd =
 /** 검색은 띄어쓰기·대소문자를 무시한다 ("망원 한강" = "망원한강") */
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, '');
 
-/** The book: every comic, newest first. Search by place/activity/name, filter by category, grouped by day or week (ADR-0016). */
-export function BookOverlay({ onClose, comics }: { onClose: () => void; comics?: Comic[] }) {
+/** The book: every comic, newest first. Search by place/activity/name, filter by category, grouped by day or week (ADR-0016).
+ *  `pick`이 있으면 고르기 모드 — 상세는 안 열리고 컷 하나하나가 버튼이다 (SNS_SPEC §7). */
+export function BookOverlay({ onClose, comics, pick }: { onClose: () => void; comics?: Comic[]; pick?: BookPick }) {
   const book = useWorld(s => s.book);
   const memory = useWorld(s => s.memory);
   const tz = useWorld(s => s.tz);
@@ -35,8 +43,19 @@ export function BookOverlay({ onClose, comics }: { onClose: () => void; comics?:
   const [openId, setOpenId] = useState<string | null>(() => {
     const id = bookIntent.comicId;
     bookIntent.comicId = null;
-    return id && list.some(c => c.id === id) ? id : null;
+    return id && !pick && list.some(c => c.id === id) ? id : null;
   });
+  /** 서버에 들어와 있는 아이디 — 없으면(오프라인) 로그아웃 줄을 그리지 않는다. 옛 친구 목록 맨 아래에서 옮겨 왔다 (SNS_SPEC §1) */
+  const me = currentUser();
+  const pickIndex = (shotId: string) => (pick ? pick.selected.findIndex(c => c.shotId === shotId) : -1);
+  const togglePick = (c: Comic, i: number) => {
+    if (!pick) return;
+    const cut = cutOfPanel(c, i);
+    if (!cut) return;
+    const at = pickIndex(cut.shotId);
+    if (at >= 0) pick.onChange(pick.selected.filter((_, k) => k !== at));
+    else if (pick.selected.length < pick.max) pick.onChange([...pick.selected, cut]);
+  };
   const [query, setQuery] = useState('');
   const [cat, setCat] = useState<Category | null>(null);
   const [group, setGroup] = useState<Group>('day');
@@ -106,8 +125,8 @@ export function BookOverlay({ onClose, comics }: { onClose: () => void; comics?:
       <div className="book-hd">
         {cur && <Button round ariaLabel="목록으로" onClick={() => setOpenId(null)}><Glyph name="back" /></Button>}
         <h2>
-          {cur ? cur.title : 'book'}
-          <small className="num">{cur ? meta(cur) : filtering ? `${shown.length}개 찾음 · 전체 ${list.length}개` : `${list.length}개의 이야기`}</small>
+          {cur ? cur.title : pick ? '컷 고르기' : 'book'}
+          <small className="num">{cur ? meta(cur) : pick ? `${pick.selected.length} / ${pick.max}${filtering ? ` · ${shown.length}개 찾음` : ''}` : filtering ? `${shown.length}개 찾음 · 전체 ${list.length}개` : `${list.length}개의 이야기`}</small>
         </h2>
         {/* 아침에 그린 그림 (ADR-0004) — 상세 헤더에 40px 썸네일 */}
         {cur?.sketch && <img className="book-sketch" src={cur.sketch} alt="아침에 그린 그림" title="아침에 그린 것" draggable={false} />}
@@ -163,7 +182,24 @@ export function BookOverlay({ onClose, comics }: { onClose: () => void; comics?:
               {groups.map(g => (
                 <section key={g.key} className="book-group">
                   <h3 className="book-group-hd"><span>{labelOf(g.key)}</span><small className="num">{g.items.length}개</small></h3>
-                  {g.items.map(c => (
+                  {g.items.map(c => pick ? (
+                    // 고르기 모드: 카드는 버튼이 아니고 컷 하나하나가 버튼 — 구운 컷만 (없는 컷은 흐리게), 고르면 번호 달린 코랄 테
+                    <div key={c.id} className="book-item book-item--pick">
+                      <span className="book-meta num">{meta(c)}</span>
+                      <b>{c.title}</b>
+                      <div className="book-thumbs book-thumbs--pick">
+                        {c.panels.map((p, i) => {
+                          const n = p.shotId ? pickIndex(p.shotId) : -1;
+                          return (
+                            <button key={i} type="button" className={`book-pick ${p.by === 'user' ? 'is-user' : ''} ${n >= 0 ? 'is-picked' : ''} ${p.shotId ? '' : 'is-dim'}`} style={{ background: p.bg }} disabled={!p.shotId} aria-pressed={n >= 0} aria-label={`${i + 1}번째 컷${p.shotId ? '' : ' (아직 안 구움)'}`} onClick={() => togglePick(c, i)}>
+                              {p.shotId ? <PhotoImg shotId={p.shotId}><Character pose={beatPose(p.beat)} size={40} /></PhotoImg> : <Character pose={beatPose(p.beat)} size={40} />}
+                              {n >= 0 && <i className="book-pick-n num">{n + 1}</i>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
                     <button key={c.id} type="button" className="book-item" onClick={() => setOpenId(c.id)}>
                       <span className="book-meta num">{meta(c)}</span>
                       <b>{c.title}</b>
@@ -180,10 +216,22 @@ export function BookOverlay({ onClose, comics }: { onClose: () => void; comics?:
                   ))}
                 </section>
               ))}
+              {/* 로그아웃·계정 전환 (SNS_SPEC §1): 책의 맨 아래. 이 기기의 하루·앨범·기억이 비워지니 한 번 묻는다 */}
+              {me && !pick && <MeRow name={me.name} userId={me.userId} />}
             </div>
           )}
         </>
       )}
+      {list.length === 0 && me && !pick && <MeRow name={me.name} userId={me.userId} />}
+    </div>
+  );
+}
+
+function MeRow({ name, userId }: { name: string; userId: string }) {
+  return (
+    <div className="book-me">
+      <span className="book-me-who"><b>{name}</b><small className="num">{userId}</small></span>
+      <Button small onClick={() => { if (confirm('다른 아이디로 들어갈까요? 이 기기의 하루·앨범·기억은 비워져요.')) void switchUser(); }}>로그아웃</Button>
     </div>
   );
 }

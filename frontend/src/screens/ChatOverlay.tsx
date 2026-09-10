@@ -1,11 +1,13 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useWorld } from '../sim/store';
-import { buildThread, isUnread, MAX_LEN, type ThreadItem } from '../sim/chat';
+import { useSns } from '../sim/sns';
+import { buildThread, isUnread, MAX_LEN, type ChatMsg, type ThreadItem } from '../sim/chat';
 import { fmtDur, type CallEvent } from '../sim/call';
 import { toldLine, type AgentRequest } from '../sim/requests';
 import { hhmmIn } from '../sim/tz';
 import { Button, Glyph } from '../ui';
 import { warmModel } from '../sim/llm';
+import { DraftCuts } from './RequestCard';
 import { dayStamp, phaseLabel } from './util';
 
 /**
@@ -27,6 +29,16 @@ export function ChatOverlay({ tz, onClose }: { tz: string; onClose: () => void }
   const send = useWorld(s => s.sendMessage);
   const callAgent = useWorld(s => s.callAgent);
   const answer = useWorld(s => s.answerRequest);
+  const setChatOpen = useWorld(s => s.setChatOpen);
+  /** "올렸어 · 보러 가기" — 내 글 탭을 열고 대화창은 닫는다 (SNS_SPEC §8). 열려 있던 남의 프로필은 접는다 — 탭 위에 얹히는 것이라 */
+  const openLink = (link: NonNullable<ChatMsg['link']>) => {
+    if (link.kind !== 'post') return;
+    const sns = useSns.getState();
+    sns.setProfileOpen(null);
+    sns.setSnsTab('mine');
+    sns.setSnsOpen(true);
+    setChatOpen(false);
+  };
 
   const [draft, setDraft] = useState('');
   /** 펼쳐 본 통화 (받은 통화에만 내용이 있다) */
@@ -61,7 +73,7 @@ export function ChatOverlay({ tz, onClose }: { tz: string; onClose: () => void }
         {rows.map(({ it, sep }) => (
           <li key={it.id} className="chat-li">
             {sep && <div className="chat-day"><span>{sep}</span></div>}
-            <Row item={it} tz={tz} now={now} open={open === it.id} onToggle={() => setOpen(open === it.id ? null : it.id)} onAnswer={answer} />
+            <Row item={it} tz={tz} now={now} open={open === it.id} onToggle={() => setOpen(open === it.id ? null : it.id)} onAnswer={answer} onLink={openLink} />
           </li>
         ))}
         {!items.length && <li className="chat-empty">아직 아무 말도 없어요.<br />먼저 말을 걸어 보세요.</li>}
@@ -99,25 +111,35 @@ function MyHead() {
 }
 
 /** 한 줄. 자유 대화 · 쪽지 · 통화 기록이 각각 다른 모양이다. */
-function Row({ item, tz, now, open, onToggle, onAnswer }: {
+function Row({ item, tz, now, open, onToggle, onAnswer, onLink }: {
   item: ThreadItem;
   tz: string;
   now: number;
   open: boolean;
   onToggle: () => void;
   onAnswer: (id: string, choiceId: string) => void;
+  onLink: (link: NonNullable<ChatMsg['link']>) => void;
 }) {
   if (item.kind === 'msg') {
     const mine = item.msg.from === 'me';
+    const link = item.msg.link;
     return (
-      <div className={`chat-row ${mine ? 'is-me' : ''}`}>
-        <p className="chat-say">{item.msg.text}</p>
-        <span className="chat-t num">
-          {/* 카카오톡의 "1" — 에이전트가 읽으면 사라진다. 사라졌는데 답이 없으면 읽씹이다 */}
-          {isUnread(item.msg, now) && <b className="chat-unread" aria-label="아직 안 읽음">1</b>}
-          {hhmmIn(item.at, tz)}
-        </span>
-      </div>
+      <>
+        <div className={`chat-row ${mine ? 'is-me' : ''}`}>
+          <p className="chat-say">{item.msg.text}</p>
+          <span className="chat-t num">
+            {/* 카카오톡의 "1" — 에이전트가 읽으면 사라진다. 사라졌는데 답이 없으면 읽씹이다 */}
+            {isUnread(item.msg, now) && <b className="chat-unread" aria-label="아직 안 읽음">1</b>}
+            {hhmmIn(item.at, tz)}
+          </span>
+        </div>
+        {/* 말 아래 버튼 하나 — "올렸어 · 보러 가기" (SNS_SPEC §8). 쪽지의 칩과 같은 모양 */}
+        {link && (
+          <div className="chat-chips">
+            <button type="button" className="chat-chip" onClick={() => onLink(link)}>{link.label}</button>
+          </div>
+        )}
+      </>
     );
   }
 
@@ -126,7 +148,7 @@ function Row({ item, tz, now, open, onToggle, onAnswer }: {
   return <Call call={item.call} tz={tz} open={open} onToggle={onToggle} />;
 }
 
-/** 쪽지: 에이전트의 질문 + 내 대답. 아직 안 답했으면 여기서 바로 답할 수 있다. */
+/** 쪽지: 에이전트의 질문 + 내 대답. 아직 안 답했으면 여기서 바로 답할 수 있다. 글 초안이면 컷 썸네일도 (SNS_SPEC §8) */
 function Ask({ req, tz, onAnswer }: { req: AgentRequest; tz: string; onAnswer: (id: string, choiceId: string) => void }) {
   const chosen = req.choices.find(c => c.id === req.answered);
   const pending = !req.answered && !req.decidedAlone;
@@ -136,6 +158,7 @@ function Ask({ req, tz, onAnswer }: { req: AgentRequest; tz: string; onAnswer: (
         <p className="chat-say is-ask">{req.line}</p>
         <span className="chat-t num">{hhmmIn(req.at, tz)}</span>
       </div>
+      {req.kind === 'post' && <DraftCuts req={req} className="chat-cuts" />}
       {pending && (
         <div className="chat-chips">
           {req.choices.map(c => (

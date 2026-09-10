@@ -5,6 +5,7 @@ import { DAY_MS, HOUR_MS, ownerTz } from '../sim/tz';
 import { cityNameKo, cityOfTz, dynamicCities, forgetDynamicCities } from '../sim/places';
 import { fetchModels, type LlmTier, type ModelsResponse } from '../sim/llm';
 import { switchUser } from '../sim/sync';
+import { useSns } from '../sim/sns';
 
 const SCALES = [1, 10, 60, 600];
 /** 답장을 짓는 모델 단계 (sim/llm.ts). off = 규칙 기반. */
@@ -61,6 +62,13 @@ export function DevPanel() {
   const planDay = useWorld(s => s.planDay);
   const today = useWorld(s => s.today);
   const planned = useWorld(s => Object.keys(s.llmPlans[s.today] ?? {}).join(' '));
+  // SNS (ADR-0021): 열기 · 에이전트가 지금 올리기 · 지금 묻기(초안 + 채팅) · 피드 다시 받기
+  const postNow = useWorld(s => s.postNow);
+  const askPostNow = useWorld(s => s.askPostNow);
+  const setSnsOpen = useSns(s => s.setSnsOpen);
+  const loadFeed = useSns(s => s.loadFeed);
+  const snsDraft = useSns(s => s.draft);
+  const feedN = useSns(s => s.feed.length + s.localPosts.length);
   const [open, setOpen] = useState(false);
   const [tripCity, setTripCity] = useState('');
   // 패널을 열 때(그리고 서버 상태가 바뀔 때) 한 번 — 어느 모델이 깔려 있나
@@ -135,6 +143,14 @@ export function DevPanel() {
             <span className="dev-k">plan</span>
             <button type="button" className="dev-b" disabled={planBusy || llmTier === 'off'} onClick={() => void planDay()}>{planBusy ? '짓는 중…' : 'plan day'}</button>
             <span className="dev-status" title={today}>{planned || '—'}</span>
+          </div>
+          <div className="dev-row">
+            <span className="dev-k">sns</span>
+            <button type="button" className="dev-b" onClick={() => setSnsOpen(true)}>SNS 열기</button>
+            <button type="button" className="dev-b" onClick={() => postNow()}>지금 올리기</button>
+            <button type="button" className="dev-b" onClick={() => askPostNow()}>지금 묻기</button>
+            <button type="button" className="dev-b" onClick={() => void loadFeed(true)}>피드 새로고침</button>
+            <span className="dev-status">{`feed ${feedN}${snsDraft ? ' · draft' : ''}`}</span>
           </div>
           <div className="dev-row">
             <span className="dev-k">trip</span>

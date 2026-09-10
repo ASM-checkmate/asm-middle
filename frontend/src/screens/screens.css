@@ -251,6 +251,11 @@
 @keyframes req-in { from { transform: translateY(28px); opacity: 0; } to { transform: none; opacity: 1; } }
 .req-me { grid-area: me; align-self: end; }
 .req-say { grid-area: say; max-width: 100%; }
+/* 글 초안 쪽지: 말풍선 아래 컷 썸네일 한 줄 (SNS_SPEC §8) — 썸네일 모양은 sns.css의 .sns-thumb */
+.req.is-post { grid-template-areas: "me say" "cuts cuts" "btn btn" "due due"; }
+.req-cuts { grid-area: cuts; padding: 2px 0 0 2px; }
+.req-cuts .sns-thumb, .chat-cuts .sns-thumb { width: 48px; height: 48px; }
+.chat-cuts { padding-left: 8px; margin: 2px 0 4px; }
 .req-btns { grid-area: btn; display: flex; gap: 8px; margin-top: 2px; flex-wrap: wrap; }
 .req-btns > * { flex: 1 1 44%; min-height: 42px; }
 /* 고민은 여덟 개라 두 칸씩 접힌다 — 폼이 아니라 대답의 목록으로 보이게 작게 */
@@ -628,7 +633,7 @@
 
 /* ─── Reduced motion: one block. Position/progress/time still update; everything decorative is static. ─── */
 @media (prefers-reduced-motion: reduce) {
-  .scr, .scr *, .scene *, .sheet, .sheet-dim, .book, .bubble, .cm-p, .dev, .tt-chara, .act-chara, .act-friend, .slp-z, .slp-chara, .chrome-owner, .jetlag { animation: none !important; transition: none !important; }
+  .scr, .scr *, .scene *, .sheet, .sheet-dim, .book, .sns, .sns-sheet, .sns-viewer, .bubble, .cm-p, .dev, .tt-chara, .act-chara, .act-friend, .slp-z, .slp-chara, .chrome-owner, .jetlag { animation: none !important; transition: none !important; }
 }
 
 /* ─── timetable as a bottom sheet (opened from the top-right ring button on any screen) ─── */
@@ -688,14 +693,12 @@
 .opt .cchip-tx { display: inline-block; font-size: 12px; color: var(--ink); margin: 0; }
 .opt .opt-ask { color: var(--coral); font-family: var(--display); font-size: 12px; }
 
-/* ─── friends list (same shell as the book) ─── */
-.fr-item { border-color: var(--friend, var(--ink)); }
-.fr-row { display: flex; align-items: center; gap: 12px; }
-.fr-main { display: grid; gap: 2px; min-width: 0; }
-.fr-main b { font-family: var(--display); font-weight: 400; font-size: 20px; line-height: 1.1; }
-.fr-home { font-size: 12px; color: var(--ink-2); }
-.fr-now { display: inline-flex; align-items: center; gap: 6px; font-family: var(--display); font-size: 14px; color: var(--ink); margin-top: 2px; }
-.fr-now i { width: 8px; height: 8px; border-radius: 50%; background: var(--mint); border: 1.5px solid var(--ink); }
+/* ─── 책 맨 아래 로그아웃 줄 (SNS_SPEC §1: 옛 친구 목록에서 옮겨 왔다) ─── */
+.book-me { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; padding: 10px 14px; border: 2px dashed var(--line); border-radius: 14px; }
+.book-me-who { display: grid; gap: 2px; min-width: 0; }
+.book-me-who b { font-family: var(--display); font-weight: 400; font-size: 15px; line-height: 1.1; }
+.book-me-who small { font-size: 9px; color: var(--ink-3); letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.book-me .btn { width: auto; flex: none; }
 
 /* ─── 사진 (ADR-0004): book 목록·상세, 요약 시트 ─────────────────────────── */
 /* 목록 썸네일 — 사용자 컷은 코랄 테두리 */
@@ -710,12 +713,6 @@
 /* 쪽지·혼잣말은 화면 아래 카드와 같은 자리를 쓴다 — 활동 화면에선 사진 버튼(.act-stat), 만화 화면에선 두 버튼(.cm-foot)을 가리지 않게 위로 올린다 (ADR-0004: 사진 찍기가 활동 중 유일한 손댈 수 있는 것) */
 .home--active .req, .home--active .say { bottom: calc(152px + var(--safe-bottom)); }
 .home--comic .req, .home--comic .say { bottom: calc(92px + var(--safe-bottom)); }
-
-/* 친구 목록 맨 아래 "나" 줄 — 지금 들어와 있는 아이디와 로그아웃 (AUTH-ADDENDUM). 서버 없이(오프라인) 뜨면 안 보인다 */
-.fr-me { flex: none; margin: 0 20px calc(20px + var(--safe-bottom)); padding: 12px 14px 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border: var(--outline); border-radius: var(--r-card); background: var(--card); box-shadow: var(--shadow-hard-sm); }
-.fr-me-who { display: grid; gap: 1px; min-width: 0; }
-.fr-me-who b { font-family: var(--display); font-weight: 400; font-size: 18px; line-height: 1.1; }
-.fr-me-who small { font-size: 11px; color: var(--ink-2); letter-spacing: .06em; }
 
 /* ── 말로 하는 통화 (ADR-0011): 오간 말이 쌓이고, 내 말은 오른쪽 ── */
 .call-state { display: inline-block; margin-top: 4px; padding: 3px 10px; border-radius: 999px; font-family: var(--display); font-size: 12px; letter-spacing: .03em; background: rgba(255,255,255,.12); color: var(--paper); }

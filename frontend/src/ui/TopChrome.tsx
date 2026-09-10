@@ -16,8 +16,10 @@ export interface TopChromeProps {
   /** opens the timetable sheet from any state */
   onTimetable?: () => void;
   hideTimetable?: boolean;
-  /** opens the friends list */
-  onFriends?: () => void;
+  /** SNS를 연다 (ADR-0021) — 친구 목록은 그 안의 탭이다 */
+  onSns?: () => void;
+  /** 에이전트가 써 둔 초안이 있으면 SNS 버튼에 코랄 점 */
+  snsBadge?: boolean;
   /** 대화 실을 연다 (ADR-0002) — 전화는 그 안에서 건다 */
   onChat?: () => void;
   /** 아직 안 본 줄의 개수 (배지) */
@@ -32,7 +34,7 @@ const ownerCityName = (() => { const c = cityOfTz(ownerTz); return c ? cityNameK
 /** The only persistent UI: centre clock (DM Mono, the character's local time) + round timetable/book buttons (2px ink, hard
  *  shadow). When the character's clock differs from the owner's a small house pill left of the clock keeps the owner's own
  *  time ("서울 09:12"); zones on the same offset (Seoul/Tokyo) read the same, so nothing is shown (owner decision 4). */
-export function TopChrome({ now, tz, label, tone = 'ink', onBook, hideBook, onTimetable, hideTimetable, onFriends, onChat, unread = 0, scale }: TopChromeProps) {
+export function TopChrome({ now, tz, label, tone = 'ink', onBook, hideBook, onTimetable, hideTimetable, onSns, snsBadge, onChat, unread = 0, scale }: TopChromeProps) {
   const away = tz !== ownerTz && offsetMinutes(tz, now) !== offsetMinutes(ownerTz, now);
   const showScale = scale !== undefined && scale !== 1;
   // 서버가 안 보일 때만 작은 회색 점 (BACKEND-CONTRACT §3.5) — 오류처럼 보이지 않게, ok면 아무것도 없다. 스토어에서 직접 읽는다 (Home은 모른다)
@@ -58,8 +60,9 @@ export function TopChrome({ now, tz, label, tone = 'ink', onBook, hideBook, onTi
           {alone && <span className="chrome-dot" role="img" aria-label="혼자 생각 중" title="혼자 생각 중" />}
         </div>
       )}
-      <button type="button" className="chrome-book chrome-friends" onClick={onFriends} aria-label="친구 목록 열기">
-        <Glyph name="friends" size={24} />
+      <button type="button" className="chrome-book chrome-sns" onClick={onSns} aria-label="SNS 열기">
+        <Glyph name="sns" size={24} />
+        {snsBadge && <em className="chrome-badge chrome-badge--dot" aria-label="올릴 초안 있음" />}
       </button>
       <button type="button" className="chrome-book chrome-chat" onClick={onChat} aria-label="대화 열기">
         <Glyph name="chat" size={23} />

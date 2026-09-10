@@ -22,8 +22,12 @@ import { narrate } from './narrate';
 import { MAX_LEN, WORRY_CALL_MS, ASK_CALL_MS, askCallInMs, openBatch, reactToWorry, replyToAll, tripFollowUp, trimMessages, type ChatMsg } from './chat';
 import { fetchPlan, fetchSketchRead, fetchTripPlan, getTier, planRequestOf, requestOf, scheduleReply, setTier, sketchRequestOf, type LlmTier, type PlanBlockRequest, type PlanCategory, type ReplyResponse, type SketchReadResponse } from './llm';
 import { addFriendRemote, checkHealth, onLocalSave, publishAgent, publishSchedule, refreshRemote, subscribeSync, syncArmed, syncSnapshot, type BackendStatus, type DocName, type SyncInfo } from './sync';
-import { isUploaded, startMediaQueue, subscribeUploaded } from './media';
+import { flushUploads, isUploaded, mediaReady, putLocal, startMediaQueue, subscribeUploaded } from './media';
+import { currentUser } from './api';
 import { isShotId } from '../photo/geometry';
+import { onLike, useSns } from './sns';
+import type { Post, PostDraft, PostIn } from './posts';
+import { BEDTIME_GRACE_MS, POST_RETRY_BASE_MS, POST_RETRY_MAX_MS, askRequest, buildDraft, decidePost, emptyAgentPost, makeNpcPost, noteLikeIn, npcPostsDue, postInOf, relaxedWindow, validAgentPost, weekKeyOf, type AgentPostState, type NpcBaker, type PostCtx } from './agentPosts';
 
 /** Seed memory: the first launch starts from 모모; onboarding (`updateMemory`) overwrites name/likes/traits. */
 export const DEFAULT_MEMORY: Memory = {
@@ -45,9 +49,9 @@ export type MemoryPatch = Partial<Pick<Memory, 'name' | 'likes' | 'dislikes' | '
 /** "다른 제안 보기" counter per day and block. */
 export type Regen = Record<DayKey, Partial<Record<BlockId, number>>>;
 /** The pure inputs of the timeline — the bundle the helpers below pass around. `remote`는 진짜 사람 에이전트 캐시 (§3.4, 없으면 null). */
-export interface World { days: Days; anchor: Anchor; memory: Memory; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; llmPlans: LlmPlans; remote?: RemoteCache | null }
-/** v5 그대로 — `shots`(ADR-0004)·`llmPlans`(ADR-0010)·`remote`(BACKEND-CONTRACT §3.4)는 optional 필드라 옛 저장본은 빈 값으로 읽는다 (버전을 올리지 않는다). */
-interface Persisted { v: 5; days: Days; anchor: Anchor; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; llmPlans?: LlmPlans; remote?: RemoteCache }
+export interface World { days: Days; anchor: Anchor; memory: Memory; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; llmPlans: LlmPlans; remote?: RemoteCache | null; agentPost?: AgentPostState }
+/** v5 그대로 — `shots`(ADR-0004)·`llmPlans`(ADR-0010)·`remote`(BACKEND-CONTRACT §3.4)·`agentPost`(ADR-0021)는 optional 필드라 옛 저장본은 빈 값으로 읽는다 (버전을 올리지 않는다). */
+interface Persisted { v: 5; days: Days; anchor: Anchor; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; llmPlans?: LlmPlans; remote?: RemoteCache; agentPost?: AgentPostState }
 
 const WORLD_KEY = 'theworld.world.v5';   // + 대화 실 (ADR-0002). 옛 판은 한 번만 읽어 올린다
 const WORLD_KEY_V4 = 'theworld.world.v4';  // legacy: days + anchor(+status), 대화 실 없음 (ADR-0001)
@@ -181,7 +185,7 @@ const validShots = (raw: unknown): UserShot[] => {
       && (c.pitch === undefined || Number.isFinite(c.pitch)) && (c.light === undefined || Number.isFinite(c.light)) && (c.dof === undefined || Number.isFinite(c.dof)) && (c.focus === undefined || c.focus === 'near' || c.focus === 'far');
   }).map(x => (x.shotId === undefined || isShotId(x.shotId) ? x : (({ shotId: _drop, ...rest }) => rest)(x)));
 };
-const persistedOf = (w: World): Persisted => ({ v: 5, days: w.days, anchor: w.anchor, journeys: w.journeys, regen: w.regen, encounters: w.encounters, requests: w.requests, calls: w.calls, messages: w.messages, dueCalls: w.dueCalls, shots: w.shots, llmPlans: w.llmPlans, ...(w.remote ? { remote: w.remote } : {}) });
+const persistedOf = (w: World): Persisted => ({ v: 5, days: w.days, anchor: w.anchor, journeys: w.journeys, regen: w.regen, encounters: w.encounters, requests: w.requests, calls: w.calls, messages: w.messages, dueCalls: w.dueCalls, shots: w.shots, llmPlans: w.llmPlans, ...(w.remote ? { remote: w.remote } : {}), ...(w.agentPost ? { agentPost: w.agentPost } : {}) });
 const horizonFor = (t: number) => t + HORIZON_MS;
 const build = (w: World, t: number) => buildTimeline(w.anchor, w.days, w.memory, w.journeys, horizonFor(t), w.encounters);
 
@@ -529,6 +533,10 @@ export interface WorldState {
   say: { text: string; at: number } | null;
   /** 사용자가 찍은 컷들 (ADR-0004 오너 결정 7). 추가전용, 같은 활동·창은 뒤가 이긴다. 활동이 끝나면 만화에 박힌다. */
   shots: UserShot[];
+  /** 에이전트 발행 엔진의 상태 (sim/agentPosts, ADR-0021 결정 5): 마지막 글·쥔 초안·주간 물음 수·버린 날·좋아요 기록. world 저장본에 실린다 */
+  agentPost: AgentPostState;
+  /** 주인이 그 사람 글에 좋아요를 켰다 (sns.onLike → 여기) — "관심 있는 사람" 고민의 재료 */
+  noteLike: (authorId: string) => void;
   /** 그림 캔버스 오버레이가 열린 블록 (없으면 null) */
   sketchOpen: BlockId | null;
   /** 카메라 오버레이가 열려 있나 */
@@ -673,7 +681,20 @@ export interface WorldState {
 const comicCache = new Map<string, Comic>();
 const summaryOf = (acts: ScheduledActivity[], comicOf: (a: ScheduledActivity) => Comic): DaySummaryItem[] =>
   [...acts].sort((a, b) => a.endAt - b.endAt).slice(-SUMMARY_CAP).map(a => ({ blockId: a.blockIds[0], act: a, comic: comicOf(a) }));
-const worldOf = (s: WorldState): World => ({ days: s.days, anchor: s.anchor, memory: s.memory, journeys: s.journeys, regen: s.regen, encounters: s.encounters, requests: s.requests, calls: s.calls, messages: s.messages, dueCalls: s.dueCalls, shots: s.shots, llmPlans: s.llmPlans, remote: s.remote });
+const worldOf = (s: WorldState): World => ({ days: s.days, anchor: s.anchor, memory: s.memory, journeys: s.journeys, regen: s.regen, encounters: s.encounters, requests: s.requests, calls: s.calls, messages: s.messages, dueCalls: s.dueCalls, shots: s.shots, llmPlans: s.llmPlans, remote: s.remote, agentPost: s.agentPost });
+
+// ─── 가상 친구 글의 굽기 (ADR-0021 결정 6) ──────────────────────────────────────────────
+// bakeShot(photo/bake.tsx)·sceneTypeFor(scenes/index.tsx)는 .tsx라 node 하네스가 못 읽는다 — 브라우저에서만 동적으로 올리고, 하네스는
+// setNpcBaker로 가짜를 꽂는다. 굽기가 없으면 NPC 글은 안 만든다 (다음 날 다시).
+let npcBaker: NpcBaker | null = null;
+/** 하네스·QA용: 가상 친구 컷을 굽는 함수를 갈아 끼운다 (null이면 안 만든다) */
+export const setNpcBaker = (b: NpcBaker | null) => { npcBaker = b; };
+if (typeof document !== 'undefined') {
+  void Promise.all([import('../photo/bake'), import('../scenes')]).then(([bake, scenes]) => {
+    if (npcBaker) return;
+    npcBaker = async i => { const r = await bake.bakeShot({ type: scenes.sceneTypeFor(i.placeType), pose: i.pose, crop: i.crop, look: i.look }); return { blob: r.blob, mime: r.mime }; };
+  }).catch(() => { /* 굽기 모듈을 못 올렸다 — 가상 친구 글 없이 간다 */ });
+}
 /** Where the character is right before block `id` of today (the previous activity's place, else the anchor's). */
 const placeBefore = (s: WorldState, id: BlockId) => currentPlaceAt(blockStartAt(dayStartOfKey(s.today), id) - 1, s.timeline, s.anchor);
 
@@ -711,7 +732,8 @@ export const useWorld = create<WorldState>((set, get) => {
     .map(r => (r.kind === 'worry' && !r.answered && !r.decidedAlone ? { ...r, choices: WORRY_CHOICES } : r));
   const messages0 = (Array.isArray(persisted?.messages) ? persisted.messages : []).filter(m => !m.id.startsWith('nego:'));
   const dueCalls0 = (Array.isArray(persisted?.dueCalls) ? persisted.dueCalls : []).map(d => (d.worry !== undefined && !isWorryKey(d.worry) ? { ...d, worry: undefined } : d));
-  let w: World = { days: validDays(persisted?.days), anchor: validAnchor(persisted?.anchor, now, memory), memory, journeys: persisted?.journeys ?? {}, regen: persisted?.regen ?? {}, encounters, requests: requests0, calls: Array.isArray(persisted?.calls) ? persisted.calls : [], messages: messages0, dueCalls: dueCalls0, shots, llmPlans: validLlmPlans(persisted?.llmPlans), remote };
+  const agentPost0 = validAgentPost(persisted?.agentPost);
+  let w: World = { days: validDays(persisted?.days), anchor: validAnchor(persisted?.anchor, now, memory), memory, journeys: persisted?.journeys ?? {}, regen: persisted?.regen ?? {}, encounters, requests: requests0, calls: Array.isArray(persisted?.calls) ? persisted.calls : [], messages: messages0, dueCalls: dueCalls0, shots, llmPlans: validLlmPlans(persisted?.llmPlans), remote, agentPost: agentPost0 };
   const gapActs: ScheduledActivity[] = [];
   const remember = (a: ScheduledActivity) => { settleLocal(a); if (a.endAt > lastSeen && a.endAt <= now) gapActs.push(a); };
   w = prune(w, now, remember);
@@ -782,6 +804,10 @@ export const useWorld = create<WorldState>((set, get) => {
   let profileSending = false;
   // 대표 사진은 서버가 받은 뒤에야 프로필에 실린다(아래 publishProfile) — 올라가는 순간 다시 보낸다 (tick이 집어 간다)
   subscribeUploaded(id => { if (id === get().memory.repShotId) profileSent = false; });
+  // 주인의 좋아요 → "관심 있는 사람" 기록 (SNS_SPEC §9). **물은** 초안이 있으면 글쓰기 화면이 미리 채울 수 있게 useSns에도 둔다 —
+  // 묻지 않고 올리는 중인 초안(asked=false)은 엔진의 것이라 화면에 안 보인다 (보이면 주인이 올리기/고치기를 눌러 두 번 올라간다)
+  onLike(id => get().noteLike(id));
+  if (agentPost0.pending?.asked) useSns.getState().setDraft(agentPost0.pending.draft);
   // 실패 뒤 백오프 — recompute가 tick마다(1초) 돌고 디바운스(800 ms)가 그보다 짧아, 이게 없으면 죽은 서버를 초마다 두드린다
   let remoteFailures = 0;
   let nextRemoteAt = 0;
@@ -940,6 +966,137 @@ export const useWorld = create<WorldState>((set, get) => {
     if (requests !== s.requests) { set({ requests: trimRequests(requests, s.anchor.t) }); persist(); }
   };
 
+  // ─── 에이전트 발행 엔진 (sim/agentPosts, ADR-0021 결정 5·6 · SNS_SPEC §8·§9) ───────────────────────────
+  /** 글 올리기가 진행 중 — 겹쳐 보내지 않는다 */
+  let postInFlight = false;
+  /** 실패 뒤 다음 시도 시각 (sim ms)·연속 실패 수 — 60s → 2m → … ≤ 15m */
+  let postNextTryAt = 0;
+  let postFailures = 0;
+  const postCtxOf = (s: WorldState): PostCtx => ({ today: s.today, now: s.now, timeline: s.timeline, book: s.book, shots: s.shots, memory: s.memory, encounters: s.encounters, isUploaded, agentPost: s.agentPost });
+  const setAgentPost = (patch: Partial<AgentPostState>) => { set({ agentPost: { ...get().agentPost, ...patch } }); persist(); };
+  /** "올렸어 · 보러 가기" — SNS_SPEC §8이 허락한 한 줄. 같은 글로 두 번 남기지 않는다 */
+  const postedLine = (t: number, postId: string | null, fallbackId: string): ChatMsg => ({
+    id: `post:${postId ?? fallbackId}`, at: t, from: 'agent', text: '올렸어', ...(postId ? { link: { kind: 'post' as const, id: postId, label: '보러 가기' } } : {}),
+  });
+  /** 오늘 글을 포기한다 — 자기 전까지 컷이 하나도 안 올라갔을 때 (§8 자기 전 규칙의 뒤) */
+  const skipToday = () => { setAgentPost({ pending: undefined, skippedDay: get().today }); useSns.getState().setDraft(null); };
+  /** 초안을 놓는다 (올리지 않고). 마감을 넘겨 "그냥 올릴게" 한 쪽지가 있으면 통보까지 끝난 것으로 — 요약 시트에 다시 뜨지 않게 */
+  const dropPending = (draftId: string) => {
+    const s = get();
+    const requests = s.requests.map(r => (r.kind === 'post' && r.refId === draftId && r.decidedAlone && !r.told ? { ...r, told: true } : r));
+    set({ requests, agentPost: { ...s.agentPost, pending: undefined } });
+    useSns.getState().setDraft(null);
+    persist();
+  };
+  /** 서버가 받아 줬다: 그 날은 끝(자정을 넘겨 올린 어제 초안이면 오늘은 아직), 초안 비우고, 채팅에 한 줄 */
+  const posted = (post: Post, t: number, draftId: string) => {
+    const s = get();
+    // 물었던 쪽지가 아직 열려 있으면(마감 전에 다른 길로 올라감) 답한 것으로 접는다 — 카드가 계속 떠 있지 않게
+    const requests = s.requests.map(r => (r.kind === 'post' && r.refId === draftId && !r.answered && !r.decidedAlone ? { ...r, answered: 'post', answeredAt: t } : r));
+    const msg = postedLine(t, post.id, draftId);
+    const lastPostDay = post.dateKey === splitDayKey(s.today).dateKey ? s.today : s.agentPost.lastPostDay;
+    set({ requests, messages: trimMessages([...s.messages.filter(m => m.id !== msg.id), msg], s.anchor.t), agentPost: { ...s.agentPost, lastPostDay, lastPostAt: t, pending: undefined } });
+    useSns.getState().setDraft(null);
+    persist();
+  };
+  /**
+   * 쥔 초안을 올려 본다. 컷이 전부 서버에 올라가 있어야 한다(`cut not yours`) — 아니면 올리기를 재촉하고 다음 tick에 다시. 자기 전 창에서
+   * 하루 끝이 5분 안이면 올라간 컷만으로 올리고, 하나도 없으면 오늘은 건너뛴다. 자정을 넘긴 어제 초안(pumpAgentPost가 남긴 것)도 그렇게 —
+   * 다만 하나도 없으면 오늘을 접지 않고 초안만 놓는다. 실패(null)면 백오프 뒤 다시.
+   * 부팅 직후 IDB 색인이 아직 안 올라왔으면(mediaReady) 기다린다 — 올라간 컷을 모른다고 마지막 5분에 오늘을 접어 버리지 않게.
+   */
+  const tryPost = (t: number) => {
+    const s = get();
+    const p = s.agentPost.pending;
+    if (!p || postInFlight || t < postNextTryAt || !mediaReady()) return;
+    const uploaded = p.draft.cuts.filter(c => isUploaded(c.shotId));
+    let body: PostIn;
+    if (uploaded.length < p.draft.cuts.length) {
+      const overnight = p.draft.dateKey !== splitDayKey(s.today).dateKey;
+      const lastCall = overnight || (relaxedWindow(s.phase) === 'bedtime' && dayEndOfKey(s.today) - t <= BEDTIME_GRACE_MS);
+      if (!lastCall) { void flushUploads(); return; }
+      if (!uploaded.length) { if (overnight) dropPending(p.draftId); else skipToday(); return; }
+      body = postInOf(p.draft, uploaded);
+    } else body = postInOf(p.draft);
+    postInFlight = true;
+    const draftId = p.draftId;
+    void useSns.getState().publishPost(body).then(post => {
+      postInFlight = false;
+      const now = simNow(get().clock);
+      if (post) { postFailures = 0; postNextTryAt = 0; posted(post, now, draftId); return; }
+      postNextTryAt = now + Math.min(POST_RETRY_MAX_MS, POST_RETRY_BASE_MS * 2 ** Math.min(postFailures, 4));
+      postFailures++;
+    }, () => { postInFlight = false; });
+  };
+  /** 채팅으로 묻는다: 쪽지 하나, 초안은 world와 useSns 양쪽에(글쓰기 화면이 미리 채운다). `count`면 이번 주 물음 수에 센다 */
+  const askPost = (draft: PostDraft, request: AgentRequest, count: boolean) => {
+    const s = get();
+    const week = weekKeyOf(splitDayKey(s.today).dateKey);
+    const asks = count ? { week, count: (s.agentPost.asks.week === week ? s.agentPost.asks.count : 0) + 1 } : s.agentPost.asks;
+    const withDue: PostDraft = { ...draft, dueAt: request.dueAt };
+    set({
+      requests: trimRequests([...s.requests.filter(r => r.id !== request.id), request], s.anchor.t),
+      agentPost: { ...s.agentPost, asks, pending: { draftId: draft.id, dueAt: request.dueAt, asked: true, draft: withDue } },
+    });
+    useSns.getState().setDraft(withDue);
+    persist();
+  };
+  /**
+   * tick마다: 쥔 초안이 있으면 그 결말을 굴리고(답을 기다리는 중이면 가만히, 마감을 넘겼거나 '그대로 올려'면 올린다, '컷 고치기'면 글쓰기
+   * 화면이 resolvePostDraft로 끝낸다), 없으면 여유 있는 창에서 초안을 만들어 묻거나 올린다.
+   * 날이 바뀌면 어제 초안은 버린다 (하루 1글은 그날 것) — 단, **물어 놓고 답이 없는**(마감 전이든 넘겼든, '그대로 올려'든) 초안은 하루까지
+   * 더 쥐고 그대로 올린다: 자정 15분 전에 물으면 마감이 자정 뒤라, 버리면 "답이 없어서 그냥 올릴게"가 거짓말이 된다. 저장본에서 살아난 초안도 같은 길.
+   * 글쓰기 화면이 열려 있는 동안은 올리지 않는다 — 주인이 고치는 초안을 등 뒤에서 올리면 두 번 올라간다.
+   * '컷 고치기'라 답해 놓고 화면을 닫은 채 하루가 저물면 자기 전 창에서 그대로 올린다 (SNS_SPEC §8 "그날 안 올렸으면 자기 전에").
+   * 사용자가 없으면(오프라인으로 시작) 초안도 물음도 없다 — 올릴 길이 없는데 묻고 "올릴게" 하지 않는다.
+   */
+  const pumpAgentPost = (t: number) => {
+    const s = get();
+    const ap = s.agentPost;
+    if (ap.pending) {
+      const req = s.requests.find(r => r.kind === 'post' && r.refId === ap.pending?.draftId);
+      const todayDate = splitDayKey(s.today).dateKey;
+      if (ap.pending.draft.dateKey !== todayDate) {
+        const askedOpen = ap.pending.asked && !!req && (!req.answered || req.answered === 'post');
+        const yesterday = Date.parse(`${todayDate}T00:00:00Z`) - Date.parse(`${ap.pending.draft.dateKey}T00:00:00Z`) <= DAY_MS;
+        if (!askedOpen || !yesterday) { dropPending(ap.pending.draftId); return; }
+      }
+      if (useSns.getState().composeOpen) return;
+      if (ap.pending.asked && req && !req.decidedAlone && req.answered !== 'post') {
+        if (!(req.answered === 'edit' && relaxedWindow(s.phase) === 'bedtime')) return;
+      }
+      tryPost(t);
+      return;
+    }
+    if (ap.lastPostDay === s.today || ap.skippedDay === s.today || !relaxedWindow(s.phase) || !currentUser()) return;
+    // 시계를 돌려(jumpTo) 건너뛴 활동은 만화가 없다 (tick의 gap 처리는 점프 뒤엔 안 돈다) — 초안은 책의 컷으로 만들어지므로 오늘 끝난
+    // 활동은 여기서 정산한다 (settle은 멱등: 이미 책에 있으면 그대로). 실시간에는 tick이 먼저 해 둬서 아무 일도 없다
+    for (const a of s.timeline) if (a.dayKey === s.today && a.endAt <= t && a.option.category !== 'sleep' && !s.book.some(c => c.id === `c:${a.key}`)) comicFor(a);
+    const cur = get();
+    const d = decidePost(postCtxOf(cur), cur.phase);
+    if (d.kind === 'none') return;
+    if (d.kind === 'ask') { askPost(d.draft, d.request, true); return; }
+    setAgentPost({ pending: { draftId: d.draft.id, dueAt: t, asked: false, draft: d.draft } });
+    tryPost(t);
+  };
+  /** 오늘 굽는 중이거나 실패한 가상 친구 글 id — 실패하면 오늘은 다시 안 굽는다 (id에 날짜가 들어 있어 다음 날은 새 키) */
+  const npcTried = new Set<string>();
+  /** 가상 친구의 글 (ADR-0021 결정 6): 걔들의 하루 중 한 활동이 끝난 시각이 지나면 컷을 굽고 로컬 문서에 넣는다. 굽기가 없으면(하네스) 아무것도 안 한다 */
+  const pumpNpcPosts = (t: number) => {
+    const bake = npcBaker;
+    if (!bake) return;
+    const s = get();
+    const sns = useSns.getState();
+    const have = (id: string) => npcTried.has(id) || sns.localPosts.some(i => i.post.id === id);
+    for (const due of npcPostsDue(s.memory, s.today, t, have)) {
+      npcTried.add(due.postId);
+      void makeNpcPost(due, { bake, putLocal }).then(
+        item => { const cur = useSns.getState(); cur.setLocalPosts([item, ...cur.localPosts]); },
+        () => { /* 굽기·저장 실패 — 오늘은 건너뛴다 */ },
+      );
+    }
+  };
+
   /**
    * 에이전트가 거는 전화를 굴린다 (ADR-0001 §1): **약속한 전화**뿐이다 — "이따가 전화할게"(고민을 듣고),
    * "지금 걸게"(걸어 달라고 해서) (ADR-0002·ADR-0013). 계획이 어긋난 순간의 통보 전화는 없앴다 — 그 사연은
@@ -1037,7 +1194,7 @@ export const useWorld = create<WorldState>((set, get) => {
     clock, now, anchor: w.anchor, days: w.days, today, tz: initialPhase.tz, memory, agents: [...remoteAgents(), ...AGENTS], encounters, status: initialStatus, requests: w.requests, calls: w.calls, activeCall: null, onboarded,
     messages: w.messages, dueCalls: w.dueCalls, chatOpen: false, chatSeen: load<number>(CHAT_SEEN_KEY, now), llmTier: getTier(), tripBusy: null, llmPlans: w.llmPlans, planBusy: false, say: null,
     backend: sync0.backend, sync: sync0.sync, remote: w.remote ?? null,
-    shots: w.shots, sketchOpen: null, cameraOpen: false,
+    shots: w.shots, sketchOpen: null, cameraOpen: false, agentPost: agentPost0,
     plans: w.days[today], journeys: w.journeys, regen: w.regen, book,
     timeline: first.timeline,
     phase: initialPhase,
@@ -1062,6 +1219,9 @@ export const useWorld = create<WorldState>((set, get) => {
       arriveSay(s.phase, get().phase, from, t);
       // 쪽지: 마감이 지난 건 "혼자 정했다"로 넘기고, 물어볼 게 있으면 하나 만든다 — 상한 없이, 오래된 것부터 카드로 (sim/requests.ts)
       pumpRequests(t);
+      // 글: 하루 하나, 여유 있는 창에서 (ADR-0021 결정 5). 가상 친구의 글도 여기서 (결정 6)
+      pumpAgentPost(t);
+      pumpNpcPosts(t);
       // 전화: 약속한 전화만 (ADR-0013). 접속 중이면 울리고, 지나갔으면 부재중(내용 없음).
       pumpCalls(from, t);
       save(SEEN_KEY, t);
@@ -1151,10 +1311,41 @@ export const useWorld = create<WorldState>((set, get) => {
       set({ memory }); save(MEMORY_KEY, memory);
       profileSent = false;   // 다음 tick이 PUT /api/me/agent로 보낸다 (없는 칸은 서버가 이전 값을 지킨다, CONTRACT §2.5)
     },
-    // M3(에이전트 발행 엔진)이 채운다 — 그때까지는 아무 일도 안 한다
-    postNow: () => {},
-    askPostNow: () => {},
-    resolvePostDraft: () => {},
+    postNow: () => {
+      const s = get();
+      // 이미 쥔 초안이 있으면 그걸 지금 (묻는 중이었어도 — DEV가 재촉한 것)
+      if (s.agentPost.pending) { postNextTryAt = 0; tryPost(s.now); return; }
+      const draft = buildDraft(postCtxOf(s));
+      if (!draft) { set({ say: { text: '아직 올릴 컷이 없어', at: s.now } }); return; }
+      delete draft.reason;
+      setAgentPost({ pending: { draftId: draft.id, dueAt: s.now, asked: false, draft } });
+      tryPost(s.now);
+    },
+    askPostNow: () => {
+      const s = get();
+      if (s.agentPost.pending) return;   // 이미 묻는 중이거나 올리는 중 — 두 초안을 쥐지 않는다
+      const base = buildDraft(postCtxOf(s));
+      if (!base) { set({ say: { text: '아직 올릴 컷이 없어', at: s.now } }); return; }
+      const draft: PostDraft = { ...base, reason: '지금 이거 올리려는데 봐줄래?' };
+      askPost(draft, askRequest(draft, s.now), false);   // 고민 조건·주 2회 상한을 건너뛴다 — 세지 않는다
+    },
+    resolvePostDraft: (draftId, outcome, postId) => {
+      const s = get();
+      const t = s.now;
+      // 물었던 쪽지는 답한 것으로 (글쓰기 화면에서 끝냈으니 '컷 고치기' 갈래), 통보도 끝난 것으로
+      const requests = s.requests.map(r => (r.kind === 'post' && r.refId === draftId ? { ...r, answered: r.answered ?? 'edit', answeredAt: r.answeredAt ?? t, told: true } : r));
+      const pending = s.agentPost.pending?.draftId === draftId ? undefined : s.agentPost.pending;   // 다른 초안을 쥐고 있으면 그건 그대로
+      if (outcome === 'posted') {
+        // 글쓰기 화면이 이미 올렸다 — 여기서는 다시 올리지 않고 한 줄만 남긴다
+        const msg = postedLine(t, postId ?? null, draftId);
+        set({ requests, messages: trimMessages([...s.messages.filter(m => m.id !== msg.id), msg], s.anchor.t), agentPost: { ...s.agentPost, pending, lastPostDay: s.today, lastPostAt: t } });
+      } else {
+        // 버린 날은 건너뛴다 (SNS_SPEC §8)
+        set({ requests, agentPost: { ...s.agentPost, pending, skippedDay: s.today } });
+      }
+      useSns.getState().setDraft(null);
+      persist();
+    },
     sketchBlock: (id, dataUrl) => {
       const s = get();
       const p = s.plans[id];
@@ -1252,7 +1443,20 @@ export const useWorld = create<WorldState>((set, get) => {
         persist();
         recompute(simNow(get().clock));
       }
+      // 글 초안 (SNS_SPEC §8): '그대로 올려'면 지금 올리고, '컷 고치기'면 글쓰기 화면(책의 고르기 모드)을 초안이 채워진 채 연다
+      if (r?.kind === 'post') {
+        if (choiceId === 'post') { tryPost(s.now); return; }
+        if (choiceId === 'edit') {
+          const p = get().agentPost.pending;
+          const sns = useSns.getState();
+          if (p && p.draftId === r.refId) sns.setDraft(p.draft);
+          sns.setComposeOpen(true);
+          sns.setSnsOpen(true);
+          if (get().chatOpen) get().setChatOpen(false);
+        }
+      }
     },
+    noteLike: (authorId) => { set({ agentPost: noteLikeIn(get().agentPost, authorId, get().now) }); persist(); },
     callAgent: () => {
       const s = get();
       if (s.activeCall) return;
@@ -1560,7 +1764,8 @@ export const useWorld = create<WorldState>((set, get) => {
       const remote = s.remote ? { ...s.remote, slots: {} } : null;
       setRemoteCache(remote, { meId: s.sync.userId, homeCity: homeCityOf(s.memory) });
       publishedSig = null;
-      set({ clock: c, anchor, days: {}, regen: {}, llmPlans: {}, today: dayKeyIn(t, anchor.tz), tz: anchor.tz, plans: emptyPlans(), timeline: [], summary: null, gap: null, requests: [], calls: [], activeCall: null, selectedBlock: null, messages: [], dueCalls: [], chatOpen: false, say: null, shots: [], sketchOpen: null, cameraOpen: false, remote });
+      set({ clock: c, anchor, days: {}, regen: {}, llmPlans: {}, today: dayKeyIn(t, anchor.tz), tz: anchor.tz, plans: emptyPlans(), timeline: [], summary: null, gap: null, requests: [], calls: [], activeCall: null, selectedBlock: null, messages: [], dueCalls: [], chatOpen: false, say: null, shots: [], sketchOpen: null, cameraOpen: false, remote, agentPost: emptyAgentPost() });
+      useSns.getState().setDraft(null);
       recompute(t);
     },
   };

@@ -33,7 +33,8 @@ const META_KEY = 'theworld.sync.v1';
  */
 const LOCAL_KEYS = ['theworld.world.v5', 'theworld.world.v4', 'theworld.days.v3', 'theworld.memory.v2', 'theworld.book.v1', 'theworld.places.v1', 'theworld.seen.v3', 'theworld.chatseen.v1', 'theworld.onboarded.v1', META_KEY,
   'theworld.auth.v1', 'theworld.device.v1',   // 옛 기기 토큰(2026-09-08 이전) — 이제 안 쓰니 같이 지운다
-  'theworld.media-queue.v1'] as const;          // 아직 안 올린 사진 id들 (media.ts MEDIA_QUEUE_KEY와 같아야 한다) — 다른 아이디의 사진을 올리지 않게
+  'theworld.media-queue.v1',                    // 아직 안 올린 사진 id들 (media.ts MEDIA_QUEUE_KEY와 같아야 한다) — 다른 아이디의 사진을 올리지 않게
+  'theworld.snslocal.v1'] as const;             // 가상 친구의 글 (sns.ts LOCAL_POSTS_KEY, ADR-0021 결정 6) — 그 아이디의 미디어 id를 가리킨다
 
 export type BackendStatus = 'unknown' | 'ok' | 'down';
 export interface SyncInfo {

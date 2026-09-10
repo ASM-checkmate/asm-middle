@@ -1,5 +1,5 @@
 // Small inline SVG glyphs (the deck uses ink-outlined icons in chrome; emoji only inside option tiles/categories).
-export type GlyphName = 'book' | 'close' | 'back' | 'refresh' | 'check' | 'moon' | 'sparkle' | 'ring' | 'friends' | 'home' | 'phone' | 'phone-off' | 'chat' | 'send';
+export type GlyphName = 'book' | 'close' | 'back' | 'refresh' | 'check' | 'moon' | 'sparkle' | 'ring' | 'friends' | 'sns' | 'heart' | 'home' | 'phone' | 'phone-off' | 'chat' | 'send';
 
 const INK = '#2A2118';
 const PAPER = '#FFF6E6';
@@ -57,6 +57,18 @@ export function Glyph({ name, size = 22, color = INK }: { name: GlyphName; size?
           <path d="M15 13.2c3.6 0 6.5 2.4 6.5 6" />
         </svg>
       );
+    case 'sns':
+      // SNS (ADR-0021) — 사진 카드 한 장: 종이 액자 안의 해와 언덕. 홈 왼쪽 위 버튼
+      return (
+        <svg {...common}>
+          <rect x="3.5" y="4.5" width="17" height="15" rx="3" fill={PAPER} />
+          <circle cx="9" cy="9.5" r="1.8" fill="#FFC64D" strokeWidth={1.6} />
+          <path d="M3.5 16.5l4.5-4 3.5 3 3.5-4.5 5.5 5.5" strokeWidth={1.9} />
+        </svg>
+      );
+    case 'heart':
+      // 좋아요 — 속은 부르는 쪽이 color로 채운다 (켜지면 코랄)
+      return <svg {...common}><path d="M12 20s-7.5-4.6-7.5-10A4.2 4.2 0 0 1 12 7.6 4.2 4.2 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z" fill="currentColor" /></svg>;
     case 'ring':
       return (
         <svg {...common}>

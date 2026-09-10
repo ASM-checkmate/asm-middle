@@ -49,3 +49,13 @@
 *   백엔드: posts·likes·feed·visibility, 추천 점수 계산(처음엔 SQL + 메모리 정렬로 충분).
 *   채팅에 버튼 달린 메시지 종류가 하나 생긴다(초안 확인). 채팅 프롬프트에 "왜 지금 올리는지" 한 줄이 들어간다.
 *   ADR-0020(픽셀·미디어)이 선행 조건이다.
+*   **발행 엔진은 `sim/agentPosts.ts`** (순수 논리 + 주입되는 굽기·저장), 스토어의 tick이 `pumpRequests` 뒤에 굴린다(`pumpAgentPost`·`pumpNpcPosts`).
+    상태는 `world.agentPost`(v5 저장본의 optional 칸, 부팅 때 `validAgentPost`): `{ lastPostDay?, lastPostAt?, pending?: { draftId, dueAt, asked, draft }, asks: { week, count }, skippedDay?, likedAuthors: Record<authorId, number[]> }`.
+    초안(`PostDraft`)은 새로고침에도 살아야 해서 `pending.draft`에 같이 실리고, 글쓰기 화면이 미리 채우도록 `useSns.draft`에도 둔다.
+*   쪽지(`AgentRequest`)에 **kind `'post'`** 가 생긴다 — refId = 초안 id, 마감 15분, 답 `post`(그대로 올려, 기본)/`edit`(컷 고치기 → 글쓰기 화면). 마감을 넘기면 `decidedAlone` → 통보 문구는 "답이 없어서 그냥 올릴게"(올리기는 마감 뒤 — 컷 업로드·서버 — 라 올렸다고 하지 않는다), 엔진이 그대로 올리면 "올렸어 · 보러 가기"가 따로 온다. 자정 15분 전에 물어 마감이 자정 뒤여도 그 초안은 버리지 않고 어제 날짜로 올린다.
+    글쓰기 화면은 끝나면 `store.resolvePostDraft(draftId, 'posted' | 'discarded', postId?)`를 부른다 — 올렸으면 한 줄만 남기고(다시 올리지 않는다), 버렸으면 `skippedDay`로 그날은 건너뛴다.
+*   `ChatMsg.link?: { kind: 'post'; id; label }` — "올렸어" 한 줄 아래 `보러 가기` 칩(ChatOverlay: 내 글 탭을 열고 대화창을 닫는다). 하루에 이 한 줄뿐이다.
+*   가상 친구의 글은 localStorage **`theworld.snslocal.v1`** (`{ v: 1, items: FeedItem[] }`, 최신 30편, sync.ts LOCAL_KEYS에 있어 아이디가 바뀌면 같이 비운다) — 부팅 때 `useSns.localPosts`로, 좋아요 토글도 거기 적힌다. 컷은 `kind: 'npc'`로 내 저장소에.
+    굽기(`bakeShot`·`sceneTypeFor`)는 .tsx라 스토어가 브라우저에서만 동적으로 올리고, 하네스는 `store.setNpcBaker`로 가짜를 꽂는다.
+*   시계를 돌려(`jumpTo`) 건너뛴 활동은 tick의 gap 처리가 안 돌아 만화가 없다 — 엔진은 여유 있는 창에 들어설 때 오늘 끝난 활동을 먼저 정산한다(settle은 멱등). 초안은 책의 컷으로 만들어지므로.
+*   **모델 문장은 뒤로 미룬다.** 캡션·고민 문장("하늘이랑 같이 찍힌 건데 올려도 돼?")·가상 친구의 캡션은 지금 규칙 기반이다(`agentPosts.captionOf`·`worryLine`·`npcCaptionOf`, TODO 표시). 채팅 프롬프트의 "왜 지금 올리는지" 한 줄도 아직 없다.

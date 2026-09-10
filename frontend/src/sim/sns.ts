@@ -4,12 +4,40 @@
 // 화면에 반영한 뒤 서버가 거절하면 되돌린다. 네트워크는 posts.ts가 맡는다 (여기서는 null만 본다). React 컴포넌트 없음.
 import { create } from 'zustand';
 import { currentUser } from './api';
-import { createPost, deletePost, fetchFeed, fetchMyPosts, fetchUserPosts, patchPost, setLike, type FeedItem, type Post, type PostDraft, type PostIn, type PostPatch } from './posts';
+import { createPost, deletePost, fetchFeed, fetchMyPosts, fetchUserPosts, lastError, patchPost, setLike, validFeedItem, type FeedItem, type Post, type PostDraft, type PostIn, type PostPatch } from './posts';
 
 export type SnsTab = 'feed' | 'friends' | 'mine';
 
-/** 한 사람의 글 격자 (프로필). 항목이 없으면 아직 안 받은 것. `failed`면 마지막 요청이 거절됐다 (비공개 + 친구 아님 등 — posts.lastError) */
-export interface Profile { posts: Post[]; next: string | null; loading: boolean; failed: boolean }
+// ─── 가상 친구 글의 로컬 문서 (ADR-0021 결정 6) ───────────────────────────────────────────
+// 서버는 가상 친구를 모른다 — 내 폰이 만든 걸 여기 둔다 (sync.ts LOCAL_KEYS에 있어 아이디가 바뀌면 같이 비운다). 최신 30편.
+export const LOCAL_POSTS_KEY = 'theworld.snslocal.v1';
+const LOCAL_POSTS_CAP = 30;
+const normalizeLocal = (items: readonly FeedItem[]): FeedItem[] => {
+  const seen = new Set<string>();
+  return [...items].sort((a, b) => b.post.createdAt - a.post.createdAt || a.post.id.localeCompare(b.post.id)).filter(i => (seen.has(i.post.id) ? false : (seen.add(i.post.id), true))).slice(0, LOCAL_POSTS_CAP);
+};
+/** 저장된 가상 친구 글 — 모양이 틀린 항목은 버린다 (validFeedItem). localStorage가 없으면(하네스) 빈 배열 */
+export function loadLocalPosts(): FeedItem[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_POSTS_KEY);
+    if (!raw) return [];
+    const doc = JSON.parse(raw) as { v?: unknown; items?: unknown };
+    if (!doc || !Array.isArray(doc.items)) return [];
+    return normalizeLocal(doc.items.map(validFeedItem).filter((x): x is FeedItem => !!x));
+  } catch { return []; }
+}
+const saveLocalPosts = (items: FeedItem[]) => { try { localStorage.setItem(LOCAL_POSTS_KEY, JSON.stringify({ v: 1, items })); } catch { /* ignore */ } };
+
+/** 주인이 좋아요를 **켤 때** 듣는다 — 스토어가 world.agentPost.likedAuthors에 적는다 ("관심 있는 사람", SNS_SPEC §9). 돌려주는 함수로 끊는다 */
+const likeListeners = new Set<(authorId: string) => void>();
+export const onLike = (fn: (authorId: string) => void): (() => void) => { likeListeners.add(fn); return () => { likeListeners.delete(fn); }; };
+const noteLiked = (authorId: string) => { for (const fn of likeListeners) { try { fn(authorId); } catch { /* 듣는 쪽의 오류는 좋아요를 막지 않는다 */ } } };
+
+/**
+ * 한 사람의 글 격자 (프로필). 항목이 없으면 아직 안 받은 것. `failed`면 마지막 요청이 거절됐다 — 이유는 `error`(posts.lastError 그대로,
+ * `'user posts: 403 not allowed'` 꼴). 비공개 + 친구 아님은 403뿐이다 — 오프라인·5xx·사용자 없음을 "친구만 볼 수 있어요"로 읽으면 안 된다
+ */
+export interface Profile { posts: Post[]; next: string | null; loading: boolean; failed: boolean; error: string }
 
 export interface SnsState {
   // ── 피드 (한 줄기: 친구 글 → 구분선 → 추천) ──
@@ -18,6 +46,8 @@ export interface SnsState {
   feedNext: string | null;
   feedLoading: boolean;
   feedEnded: boolean;
+  /** 마지막 피드 요청이 실패한 이유 (posts.lastError — `'feed: no user'`·`'feed: 503 …'`). 성공하면 빈 문자열. 빈 화면이 "글이 없다"와 "못 받았다"를 가른다 */
+  feedError: string;
   /** 피드를 (더) 받는다. `reset`이면 처음부터. 같은 글은 한 번만, 순서는 받은 그대로 */
   loadFeed(reset?: boolean): Promise<void>;
   /** 좋아요 토글 — 먼저 화면을 바꾸고, 서버가 거절하면 되돌린다. 서버가 준 수가 진실이다. 연타하면 마지막 누름의 답만 적는다 */
@@ -60,6 +90,7 @@ export interface SnsState {
   profileOpen: string | null;
   /** 글쓰기(책의 고르기 모드, SNS_SPEC §7) */
   composeOpen: boolean;
+  /** 닫으면(false) 열려 있던 프로필·글쓰기도 접는다 — 다시 열 때는 보던 탭으로 (채팅의 '보러 가기'가 남의 프로필에 떨어지지 않게) */
   setSnsOpen(open: boolean): void;
   setSnsTab(tab: SnsTab): void;
   setProfileOpen(userId: string | null): void;
@@ -101,16 +132,16 @@ function findPost(s: Pick<SnsState, 'feed' | 'myPosts' | 'profiles'>, id: string
   return s.feed.find(i => i.post.id === id)?.post ?? s.myPosts.find(p => p.id === id) ?? Object.values(s.profiles).flatMap(p => p.posts).find(p => p.id === id) ?? null;
 }
 
-const emptyProfile = (): Profile => ({ posts: [], next: null, loading: false, failed: false });
+const emptyProfile = (): Profile => ({ posts: [], next: null, loading: false, failed: false, error: '' });
 
 /** 글마다 마지막 좋아요 토글의 번호 — 겹쳐 누르면(연타) 마지막 것의 답만 적고, 먼저 간 것의 답은 늦게 와도 버린다 */
 const likeSeq = new Map<string, number>();
 
 export const useSns = create<SnsState>((set, get) => ({
-  feed: [], feedNext: null, feedLoading: false, feedEnded: false,
+  feed: [], feedNext: null, feedLoading: false, feedEnded: false, feedError: '',
   myPosts: [], myNext: null, myLoading: false,
   profiles: {},
-  localPosts: [], draft: null,
+  localPosts: loadLocalPosts(), draft: null,
   snsOpen: false, snsTab: 'feed', profileOpen: null, composeOpen: false,
 
   async loadFeed(reset = false) {
@@ -119,9 +150,9 @@ export const useSns = create<SnsState>((set, get) => ({
     if (!reset && s.feedEnded) return;
     set({ feedLoading: true });
     const r = await fetchFeed(reset ? null : s.feedNext);
-    if (!r) { set({ feedLoading: false }); return; }   // 실패 — 있던 것은 그대로 (이유는 posts.lastError)
+    if (!r) { set({ feedLoading: false, feedError: lastError || 'feed: failed' }); return; }   // 실패 — 있던 것은 그대로, 이유만 적는다
     const base = reset ? [] : get().feed;   // 그 사이 좋아요가 바뀌었을 수 있으니 지금 것에 잇는다
-    set({ feed: appendFeed(base, r.items), feedNext: r.next, feedEnded: r.next === null, feedLoading: false });
+    set({ feed: appendFeed(base, r.items), feedNext: r.next, feedEnded: r.next === null, feedLoading: false, feedError: '' });
   },
 
   async likeToggle(postId) {
@@ -133,6 +164,7 @@ export const useSns = create<SnsState>((set, get) => ({
     likeSeq.set(postId, seq);
     // 먼저 화면에
     set(s => mapEverywhere(s, postId, p => ({ ...p, likedByMe: on, likes: Math.max(0, p.likes + (on ? 1 : -1)) })));
+    if (on) noteLiked(cur.authorId);
     const r = await setLike(postId, on);
     // 그 사이 또 눌렀으면 이 답은 낡았다 — 마지막 누름의 답이 적는다 (순서가 뒤바뀌어 와도 화면이 서버와 어긋나지 않게)
     if (likeSeq.get(postId) !== seq) return;
@@ -161,8 +193,8 @@ export const useSns = create<SnsState>((set, get) => ({
     set(s => {
       const now = s.profiles[userId] ?? cur;
       const prof: Profile = r
-        ? { posts: more ? appendPosts(now.posts, r.items) : r.items, next: r.next, loading: false, failed: false }
-        : { ...now, loading: false, failed: true };
+        ? { posts: more ? appendPosts(now.posts, r.items) : r.items, next: r.next, loading: false, failed: false, error: '' }
+        : { ...now, loading: false, failed: true, error: lastError || 'user posts: failed' };
       return { profiles: { ...s.profiles, [userId]: prof } };
     });
   },
@@ -195,12 +227,19 @@ export const useSns = create<SnsState>((set, get) => ({
     return true;
   },
 
-  setLocalPosts: items => set({ localPosts: items }),
+  // 가상 친구 글은 내 폰의 문서다 — 넣거나 좋아요를 뒤집을 때마다 저장한다 (최신 30편, 중복 없이)
+  setLocalPosts: items => { const localPosts = normalizeLocal(items); set({ localPosts }); saveLocalPosts(localPosts); },
   setDraft: draft => set({ draft }),
-  likeLocalToggle: postId => set(s => ({
-    localPosts: s.localPosts.map(i => (i.post.id !== postId ? i : { ...i, post: { ...i.post, likedByMe: !i.post.likedByMe, likes: Math.max(0, i.post.likes + (i.post.likedByMe ? -1 : 1)) } })),
-  })),
-  setSnsOpen: open => set({ snsOpen: open }),
+  likeLocalToggle: postId => {
+    const cur = get().localPosts.find(i => i.post.id === postId);
+    if (!cur) return;
+    const on = !cur.post.likedByMe;
+    const localPosts = get().localPosts.map(i => (i.post.id !== postId ? i : { ...i, post: { ...i.post, likedByMe: on, likes: Math.max(0, i.post.likes + (on ? 1 : -1)) } }));
+    set({ localPosts });
+    saveLocalPosts(localPosts);
+    if (on) noteLiked(cur.author.id);
+  },
+  setSnsOpen: open => set(open ? { snsOpen: true } : { snsOpen: false, profileOpen: null, composeOpen: false }),
   setSnsTab: tab => set({ snsTab: tab }),
   setProfileOpen: userId => set({ profileOpen: userId }),
   setComposeOpen: open => set({ composeOpen: open }),

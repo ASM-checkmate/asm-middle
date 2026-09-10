@@ -51,6 +51,8 @@ export interface ChatMsg {
   readAt?: number;
   /** 같이 읽히고 같이 답을 받는 묶음 — 묶음의 첫 말 id (내 말에만). 답장 id는 `${batch}:r`. */
   batch?: string;
+  /** 말 아래 붙는 버튼 하나 — "올렸어 · 보러 가기" (SNS_SPEC §8, sim/agentPosts). 지금은 글 하나뿐이다 */
+  link?: { kind: 'post'; id: string; label: string };
 }
 
 /** 아직 에이전트가 안 읽은 내 말인가 — 말풍선 옆의 "1". */

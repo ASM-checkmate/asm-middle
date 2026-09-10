@@ -3,15 +3,27 @@
 //   active:{placeType}[&tz=][&jetlag=1][&encounter=talked|seen][&sketch=1][&camera=1][&p=0.35]
 //   comic[&tz=][&jetlag=1][&friction=…][&shots=0,2][&sketch=1]   summary[&gap=1]   book
 //   *[&request=worry][&call=in|answered|refused][&chat=1]   moving:{walk|car|subway|train|plane|boat}[&p=0.35][&onboard=sleep|meal]
+//   sns[:feed|friends|mine|profile|compose] — SNS를 픽스처(가짜 글·친구·초안, 컷은 그 자리에서 굽는다)로 연 채 뜬다 (usePreviewSns)
 // `tz` puts the character in a city of that zone (America/New_York → 뉴욕); `timetable&tz=` also fakes the whole day
 // around it (yesterday's flight from home landing this morning, the agent's picks for the rest), so the flight-covered
 // blocks, the local date title and the jet-lag chip can be screenshotted without living the trip.
 // `active…&camera=1`은 카메라 오버레이를 연 채로 시작한다 (Home이 usePreview().camera를 읽어 마운트, 샷은 오버레이의 로컬 state에만 —
 // 스토어는 안 쓰고, 굽지도 올리지도 않는다: IDB·업로드 줄·서버에 아무것도 남기지 않는다). `&p=`는 활동 진행률(0..0.98, 기본 .35): 카메라의 "지금" 창(shots.ts winAt)이 이걸 따른다.
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { decide, useWorld, type World } from '../sim/store';
+import { useSns, type SnsState, type SnsTab } from '../sim/sns';
+import type { FeedItem, Post, PostCut, PostDraft } from '../sim/posts';
+import type { Friend, Look, RemoteAgent, ShotCrop } from '../sim/types';
+import { DEFAULT_LOOK, LOOK_HAIR_STYLES } from '../sim/types';
+import { bakeShot, BakeOversizeError, type BakeInput } from '../photo/bake';
+import { putLocal } from '../sim/media';
+import { sceneTypeFor } from '../scenes';
+import type { Pose } from '../character';
+import { beatPose } from '../screens/util';
+import { actKeyOfComic, hex32 } from '../screens/sns/util';
+import type { SnsPreviewData } from '../screens/SnsOverlay';
 import type { ActivityOption, Anchor, BlockId, Category, Comic, DayKey, DaySummaryItem, Journey, Leg, Onboard, Phase, Place, PlaceType, ScheduledActivity, ShotWin, TransportMode, UserShot } from '../sim/types';
-import { PLACE_TYPES } from '../sim/types';
+import { PLACE_TYPES, splitDayKey } from '../sim/types';
 import { PLACES, placeById, tzOf } from '../sim/places';
 import { estimateJourney, MODE_LABEL, primaryMode } from '../sim/journey';
 import { geodesicPath, haversineKm } from '../sim/geo';
@@ -19,7 +31,7 @@ import { BLOCK_ORDER, blockAtIn, blockEndAt, blockIndex, blockStartAt, nextBlock
 import { DAY_MS, HOUR_MS, dayKeyIn, dayStartIn, dayStartOfKey, isValidTz, localParts, ownerTz } from '../sim/tz';
 import { buildTimeline, companionsOf, encounterOf, currentPlaceAt, emptyPlans, movingPhase, type Plans } from '../sim/timeline';
 import { suggestOptions } from '../sim/suggest';
-import { AGENTS, agentById } from '../sim/agents';
+import { AGENTS, agentById, type Agent } from '../sim/agents';
 import { makeComic } from '../sim/comic';
 import { shotsFor, winStarts } from '../sim/shots';
 import { INITIAL_STATUS, type Status } from '../sim/status';
@@ -47,7 +59,9 @@ type PreviewKind =
   | { kind: 'comic'; tz: string; jetlag: boolean; friction: FrictionKind | null; shots: ShotWin[]; sketch: boolean }
   | { kind: 'summary'; gap: boolean }
   | { kind: 'book' }
-  | { kind: 'moving'; mode: TransportMode; p: number; onboard: Onboard };
+  | { kind: 'moving'; mode: TransportMode; p: number; onboard: Onboard }
+  /** `sns[:feed|friends|mine|profile|compose]` — 탭과, 그 위에 얹을 화면(프로필·글쓰기) */
+  | { kind: 'sns'; tab: SnsTab; view: 'profile' | 'compose' | null };
 
 /** What the timetable screen reads besides the phase — swapped in wholesale for `?preview=timetable&tz=…` / `&hour=`. */
 /** `&proposal=1` — a friend already planned the next block; `&travel=1` — a travel option is selected (stay chips);
@@ -109,6 +123,11 @@ export function parsePreview(search: string = typeof location !== 'undefined' ? 
     }
     case 'summary': return { kind: 'summary', gap: q.get('gap') === '1', status: so, request, call, chat };
     case 'book': return { kind: 'book', status: so, request, call, chat };
+    case 'sns': {
+      const view = arg === 'profile' || arg === 'compose' ? arg : null;
+      const tab: SnsTab = arg === 'friends' || arg === 'profile' ? 'friends' : arg === 'mine' || arg === 'compose' ? 'mine' : 'feed';
+      return { kind: 'sns', tab, view, status: so, request, call, chat };
+    }
     case 'active': {
       const e = q.get('encounter');
       return { kind: 'active', placeType: (arg || 'park') as PlaceType, tz, jetlag, encounter: e === 'talked' || e === 'seen' ? e : null, sketch, camera: q.get('camera') === '1', p, status: so, request, call, chat };
@@ -518,4 +537,174 @@ export function usePreviewOverlay(): { summary: DaySummaryItem[] | null; book: C
     if (spec.kind === 'summary') return { summary: fake.items, book: null, gap: spec.gap ? { from: now0 - PREVIEW_GAP_MS, to: now0 } : null, request, call, chat };
     return { summary: null, book: realBook.length ? [...realBook].reverse() : fake.comics, gap: null, request, call, chat };
   }, [spec, realBook, now0]);
+}
+
+// ─── `?preview=sns…` (SNS_SPEC · ADR-0021): 가짜 글·친구·초안. 컷은 진짜 픽셀이어야 하니 그 자리에서 굽는다 ───────────────
+// 스토어(memory·world·book)는 안 건드린다 — 친구·마주침·책은 SnsOverlay의 `preview` prop으로 얹고, 글·초안은 useSns.setState로 넣는다.
+// id는 고정 시드의 32자 hex라 다시 그려도 같은 id → 폰 캐시(sim/media)를 그대로 쓴다. 사용자가 없으니 서버로는 아무것도 안 간다.
+
+const FIX_CROP: ShotCrop[] = [
+  { scale: 1.15, x: -8, y: 4, rot: -5, pitch: 8, light: 1.1, dof: 0.6, focus: 'near' },
+  { scale: 1.5, x: 6, y: -6, rot: 3, pitch: -10, light: 0.85, dof: 0.7, focus: 'far' },
+  { scale: 1.9, x: 0, y: 8, rot: -2, pitch: 0, light: 1.2, dof: 1, focus: 'near' },
+  { scale: 1.3, x: -4, y: 0, rot: 7, pitch: 12, light: 0.7, dof: 0.4, focus: 'far' },
+];
+const FIX_POSE: Pose[] = ['happy', 'sit', 'walk', 'draw', 'eat', 'read', 'think', 'wave'];
+const FIX_TOP: Look['top'][] = ['coral', 'sun', 'mint', 'sky', 'night', 'leaf', 'paper'];
+
+/** 에이전트의 겉모습 — 풀의 hairStyle이 여섯 칸 값이면 그것, 아니면 기본. 윗옷은 사람마다 다르게 */
+const lookOfAgent = (a: Agent, k: number): Look => ({
+  ...DEFAULT_LOOK,
+  hairStyle: (LOOK_HAIR_STYLES as readonly string[]).includes(a.hairStyle ?? '') ? (a.hairStyle as Look['hairStyle']) : 'short',
+  top: FIX_TOP[k % FIX_TOP.length],
+});
+
+/** 같은 재료는 한 번만 굽고, 여러 id에 같은 픽셀을 넣는다. 60 KB를 넘어도(BakeOversizeError) 프리뷰는 그 픽셀을 그냥 쓴다 */
+async function bakeAll(items: { id: string; input: BakeInput }[]): Promise<void> {
+  const cache = new Map<string, Promise<Blob | null>>();
+  for (const { id, input } of items) {
+    const key = JSON.stringify(input);
+    let p = cache.get(key);
+    if (!p) {
+      p = bakeShot(input).then(b => b.blob, (e: unknown) => (e instanceof BakeOversizeError ? e.shot.blob : null));
+      cache.set(key, p);
+    }
+    const blob = await p;
+    if (!blob) continue;
+    try { await putLocal(id, blob, 'npc'); } catch (e) { console.warn('[preview] sns 픽스처 컷 저장 실패', id, e); }
+  }
+}
+
+interface FixPostSpec { seed: string; author: Agent; place: Place; n: number; caption: string; ago: number; likes: number; likedByMe?: boolean; companions?: string[]; edited?: boolean; why?: string; look: Look; friendColor?: string }
+
+/** 글 하나 + 그 컷들의 굽기 재료 */
+function fixPost(spec: FixPostSpec, now0: number): { post: Post; bakes: { id: string; input: BakeInput }[] } {
+  const at = now0 - spec.ago;
+  const dayKey = dayKeyIn(at, ownerTz);
+  const type = sceneTypeFor(spec.place.type);
+  const cuts: PostCut[] = [];
+  const bakes: { id: string; input: BakeInput }[] = [];
+  for (let i = 0; i < spec.n; i++) {
+    const id = hex32(`sns:${spec.seed}:${i}`);
+    cuts.push({ shotId: id, actKey: `${dayKey}:am`, win: (i % 4) as ShotWin, by: i === 0 ? 'user' : 'agent' });
+    bakes.push({ id, input: { type, pose: FIX_POSE[(i + spec.seed.length) % FIX_POSE.length], crop: FIX_CROP[i % FIX_CROP.length], look: spec.look, ...(spec.friendColor ? { friend: { color: spec.friendColor } } : {}) } });
+  }
+  const post: Post = {
+    id: hex32(`sns:post:${spec.seed}`), authorId: spec.author.id, createdAt: at, cuts, caption: spec.caption,
+    place: spec.place.name, area: spec.place.area, city: spec.place.city, category: 'play', dateKey: splitDayKey(dayKey).dateKey,
+    companions: spec.companions ?? [], editedByOwner: spec.edited ?? false, likes: spec.likes, likedByMe: spec.likedByMe ?? false,
+  };
+  return { post, bakes };
+}
+
+const remoteOf = (a: Agent, extra: Partial<RemoteAgent> = {}): RemoteAgent => ({ ...a, home: placeById(a.homePlaceId), visibility: 'public', ...extra });
+
+/** 픽스처 친구: 민수(SNS 친구)·하나(친한 친구, 알게 된 것 있음) — 스토어의 씨앗 친구와 같은 사람들이라 화면이 낯설지 않다 */
+function fixFriends(now0: number): Friend[] {
+  const [minsu, hana] = AGENTS;
+  return [
+    { id: minsu.id, name: minsu.name, homePlaceId: minsu.homePlaceId, color: minsu.color, emoji: minsu.emoji, bond: 1, metAt: now0 - 3 * DAY_MS, metPlaceId: 'mangwon-hangang', gender: 'male' },
+    { id: hana.id, name: hana.name, homePlaceId: hana.homePlaceId, color: hana.color, emoji: hana.emoji, bond: 4, metAt: now0 - 12 * DAY_MS, metPlaceId: 'layered-yeonnam', gender: 'female', learned: ['아메리카노만 마심', '전시는 혼자 가는 걸 좋아함', '비 오는 날을 좋아함'] },
+  ];
+}
+
+/** 피드 픽스처: 친구 글 2(민수·하나 — 로컬 글) → 추천 4(지우·태린·도윤·세린, 이유 칩; 7컷 하나, 고친 글 하나, 동행 하나) */
+function fixFeed(now0: number): { local: FeedItem[]; feed: FeedItem[]; bakes: { id: string; input: BakeInput }[] } {
+  const [minsu, hana, jiwoo, taerin, doyun, serin] = AGENTS;
+  const river = placeById('mangwon-hangang'), cafe = placeById('layered-yeonnam'), park = placeById('gyeongui-line-forest'), mall = placeById('coex');
+  const eat = placeOfType('restaurant');
+  const specs: FixPostSpec[] = [
+    { seed: 'minsu-river', author: minsu, place: river, n: 3, caption: '한강에서 피크닉! 김밥은 하나가 싸 왔다 🧺', ago: 2 * HOUR_MS, likes: 4, likedByMe: true, companions: [hana.id], look: lookOfAgent(minsu, 0), friendColor: hana.color },
+    { seed: 'hana-cafe', author: hana, place: cafe, n: 2, caption: '창가 자리. 오늘은 연필로만', ago: 26 * HOUR_MS, likes: 2, edited: true, look: lookOfAgent(hana, 1) },
+    { seed: 'jiwoo-mall', author: jiwoo, place: mall, n: 7, caption: '코엑스 한 바퀴 — 별마당 도서관, 아쿠아리움 앞, 그리고 저녁까지. 사진이 너무 많아서 골라 담았다', ago: 5 * HOUR_MS, likes: 31, why: '놀기 글을 좋아하셔서', look: lookOfAgent(jiwoo, 2) },
+    { seed: 'taerin-park', author: taerin, place: park, n: 1, caption: '숲길 벤치, 빵 하나', ago: 3 * DAY_MS, likes: 12, why: '연남동 이웃', look: lookOfAgent(taerin, 3) },
+    { seed: 'doyun-river', author: doyun, place: river, n: 2, caption: '러닝 5km. 바람이 좋았다', ago: 30 * 60_000, likes: 7, why: '같은 도시', look: lookOfAgent(doyun, 4) },
+    { seed: 'serin-eat', author: serin, place: eat, n: 4, caption: '여기 소바 진짜 맛있음. 줄 서서 먹을 가치 있다', ago: 9 * HOUR_MS, likes: 58, why: '요즘 인기', look: lookOfAgent(serin, 5) },
+  ];
+  const built = specs.map(sp => ({ sp, ...fixPost(sp, now0) }));
+  const item = (b: (typeof built)[number], extra: Partial<RemoteAgent> = {}): FeedItem => ({ post: b.post, author: remoteOf(b.sp.author, extra), ...(b.sp.why ? { why: b.sp.why } : {}) });
+  const local = built.filter(b => !b.sp.why).map(b => item(b));
+  // 태린은 대표컷을 핀해 둔 사람 — 작성자 줄에 얼굴이 뜬다
+  const feed = built.filter(b => !!b.sp.why).map(b => item(b, b.sp.author.id === taerin.id ? { repShotId: b.post.cuts[0].shotId } : {}));
+  return { local, feed, bakes: built.flatMap(b => b.bakes) };
+}
+
+/** 내 글 탭 픽스처: 이유 있는 초안 하나 + 내 글 둘 */
+function fixMine(now0: number, meId: string): { draft: PostDraft; myPosts: Post[]; bakes: { id: string; input: BakeInput }[] } {
+  const look = memory().look ?? DEFAULT_LOOK;
+  const me: Agent = { id: meId, name: memory().name, homePlaceId: memory().homePlaceId, color: '#FF6A48', emoji: '🙂', likes: [], traits: [] };
+  const cafe = placeById('layered-yeonnam'), park = placeById('gyeongui-line-forest'), river = placeById('mangwon-hangang');
+  const d = fixPost({ seed: 'draft', author: me, place: cafe, n: 3, caption: '창가 자리에서 그림. 하나도 왔다', ago: 40 * 60_000, likes: 0, companions: ['hana'], look, friendColor: AGENTS[1].color }, now0);
+  const draft: PostDraft = {
+    id: 'preview:draft', cuts: d.post.cuts, caption: d.post.caption, place: d.post.place, area: d.post.area, city: d.post.city, category: d.post.category, dateKey: d.post.dateKey,
+    companions: d.post.companions, reason: '하나랑 같이 찍힌 건데 올려도 돼?', dueAt: now0 + 15 * 60_000,
+  };
+  const m1 = fixPost({ seed: 'me-park', author: me, place: park, n: 2, caption: '벤치에서 멍', ago: DAY_MS + 3 * HOUR_MS, likes: 5, edited: true, look }, now0);
+  const m2 = fixPost({ seed: 'me-river', author: me, place: river, n: 4, caption: '보드 타다가 넘어짐. 무릎은 무사', ago: 2 * DAY_MS + 5 * HOUR_MS, likes: 9, look }, now0);
+  return { draft, myPosts: [m1.post, m2.post], bakes: [...d.bakes, ...m1.bakes, ...m2.bakes] };
+}
+
+/** 글쓰기 픽스처: 책의 만화 셋(previewComics)에 구운 컷 id를 붙이고, 그중 세 컷이 미리 골라진 초안 */
+function fixCompose(now0: number): { comics: Comic[]; draft: PostDraft; bakes: { id: string; input: BakeInput }[] } {
+  const look = memory().look ?? DEFAULT_LOOK;
+  const bakes: { id: string; input: BakeInput }[] = [];
+  const comics = previewComics(now0).comics.map((c, ci) => ({
+    ...c,
+    panels: c.panels.map((p, i) => {
+      const id = hex32(`sns:comic:${ci}:${i}`);
+      bakes.push({ id, input: { type: sceneTypeFor(c.placeType), pose: beatPose(p.beat), crop: FIX_CROP[i % FIX_CROP.length], look, ...(p.withFriend ? { friend: { color: AGENTS[0].color } } : {}) } });
+      return { ...p, shotId: id };
+    }),
+  }));
+  const cut = (c: Comic, i: number): PostCut => ({ shotId: c.panels[i].shotId!, actKey: actKeyOfComic(c.id), win: i as ShotWin, by: c.panels[i].by ?? 'agent' });
+  const first = comics.find(c => c.placeType === 'cafe') ?? comics[0];
+  const second = comics.find(c => c !== first) ?? first;
+  const draft: PostDraft = {
+    id: 'preview:draft', cuts: [cut(first, 0), cut(first, 1), cut(second, 2)], caption: '오늘 카페에서 그린 것들', place: first.placeName, area: first.area ?? '연남동',
+    city: first.city ?? 'seoul', category: first.category, dateKey: first.dateKey, companions: [], reason: '네가 그린 거 올려도 돼?', dueAt: now0 + 15 * 60_000,
+  };
+  return { comics, draft, bakes };
+}
+
+/**
+ * `?preview=sns…`: 픽스처를 굽고 useSns에 넣은 뒤 SNS를 연다. 돌려주는 값은 SnsOverlay의 `preview` prop(친구·마주침·책) — 스토어는 그대로다.
+ * 굽는 동안(1~2초)은 null이라 SNS가 아직 안 열린다.
+ */
+export function usePreviewSns(): SnsPreviewData | null {
+  const spec = useMemo(() => parsePreview(), []);
+  const sns = spec?.kind === 'sns' ? spec : null;
+  const now0 = useRef(useWorld.getState().now).current;
+  const [data, setData] = useState<SnsPreviewData | null>(null);
+  useEffect(() => {
+    if (!sns) return;
+    let live = true;
+    (async () => {
+      const friends = fixFriends(now0);
+      const encounters = { [AGENTS[2].id]: 2, [AGENTS[4].id]: 1 };
+      const base: Partial<SnsState> = { snsOpen: true, snsTab: sns.tab, profileOpen: null, composeOpen: false, feedEnded: true, feedNext: null };
+      if (sns.view === 'compose') {
+        const f = fixCompose(now0);
+        await bakeAll(f.bakes);
+        if (!live) return;
+        useSns.setState({ ...base, draft: f.draft, composeOpen: true });
+        setData({ friends, encounters, comics: f.comics });
+        return;
+      }
+      if (sns.tab === 'mine') {
+        const f = fixMine(now0, 'me');
+        await bakeAll(f.bakes);
+        if (!live) return;
+        useSns.setState({ ...base, draft: f.draft, myPosts: f.myPosts, myNext: null });
+        setData({ friends, encounters });
+        return;
+      }
+      const f = fixFeed(now0);
+      await bakeAll(f.bakes);
+      if (!live) return;
+      useSns.setState({ ...base, localPosts: f.local, feed: f.feed, profileOpen: sns.view === 'profile' ? AGENTS[1].id : null });
+      setData({ friends, encounters });
+    })();
+    return () => { live = false; };
+  }, [sns, now0]);
+  return data;
 }

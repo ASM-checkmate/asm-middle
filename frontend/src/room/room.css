@@ -3,7 +3,8 @@
 .room {
   /* 방 팔레트 — scenes.css의 --sc-*는 .scene 안에서만 정의돼 있어 여기서 따로 둔다 */
   --rm-wood: #CDA862; --rm-wood-2: #A6864C; --rm-cream: #FFF0CF;
-  position: absolute; left: 0; top: calc(132px + var(--safe-top)); width: 390px; height: 560px; z-index: 2; overflow: hidden; }
+  /* 무대는 최대 430px까지 넓어질 수 있다(index.css .stage) — 방은 390px 고정이라 가운데에 세운다 */
+  position: absolute; left: 50%; margin-left: -195px; top: calc(132px + var(--safe-top)); width: 390px; height: 560px; z-index: 2; overflow: hidden; }
 .room > svg, .room-prop, .room-actor, .room-bubble { position: absolute; }
 .room-prop, .room-actor { pointer-events: none; }
 .room-prop svg { display: block; overflow: visible; }

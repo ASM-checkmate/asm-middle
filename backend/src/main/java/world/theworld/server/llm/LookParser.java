@@ -25,7 +25,14 @@ public final class LookParser {
       pick(j, "hairStyle", LlmDtos.LOOK_HAIR_STYLES, d.hairStyle()),
       pick(j, "glasses", LlmDtos.LOOK_GLASSES, d.glasses()),
       pick(j, "beard", LlmDtos.LOOK_BEARDS, d.beard()),
-      pick(j, "top", LlmDtos.LOOK_TOPS, d.top()));
+      pick(j, "top", LlmDtos.LOOK_TOPS, d.top()),
+      pick(j, "face", LlmDtos.LOOK_FACES, d.face()),
+      pick(j, "eyes", LlmDtos.LOOK_EYES, d.eyes()),
+      pick(j, "brows", LlmDtos.LOOK_BROWS, d.brows()),
+      pick(j, "nose", LlmDtos.LOOK_NOSES, d.nose()),
+      pick(j, "mouth", LlmDtos.LOOK_MOUTHS, d.mouth()),
+      pick(j, "ears", LlmDtos.LOOK_EARS, d.ears()),
+      pick(j, "build", LlmDtos.LOOK_BUILDS, d.build()));
     String seen = j.path("seen").isTextual() ? Text.cut(Text.collapse(j.get("seen").asText()), LookPrompt.MAX_SEEN) : "";
     return new LookParsed(look, seen);
   }

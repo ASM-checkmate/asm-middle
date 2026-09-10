@@ -6,6 +6,7 @@ import { Character, CharacterDefs, Rider } from '../character';
 import type { Pose } from '../character';
 import type { TransportMode } from '../sim/types';
 import { LookLab } from './LookLab';
+import { FaceSheet } from './FaceSheet';
 
 const POSES: Pose[] = ['idle', 'walk', 'sit', 'sleep', 'wave', 'draw', 'happy', 'eat', 'read', 'think'];
 const POSE_KO: Record<Pose, string> = { idle: '가만히', walk: '걷기', sit: '앉기', sleep: '잠', wave: '인사', draw: '그리기', happy: '기쁨', eat: '먹기', read: '읽기', think: '생각' };
@@ -43,6 +44,7 @@ const CSS = `
 `;
 
 export function CharacterLab() {
+  if (new URLSearchParams(location.search).get('sheet') === 'faces') return <FaceSheet />;
   const [variant, setVariant] = useState<'me' | 'friend'>('me');
   const [facing, setFacing] = useState<'right' | 'left'>('right');
   const [moving, setMoving] = useState(true);

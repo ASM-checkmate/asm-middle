@@ -34,14 +34,23 @@ public final class LlmDtos {
   // ── 사진 → 겉모습 (docs/CONTRACT.md POST /api/character/look) ──
   public static final List<String> LOOK_SKINS = List.of("light", "fair", "tan", "brown", "dark");
   public static final List<String> LOOK_HAIR_COLORS = List.of("black", "dark-brown", "brown", "blond", "red", "gray", "white");
-  public static final List<String> LOOK_HAIR_STYLES = List.of("bowl", "short", "buzz", "bob", "long", "curly", "bald");
+  public static final List<String> LOOK_HAIR_STYLES = List.of("bowl", "short", "buzz", "bob", "long", "curly", "bald", "side-part", "bangs", "ponytail", "bun", "afro", "spiky", "pigtails", "wavy");
   public static final List<String> LOOK_GLASSES = List.of("none", "round", "square");
   public static final List<String> LOOK_BEARDS = List.of("none", "stubble", "mustache", "full");
   public static final List<String> LOOK_TOPS = List.of("coral", "sun", "mint", "sky", "night", "paper", "leaf");
+  // 얼굴·체형 축 (ADR-0020): 색·머리만으로는 개인이 안 살아서 실루엣 축을 더했다. 기본값은 전부 모모
+  public static final List<String> LOOK_FACES = List.of("round", "long", "square", "heart");
+  public static final List<String> LOOK_EYES = List.of("dot", "big", "narrow", "sharp");
+  public static final List<String> LOOK_BROWS = List.of("none", "thin", "thick", "angled");
+  public static final List<String> LOOK_NOSES = List.of("none", "small", "big");
+  public static final List<String> LOOK_MOUTHS = List.of("smile", "wide", "flat");
+  public static final List<String> LOOK_EARS = List.of("hidden", "out");
+  public static final List<String> LOOK_BUILDS = List.of("slim", "normal", "wide");
   public record LookRequest(String tier, String photo) {}
   /** 프런트 캐릭터의 겉모습 옵션 — 값은 위 enum 문자열 그대로. */
-  public record Look(String skin, String hairColor, String hairStyle, String glasses, String beard, String top) {}
-  public static final Look LOOK_DEFAULT = new Look("fair", "dark-brown", "bowl", "none", "none", "coral");
+  public record Look(String skin, String hairColor, String hairStyle, String glasses, String beard, String top,
+                     String face, String eyes, String brows, String nose, String mouth, String ears, String build) {}
+  public static final Look LOOK_DEFAULT = new Look("fair", "dark-brown", "bowl", "none", "none", "coral", "round", "dot", "none", "none", "smile", "hidden", "normal");
   public record LookResponse(Look look, String seen, String model, long ms) {}
   public record LookParsed(Look look, String seen) {}
 

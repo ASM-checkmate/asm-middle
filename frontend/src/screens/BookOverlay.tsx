@@ -1,19 +1,34 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useWorld } from '../sim/store';
-import type { Comic } from '../sim/types';
-import { blockDef } from '../sim/blocks';
+import type { Category, Comic } from '../sim/types';
+import { CATEGORIES, blockDef, categoryDef } from '../sim/blocks';
+import { dateKeyIn } from '../sim/tz';
 import { Character } from '../character';
-import { Button, Glyph } from '../ui';
-import { PLACES } from '../sim/places';
+import { Button, Chip, Glyph } from '../ui';
+import { PLACES, cityNameKo } from '../sim/places';
 import { companionsOf, encounterOf } from '../sim/timeline';
 import { ComicPanels, ShotsLine } from './ComicScreen';
 import { beatPose, bookIntent, castOf, shotCount } from './util';
 
-/** The book: every comic, newest first. Tap to read. */
+type Group = 'day' | 'week';
+const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
+
+/** "2026-09-08" → 그 날 정오의 UTC ms. dateKey는 캐릭터가 산 날짜라 시간대 없이 날짜 산수만 한다 */
+const dayMs = (dateKey: string) => { const [y, m, d] = dateKey.split('-').map(Number); return Date.UTC(y, m - 1, d, 12); };
+const keyOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+const mdKo = (dateKey: string) => { const d = new Date(dayMs(dateKey)); return `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일`; };
+/** 월요일 시작 주의 첫 날 */
+const weekStartOf = (dateKey: string) => { const ms = dayMs(dateKey); const wd = (new Date(ms).getUTCDay() + 6) % 7; return keyOf(ms - wd * 86_400_000); };
+
+/** 검색은 띄어쓰기·대소문자를 무시한다 ("망원 한강" = "망원한강") */
+const norm = (s: string) => s.toLowerCase().replace(/\s+/g, '');
+
+/** The book: every comic, newest first. Search by place/activity/name, filter by category, grouped by day or week (ADR-0016). */
 export function BookOverlay({ onClose, comics }: { onClose: () => void; comics?: Comic[] }) {
   const book = useWorld(s => s.book);
   const memory = useWorld(s => s.memory);
   const tz = useWorld(s => s.tz);
+  const now = useWorld(s => s.now);
   const timeline = useWorld(s => s.timeline);
   const list = comics ?? [...book].reverse();
   const [openId, setOpenId] = useState<string | null>(() => {
@@ -21,6 +36,10 @@ export function BookOverlay({ onClose, comics }: { onClose: () => void; comics?:
     bookIntent.comicId = null;
     return id && list.some(c => c.id === id) ? id : null;
   });
+  const [query, setQuery] = useState('');
+  const [cat, setCat] = useState<Category | null>(null);
+  const [group, setGroup] = useState<Group>('day');
+
   const cur = openId ? list.find(c => c.id === openId) ?? null : null;
   // 누가 찍었나 — 옛 만화(by 없음)는 전부 에이전트로 센다 (util.shotCount)
   const curShots = cur ? shotCount(cur) : null;
@@ -29,7 +48,57 @@ export function BookOverlay({ onClose, comics }: { onClose: () => void; comics?:
   const curAct = cur ? timeline.find(a => `c:${a.key}` === cur.id) : undefined;
   const cast = curAct ? castOf(companionsOf(curAct, memory), encounterOf(curAct, memory)) : undefined;
   /** "2026-09-03 · 오전 블록 · 연남동" — the real 동네 (the comic only carries the place name) */
-  const meta = (c: Comic) => `${c.dateKey} · ${blockDef(c.blockId).label} 블록 · ${PLACES.find(p => p.name === c.placeName)?.area ?? c.placeName}`;
+  const meta = (c: Comic) => `${c.dateKey} · ${blockDef(c.blockId).label} 블록 · ${c.area ?? PLACES.find(p => p.name === c.placeName)?.area ?? c.placeName}`;
+
+  /** 검색·필터가 보는 면 — 새 만화는 자기가 들고 있고, 옛 만화는 타임라인에 아직 있으면 거기서, 없으면 장소 표에서 되찾는다 */
+  const facets = useMemo(() => {
+    const m = new Map<string, { category: Category | null; hay: string }>();
+    for (const c of list) {
+      const act = c.category ? undefined : timeline.find(a => `c:${a.key}` === c.id);
+      const place = PLACES.find(p => p.name === c.placeName);
+      const category = c.category ?? act?.option.category ?? null;
+      const names = c.withNames ?? (act ? [...companionsOf(act, memory).map(f => f.name), ...(encounterOf(act, memory)?.talked ? [encounterOf(act, memory)!.agent.name] : [])] : []);
+      const city = c.city ?? place?.city;
+      const hay = norm([
+        c.title, c.summary, c.placeName, c.area ?? place?.area, city && cityNameKo(city), city,
+        c.activity ?? act?.option.title, category && categoryDef(category).label, ...names, ...c.panels.map(p => p.caption),
+      ].filter(Boolean).join(' '));
+      m.set(c.id, { category, hay });
+    }
+    return m;
+  }, [list, timeline, memory]);
+
+  /** 칩은 책에 실제로 있는 범주만 */
+  const cats = CATEGORIES.filter(k => list.some(c => facets.get(c.id)?.category === k.id));
+  const q = norm(query);
+  const shown = list.filter(c => {
+    const f = facets.get(c.id)!;
+    return (!cat || f.category === cat) && (!q || f.hay.includes(q));
+  });
+
+  /** 하루 / 주로 묶는다 — list가 최신순이라 묶음도 최신순 */
+  const today = dateKeyIn(now, tz);
+  const yesterday = keyOf(dayMs(today) - 86_400_000);
+  const thisWeek = weekStartOf(today);
+  const lastWeek = keyOf(dayMs(thisWeek) - 7 * 86_400_000);
+  const labelOf = (key: string) => {
+    if (group === 'day') {
+      const d = new Date(dayMs(key));
+      const md = `${mdKo(key)} ${WEEKDAY_KO[d.getUTCDay()]}요일`;
+      return key === today ? `오늘 · ${md}` : key === yesterday ? `어제 · ${md}` : md;
+    }
+    const end = keyOf(dayMs(key) + 6 * 86_400_000);
+    const range = `${mdKo(key)} ~ ${mdKo(end)}`;
+    return key === thisWeek ? `이번 주 · ${range}` : key === lastWeek ? `지난주 · ${range}` : range;
+  };
+  const groups: { key: string; items: Comic[] }[] = [];
+  for (const c of shown) {
+    const key = group === 'day' ? c.dateKey : weekStartOf(c.dateKey);
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) last.items.push(c);
+    else groups.push({ key, items: [c] });
+  }
+  const filtering = !!q || !!cat;
 
   return (
     <div className="book" role="dialog" aria-label="book">
@@ -37,7 +106,7 @@ export function BookOverlay({ onClose, comics }: { onClose: () => void; comics?:
         {cur && <Button round ariaLabel="목록으로" onClick={() => setOpenId(null)}><Glyph name="back" /></Button>}
         <h2>
           {cur ? cur.title : 'book'}
-          <small className="num">{cur ? meta(cur) : `${list.length}개의 이야기`}</small>
+          <small className="num">{cur ? meta(cur) : filtering ? `${shown.length}개 찾음 · 전체 ${list.length}개` : `${list.length}개의 이야기`}</small>
         </h2>
         {/* 아침에 그린 그림 (ADR-0004) — 상세 헤더에 40px 썸네일 */}
         {cur?.sketch && <img className="book-sketch" src={cur.sketch} alt="아침에 그린 그림" title="아침에 그린 것" draggable={false} />}
@@ -55,19 +124,60 @@ export function BookOverlay({ onClose, comics }: { onClose: () => void; comics?:
           <span>아직 이야기가 없어요<br />캐릭터가 다녀오면 여기에 쌓여요</span>
         </div>
       ) : (
-        <div className="book-list">
-          {list.map(c => (
-            <button key={c.id} type="button" className="book-item" onClick={() => setOpenId(c.id)}>
-              <span className="book-meta num">{meta(c)}</span>
-              <b>{c.title}</b>
-              <span>{c.summary}</span>
-              <div className="book-thumbs" aria-hidden="true">
-                {/* 사용자 컷은 코랄 테두리 (ADR-0004) */}
-                {c.panels.map((p, i) => <i key={i} className={p.by === 'user' ? 'is-user' : undefined} style={{ background: p.bg }}><Character pose={beatPose(p.beat)} size={30} /></i>)}
+        <>
+          <div className="book-tools">
+            <div className="book-tools-row">
+              <div className="book-search">
+                <input
+                  type="search"
+                  className="book-q"
+                  value={query}
+                  placeholder="장소 · 활동 · 이름으로 찾기"
+                  aria-label="이야기 찾기"
+                  enterKeyHint="search"
+                  onChange={e => setQuery(e.target.value)}
+                />
+                {query && <button type="button" className="book-q-x" aria-label="지우기" onClick={() => setQuery('')}><Glyph name="close" size={14} /></button>}
               </div>
-            </button>
-          ))}
-        </div>
+              <div className="book-seg" role="group" aria-label="묶기">
+                <button type="button" className={group === 'day' ? 'is-on' : ''} onClick={() => setGroup('day')} aria-pressed={group === 'day'}>하루</button>
+                <button type="button" className={group === 'week' ? 'is-on' : ''} onClick={() => setGroup('week')} aria-pressed={group === 'week'}>주</button>
+              </div>
+            </div>
+            <div className="book-chips" role="group" aria-label="범주">
+              <Chip tone={cat ? 'paper' : 'sun'} on={!cat} onClick={() => setCat(null)}>전체</Chip>
+              {cats.map(k => (
+                <Chip key={k.id} tone={cat === k.id ? 'sun' : 'paper'} on={cat === k.id} onClick={() => setCat(cat === k.id ? null : k.id)}>{k.emoji} {k.label}</Chip>
+              ))}
+            </div>
+          </div>
+          {shown.length === 0 ? (
+            <div className="book-empty">
+              <Character pose="think" size={140} />
+              <span>{q ? `'${query.trim()}'에 맞는 이야기가 없어요` : '이 범주의 이야기가 없어요'}</span>
+              <Button tone="paper" small onClick={() => { setQuery(''); setCat(null); }}>다 보기</Button>
+            </div>
+          ) : (
+            <div className="book-list">
+              {groups.map(g => (
+                <section key={g.key} className="book-group">
+                  <h3 className="book-group-hd"><span>{labelOf(g.key)}</span><small className="num">{g.items.length}개</small></h3>
+                  {g.items.map(c => (
+                    <button key={c.id} type="button" className="book-item" onClick={() => setOpenId(c.id)}>
+                      <span className="book-meta num">{meta(c)}</span>
+                      <b>{c.title}</b>
+                      <span>{c.summary}</span>
+                      <div className="book-thumbs" aria-hidden="true">
+                        {/* 사용자 컷은 코랄 테두리 (ADR-0004) */}
+                        {c.panels.map((p, i) => <i key={i} className={p.by === 'user' ? 'is-user' : undefined} style={{ background: p.bg }}><Character pose={beatPose(p.beat)} size={30} /></i>)}
+                      </div>
+                    </button>
+                  ))}
+                </section>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -485,5 +485,11 @@ export function makeComic(act: ScheduledActivity, memory: Memory, shots: Partial
     summary: `${place.type === 'home' ? '집' : place.name}에서 ${act_}, ${twistLine}.`,
     shots: { user: userCount, agent: panels.length - userCount },
     ...(act.sketch ? { sketch: act.sketch } : {}),
+    // 책의 검색·필터 (ADR-0016): 활동은 타임라인에서 KEEP_DAYS 뒤에 사라지니 만화가 직접 들고 있는다
+    category: act.option.category, activity: act.option.title, area: place.area, city: place.city,
+    withNames: [
+      ...act.companions.map(id => memory.friends.find(f => f.id === id)?.name ?? agentById(id)?.name).filter((n): n is string => !!n),
+      ...(enc?.talked ? [other] : []),
+    ],
   };
 }

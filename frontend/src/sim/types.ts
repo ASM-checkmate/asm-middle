@@ -327,6 +327,15 @@ export interface Comic {
   shots?: { user: number; agent: number };
   /** 아침에 그린 그림(있을 때). act.sketch 복사 */
   sketch?: string;
+  /** 책의 검색·범주 필터용 (ADR-0016). 옛 만화에는 없다 — 책이 타임라인의 활동에서 되찾고, 그것도 없으면 범주 없음으로 둔다 */
+  category?: Category;
+  /** 활동 제목 (option.title) — "활동" 검색이 보는 글 */
+  activity?: string;
+  /** 동네·도시 키 — 장소 검색은 이름·동네·도시 이름으로 맞춘다 */
+  area?: string;
+  city?: string;
+  /** 같이 있던 사람들 이름 (동행, 말을 건 상대) — 이름으로도 찾힌다 */
+  withNames?: string[];
 }
 
 /** What the character does on board during a journey: sleeps in the sleep block, eats in meal blocks (train/plane/boat only). */

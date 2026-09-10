@@ -588,7 +588,8 @@
 .book-chips::-webkit-scrollbar { display: none; }
 .book-chips .chip { flex: none; min-height: 30px; padding: 3px 11px; font-size: 13px; }
 .book-seg { flex: none; display: inline-flex; border: var(--outline); border-radius: 999px; background: var(--card); box-shadow: var(--shadow-hard-sm); overflow: hidden; }
-.book-seg button { min-height: 36px; padding: 2px 12px; font-family: var(--display); font-size: 14px; color: var(--ink-2); }
+/* 두 칸은 같은 너비, 글자는 정중앙 — '일'·'주' 한 글자씩 */
+.book-seg button { width: 44px; min-height: 36px; padding: 0; display: grid; place-items: center; line-height: 1; font-family: var(--display); font-size: 14px; color: var(--ink-2); }
 .book-seg button + button { border-left: var(--outline); }
 .book-seg button.is-on { background: var(--ink); color: var(--paper); }
 .book-group { display: grid; gap: 10px; }

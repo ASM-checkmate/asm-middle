@@ -140,7 +140,7 @@ export function BookOverlay({ onClose, comics }: { onClose: () => void; comics?:
                 {query && <button type="button" className="book-q-x" aria-label="지우기" onClick={() => setQuery('')}><Glyph name="close" size={14} /></button>}
               </div>
               <div className="book-seg" role="group" aria-label="묶기">
-                <button type="button" className={group === 'day' ? 'is-on' : ''} onClick={() => setGroup('day')} aria-pressed={group === 'day'}>하루</button>
+                <button type="button" className={group === 'day' ? 'is-on' : ''} onClick={() => setGroup('day')} aria-pressed={group === 'day'}>일</button>
                 <button type="button" className={group === 'week' ? 'is-on' : ''} onClick={() => setGroup('week')} aria-pressed={group === 'week'}>주</button>
               </div>
             </div>

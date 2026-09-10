@@ -39,6 +39,8 @@ export interface RoomStageProps {
   encounter?: PhaseEncounter;
   /** 결정론적 난수 시드 (활동 키) — 같은 활동은 다시 봐도 같은 순서로 움직인다 */
   seed: string;
+  /** 출발: 문으로 걸어 나가 사라진다 (ADR-0015 개정 2). 한 번 true가 되면 되돌리지 않는다 */
+  leaving?: boolean;
 }
 
 /** 큐가 최종적으로 남기는 자리·자세 — 처음 그릴 때 dwell을 건너뛰고 바로 여기에 선다 */
@@ -53,7 +55,7 @@ function restingSpot(room: RoomSpec, log: LogLine[]): { spot: string; pose?: Cue
   return { spot, pose };
 }
 
-export function RoomStage({ room, log, seatPose, companions, encounter, seed }: RoomStageProps) {
+export function RoomStage({ room, log, seatPose, companions, encounter, seed, leaving = false }: RoomStageProps) {
   const rest = restingSpot(room, log);
   const [spot, setSpot] = useState(rest.spot);
   const [pose, setPose] = useState<Cue['pose'] | undefined>(rest.pose);
@@ -70,6 +72,7 @@ export function RoomStage({ room, log, seatPose, companions, encounter, seed }: 
   const [guest, setGuest] = useState<{ spot: string; color: string; gone: boolean; walking: boolean } | null>(null);
   const busy = useRef(false);                          // 걷는 중·자리 비운 중 — 잔동작·산책이 겹치지 않게
   const seatedRef = useRef(false);
+  const [gone, setGone] = useState(false);             // 문 밖으로 나갔다
 
   /** 자리로 걸어간다 — 방향은 출발·도착 자리로, 도착하면 자리의 자세 */
   const walkTo = (to: string, after?: () => void) => {
@@ -104,6 +107,13 @@ export function RoomStage({ room, log, seatPose, companions, encounter, seed }: 
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [log.length]);
+  // 출발: 하던 걸 멈추고(busy) 문으로 걸어가 사라진다 — 그 뒤 화면이 지도로 넘어간다 (Home의 출발 홀드)
+  useEffect(() => {
+    if (!leaving) return;
+    busy.current = true; setFidget(null); setPose(undefined);
+    walkTo(room.door, () => { busy.current = true; setGone(true); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leaving]);
   // 살아 있기: 로그와 무관한 잔동작·자리 비우기·옆 손님. 시드로 결정론적, 로그 큐가 오면 그쪽이 우선(busy면 건너뛴다)
   useEffect(() => {
     const r = rng(`room:${seed}`);
@@ -169,7 +179,7 @@ export function RoomStage({ room, log, seatPose, companions, encounter, seed }: 
     <div className={`room ${fidget === 'sip' ? 'is-sipping' : ''}`} style={{ width: room.w, height: room.h }} aria-hidden="true">
       {room.back}
       <Props props={room.props} />
-      <div className={`room-actor ${still ? 'is-still' : ''} ${heading.left ? 'face-left' : ''} ${seated ? 'is-seated' : ''} ${fidget && fidget !== 'sip' ? `fidget-${fidget}` : ''}`} style={at(me)}>
+      <div className={`room-actor ${still ? 'is-still' : ''} ${heading.left ? 'face-left' : ''} ${seated ? 'is-seated' : ''} ${gone ? 'is-gone' : ''} ${fidget && fidget !== 'sip' ? `fidget-${fidget}` : ''}`} style={at(me)}>
         <Character pose={myPose} size={SIZE} back={heading.back && walking} />
       </div>
       {seated && !pose && (

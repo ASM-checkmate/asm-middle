@@ -18,24 +18,25 @@
 
 /* ─── 1 · Timetable (waiting) ─────────────────────────────────────────────── */
 .tt { position: absolute; inset: 0; }
-.tt-sky { position: absolute; inset: 0 0 auto 0; height: 380px; background: linear-gradient(180deg, var(--sky) 0%, var(--sky-2) 58%, var(--paper) 100%); }
+/* 기다리는 화면은 무대뿐이다 (ADR-0017): 시간표 패널은 크롬 버튼이 여는 시트(.tt-sheet)로만 뜬다. 마당은 화면 전체를 쓴다 — 캐릭터 350px, 발 ≈ y 500 */
+.tt-sky { position: absolute; inset: 0 0 auto 0; height: 560px; background: linear-gradient(180deg, var(--sky) 0%, var(--sky-2) 58%, var(--paper) 100%); }
 .tt-sun {
   /* top-left, under the speech bubble (≈62–120px) and clear of the character's head and its thought bubble (right side) */
-  position: absolute; top: 152px; left: 24px; width: 42px; height: 42px; border-radius: 50%; background: var(--sun); border: var(--outline);
+  position: absolute; top: 200px; left: 24px; width: 42px; height: 42px; border-radius: 50%; background: var(--sun); border: var(--outline);
   box-shadow: 0 0 0 7px color-mix(in srgb, var(--sun) 26%, transparent);
 }
 .tt-cloud { position: absolute; width: 92px; height: 32px; background: var(--card); border-radius: 30px; opacity: .95; animation: tt-cloud 40s linear infinite; }
 .tt-cloud::before { content: ''; position: absolute; left: 16px; top: -16px; width: 40px; height: 40px; background: var(--card); border-radius: 50%; }
 .tt-cloud::after { content: ''; position: absolute; left: 46px; top: -9px; width: 30px; height: 30px; background: var(--card); border-radius: 50%; }
-.tt-cloud.c1 { top: 118px; left: -110px; }
-.tt-cloud.c2 { top: 196px; left: -110px; --s: .68; animation-delay: -22s; animation-duration: 52s; }
+.tt-cloud.c1 { top: 150px; left: -110px; }
+.tt-cloud.c2 { top: 250px; left: -110px; --s: .68; animation-delay: -22s; animation-duration: 52s; }
 @keyframes tt-cloud { from { transform: translateX(0) scale(var(--s, 1)); } to { transform: translateX(560px) scale(var(--s, 1)); } }
-.tt-hill { position: absolute; top: 268px; left: -70px; right: -70px; height: 230px; border-radius: 50%; background: color-mix(in srgb, var(--leaf) 40%, var(--paper)); }
-.tt-hill2 { position: absolute; top: 300px; left: -140px; right: 46%; height: 200px; border-radius: 50%; background: color-mix(in srgb, var(--leaf) 56%, var(--paper)); }
-.tt-yard { position: absolute; left: 0; right: 0; top: 232px; height: 120px; pointer-events: none; z-index: 2; }
+.tt-hill { position: absolute; top: 410px; left: -70px; right: -70px; height: 640px; border-radius: 50%; background: color-mix(in srgb, var(--leaf) 40%, var(--paper)); }
+.tt-hill2 { position: absolute; top: 442px; left: -140px; right: 46%; height: 200px; border-radius: 50%; background: color-mix(in srgb, var(--leaf) 56%, var(--paper)); }
+.tt-yard { position: absolute; left: 0; right: 0; top: 374px; height: 120px; pointer-events: none; z-index: 2; }
 .tt-chara {
-  /* 290px ≈ 34% of the stage above the panel; head starts ≈ y 130 so the bubble (top 62) clears it */
-  position: absolute; top: 70px; left: 50%; width: 290px; height: 290px; margin-left: -145px; z-index: 3;
+  /* 활동 화면의 캐릭터와 같은 자리(.act-chara): 머리가 ≈ y 200에서 시작해 말풍선(top 62)을 비킨다 */
+  position: absolute; top: 140px; left: 50%; width: 350px; height: 350px; margin-left: -175px; z-index: 3;
   transform-origin: 50% 100%; animation: tt-breathe 3.2s ease-in-out infinite;
 }
 @keyframes tt-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
@@ -50,26 +51,19 @@
 /* waiting away from home: the previous place's scene sits behind the character (unshifted, so its props stay clear of the chrome; the bubble takes the place tag's slot) */
 .tt-scene { position: absolute; left: 0; right: 0; top: 0; height: 844px; z-index: 0; pointer-events: none; }
 .tt-scene::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 560px; background: linear-gradient(180deg, transparent, rgba(42, 33, 24, .06)); }
+/* 방에서 기다리기 (ADR-0015 개정 2): 활동 화면과 같은 자리에 같은 크기의 방(room.css .room). 큰 캐릭터는 방 안의 캐릭터가 대신한다 */
+.tt.has-room { background: var(--paper); }
+.tt.has-room .tt-chara { display: none; }
 .tt-bubble-where {
   display: block; margin-top: 3px; padding-top: 3px; border-top: 1.5px dashed var(--line);
   font-family: var(--body); font-size: 11px; color: var(--ink-2); line-height: 1.3; max-width: 236px; white-space: normal;
-}
-/* short stages (≤ 800px): lift the yard + panel so the option list and CTA keep their room */
-@media (max-height: 800px) {
-  .tt-sky { height: 340px; }
-  .tt-bubble { top: 56px; }
-  .tt-chara { top: 38px; }
-  .tt-sun { top: 128px; }
-  .tt-yard { top: 200px; }
-  .tt-hill { top: 236px; }
-  .tt-hill2 { top: 268px; }
-  .tt-panel { top: 312px; }
 }
 /* departure: panel slides down, sky fades, the big character shrinks toward the map anchor (195,355) */
 .scr-leave.to-map .tt-chara { animation: tt-morph .6s cubic-bezier(.34, 1.56, .64, 1) both; }
 @keyframes tt-morph { 0% { transform: translateY(0) scale(1); opacity: 1; } 86% { opacity: 1; } 100% { transform: translateY(-5px) scale(.33); opacity: 0; } }
 .scr-leave.to-map .tt-panel { animation: tt-panel-out .32s cubic-bezier(.4, 0, .2, 1) both; }
 @keyframes tt-panel-out { to { transform: translateY(540px); opacity: 0; } }
+.scr-leave.to-map .room { animation: scr-fade-out .5s ease .25s both; }
 .scr-leave.to-map .tt-sky, .scr-leave.to-map .tt-scene, .scr-leave.to-map .tt-hill, .scr-leave.to-map .tt-hill2, .scr-leave.to-map .tt-yard,
 .scr-leave.to-map .tt-bubble, .scr-leave.to-map .tt-cloud, .scr-leave.to-map .tt-sun { animation: scr-fade-out .4s ease both; }
 

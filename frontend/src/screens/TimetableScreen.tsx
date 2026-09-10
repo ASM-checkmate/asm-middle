@@ -12,7 +12,8 @@ import { wonKo } from '../sim/status';
 import type { TimetableWorld } from '../dev/preview';
 import { Character, type Pose } from '../character';
 import { Bubble, Button, Chip, CompanionChip, Glyph, JetlagChip, type ChipFriend } from '../ui';
-import { Scene } from '../scenes';
+import { Scene, sceneTypeFor } from '../scenes';
+import { roomFor, RoomStage } from '../room';
 import { CATEGORY_FILL, Ring, type RingSeg } from './Ring';
 import { blockRange, bookIntent, dayTitle, progressLabel, shortTitle, transitNote, vehicleName } from './util';
 import './sketch.css';
@@ -31,7 +32,7 @@ const stayLabel = (n: number) => (n > 0 ? `${n}박` : '당일치기');
 
 /** State 1 — the character waits in the yard; the timetable card rises from under its feet.
  *  Every time on it (block bounds, the ring's hand, "09:00 출발") is read in `phase.tz`, the zone the day is lived in. */
-export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Waiting; asSheet?: boolean; onClose?: () => void; world?: TimetableWorld }) {
+export function TimetableScreen({ phase, asSheet, onClose, world, leaving }: { phase: Waiting; asSheet?: boolean; onClose?: () => void; world?: TimetableWorld; /** 출발 직후: 방의 캐릭터가 문으로 나간다 (Home의 출발 홀드) */ leaving?: boolean }) {
   const storeNow = useWorld(s => s.now);
   const storePlans = useWorld(s => s.plans);
   const storeTimeline = useWorld(s => s.timeline);
@@ -173,6 +174,8 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
   const todayComic = shown ? book.find(c => c.id === `c:${shown.key}`) : undefined;
   /** waiting somewhere other than home (the previous activity's place) → that place's scene instead of the yard */
   const away = phase.at.type !== 'home' && phase.at.id !== memory.homePlaceId;
+  // 2.5D 방(ADR-0015 개정 2)이 있는 장소에서 기다리면 정면 무대 대신 방 — 캐릭터는 자리에 앉아 기다리고, 출발하면 문으로 나간다
+  const room = away ? roomFor(sceneTypeFor(phase.at.type)) : undefined;
   const openComic = (id: string) => { bookIntent.comicId = id; setBookOpen(true); };
 
   // ── block info column ──
@@ -410,8 +413,10 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
   }
 
   return (
-    <div className={`tt ${verdict ? 'is-judging' : ''} ${skEntry ? 'has-sk-entry' : ''}`}>
-      {away ? (
+    <div className={`tt ${verdict ? 'is-judging' : ''} ${skEntry ? 'has-sk-entry' : ''} ${room ? 'has-room' : ''}`}>
+      {room ? (
+        <RoomStage room={room} log={[]} seatPose="sit" companions={[]} seed={`wait:${phase.at.id}:${phase.nextStartAt ?? 0}`} leaving={leaving} />
+      ) : away ? (
         <div className="tt-scene"><Scene type={phase.at.type} hush /></div>
       ) : (
         <>
@@ -435,20 +440,8 @@ export function TimetableScreen({ phase, asSheet, onClose, world }: { phase: Wai
         {away && <small className="tt-bubble-where">{phase.at.emoji} {phase.at.name}에서 기다리는 중</small>}
         {phase.jetlag && <JetlagChip sticker />}
       </Bubble>
-      <Character className="tt-chara" pose={pose} size={290} />
-      <div className="tt-panel">
-        <div className="tt-ttl"><span className="tt-ttl-tx">{title}</span><small className="num">{statusLabel}</small></div>
-        <div className="tt-row">
-          <Ring segs={segs} selected={sel} now={now} tz={tz} center={b.label} onSelect={selectBlock} />
-          <div className="tt-info">
-            <div className="tt-bl">{blockRange(sel)}</div>
-            <div className="tt-bh">{b.label} 블록</div>
-            {chip}
-            {note}
-          </div>
-        </div>
-        <div className="tt-body">{body}</div>
-      </div>
+      {/* 시간표 패널은 여기 없다 (ADR-0017): 크롬의 시간표 버튼이 시트로 연다 — 기다리는 화면은 캐릭터가 있는 무대뿐 */}
+      <Character className="tt-chara" pose={pose} size={350} />
     </div>
   );
 }

@@ -62,4 +62,6 @@
 /* 옆 손님: 들어와 앉았다 나간다 — 나갈 때 흐려진다 */
 .room-actor.is-guest { transition: transform 1.6s linear, opacity .4s; }
 .room-actor.is-guest.is-gone { opacity: 0; }
+/* 주인공이 문 밖으로 나갔다 (출발) — 문에 닿은 뒤 짧게 사라진다 */
+.room-actor.is-gone { opacity: 0; transition: transform 1.4s linear, opacity .35s ease; }
 @media (prefers-reduced-motion: reduce) { .room-actor { transition: none; } .room-bubble, .room-steam path, .room-cloud { animation: none; opacity: 1; } }

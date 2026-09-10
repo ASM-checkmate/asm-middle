@@ -1,5 +1,5 @@
 // ─── QA preview: `?preview=…` forces a phase WITHOUT touching the store ─────
-//   timetable[&tz=][&hour=][&jetlag=1][&proposal=1][&travel=1][&sketch=1][&money=][&fatigue=][&mood=][&judge=pushback|refuse]   sleeping[&tz=]
+//   timetable[&tz=][&hour=][&jetlag=1][&proposal=1][&travel=1][&sketch=1][&money=][&fatigue=][&mood=][&judge=pushback|refuse][&at={placeType}][&leave=1][&sheet=1]   sleeping[&tz=]
 //   active:{placeType}[&tz=][&jetlag=1][&encounter=talked|seen][&sketch=1][&camera=1][&p=0.35]
 //   comic[&tz=][&jetlag=1][&friction=…][&shots=0,2][&sketch=1]   summary[&gap=1]   book
 //   *[&request=worry][&call=in|answered|refused][&chat=1]   moving:{walk|car|subway|train|plane|boat}[&p=0.35][&onboard=sleep|meal]
@@ -11,6 +11,7 @@
 import { useMemo, useRef } from 'react';
 import { decide, useWorld, type World } from '../sim/store';
 import type { ActivityOption, Anchor, BlockId, Category, Comic, DayKey, DaySummaryItem, Journey, Leg, Onboard, Phase, Place, PlaceType, ScheduledActivity, ShotWin, TransportMode, UserShot } from '../sim/types';
+import { PLACE_TYPES } from '../sim/types';
 import { PLACES, placeById, tzOf } from '../sim/places';
 import { estimateJourney, MODE_LABEL, primaryMode } from '../sim/journey';
 import { geodesicPath, haversineKm } from '../sim/geo';
@@ -37,7 +38,7 @@ export type PreviewSpec = PreviewKind & { status: StatusOverride; request: Reque
 export type CallPreview = 'in' | 'answered' | 'refused' | null;
 
 type PreviewKind =
-  | { kind: 'timetable'; tz: string; hour: number | null; jetlag: boolean; plan: PlanPreview; judge: JudgePreview }
+  | { kind: 'timetable'; tz: string; hour: number | null; jetlag: boolean; plan: PlanPreview; judge: JudgePreview; /** `&at=cafe` — 그 유형의 장소에서 기다린다 (2.5D 방 확인용); `&leave=1` — 뜨자마자 출발(문으로 나간다) */ at: PlaceType | null; leave: boolean; /** `&sheet=1` — 시간표 시트를 연 채로 (카드·판정 확인용) */ sheet: boolean }
   | { kind: 'sleeping'; tz: string }
   /** `&sketch=1` — 아침에 그림으로 정한 활동 (로그 첫 줄) · `&camera=1` — 카메라 오버레이를 연 채로 (화면 배선은 Home: usePreview().camera)
    *  · `&p=` — 활동 진행률 (0..0.98, 기본 .35): 도착 시각을 그만큼 앞당겨 카메라의 "지금" 창을 고른다 */
@@ -95,7 +96,8 @@ export function parsePreview(search: string = typeof location !== 'undefined' ? 
     case 'timetable': {
       const j = q.get('judge');
       const plan: PlanPreview = q.get('proposal') === '1' ? 'proposal' : q.get('travel') === '1' ? 'travel' : sketch ? 'sketch' : 'none';
-      return { kind: 'timetable', tz, hour, jetlag, plan, judge: j === 'pushback' || j === 'refuse' ? j : null, status: so, request, call, chat };
+      const at = q.get('at');
+      return { kind: 'timetable', tz, hour, jetlag, plan, judge: j === 'pushback' || j === 'refuse' ? j : null, at: at && (PLACE_TYPES as string[]).includes(at) ? at as PlaceType : null, leave: q.get('leave') === '1', sheet: q.get('sheet') === '1', status: so, request, call, chat };
     }
     case 'sleeping': return { kind: 'sleeping', tz, status: so, request, call, chat };
     case 'comic': {
@@ -429,12 +431,12 @@ const storeWorld = (): TimetableWorld => {
   return { now: s.now, today: s.today, plans: s.plans, timeline: s.timeline, anchor: s.anchor, status: s.status };
 };
 
-export function usePreview(): { phase: Phase | null; world: TimetableWorld | null; now: number | null; camera: boolean } {
+export function usePreview(): { phase: Phase | null; world: TimetableWorld | null; now: number | null; camera: boolean; /** `?preview=timetable&leave=1` */ leave: boolean; /** `?preview=timetable&sheet=1` */ sheet: boolean } {
   const spec = useMemo(() => parsePreview(), []);
   const now = useWorld(s => s.now);
   const now0 = useRef(now).current;
   const base = useMemo(() => (spec ? buildPreview(spec, now0) : null), [spec, now0]);
-  if (!base) return { phase: null, world: null, now: null, camera: false };
+  if (!base) return { phase: null, world: null, now: null, camera: false, leave: false, sheet: false };
   const world = base.world ?? null;
   const phase = ((): Phase => {
     switch (base.spec.kind) {
@@ -468,7 +470,7 @@ export function usePreview(): { phase: Phase | null; world: TimetableWorld | nul
         }
         const blk = blockAtIn(now, tz);
         const nb = nextBlockId(blk);
-        return { kind: 'waiting', at: placeById('home'), currentBlockId: blk, nextBlockId: nb, nextStartAt: nb ? blockStartAt(dayStartIn(now, tz), nb) : null, tz, jetlag: base.spec.jetlag, companions: [] };
+        return { kind: 'waiting', at: base.spec.at ? placeOfType(base.spec.at) : placeById('home'), currentBlockId: blk, nextBlockId: nb, nextStartAt: nb ? blockStartAt(dayStartIn(now, tz), nb) : null, tz, jetlag: base.spec.jetlag, companions: [] };
       }
       default: {
         const blk = blockAtIn(now, ownerTz);
@@ -482,7 +484,7 @@ export function usePreview(): { phase: Phase | null; world: TimetableWorld | nul
   const withStatus = forced
     ? { ...(world ?? storeWorld()), status: { ...(world?.status ?? useWorld.getState().status ?? INITIAL_STATUS), ...strip(forced) } }
     : world;
-  return { phase, world: withStatus, now: base.spec.kind === 'timetable' && world ? world.now : null, camera: base.spec.kind === 'active' && base.spec.camera };
+  return { phase, world: withStatus, now: base.spec.kind === 'timetable' && world ? world.now : null, camera: base.spec.kind === 'active' && base.spec.camera, leave: base.spec.kind === 'timetable' && base.spec.leave, sheet: base.spec.kind === 'timetable' && base.spec.sheet };
 }
 
 /** How long the fake `?preview=summary&gap=1` owner was away — long enough that the band reads as a real absence. */

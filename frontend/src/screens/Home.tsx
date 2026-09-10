@@ -4,6 +4,8 @@ import type { Phase } from '../sim/types';
 import { blockAtIn, nextBlockId } from '../sim/blocks';
 import { movingPhase } from '../sim/timeline';
 import { placeById } from '../sim/places';
+import { sceneTypeFor } from '../scenes';
+import { roomFor } from '../room';
 import { MapScene } from '../map';
 import { TopChrome } from '../ui';
 import { usePreview, usePreviewOverlay } from '../dev/preview';
@@ -32,7 +34,8 @@ const LEAVE_MS: Partial<Record<string, number>> = { 'timetable>map': 760, 'map>a
 /** MOVEMENT_SPEC §6.2: the map keeps the screen for 900 ms after p = 1 (pin bounce, two-hop, confetti, easeTo), then the
  *  iris + reverse FLIP start. The store flips to `active` on its 1 Hz tick (0–1000 ms after arrival), so Home holds the
  *  map until that wall-clock moment itself; the map's own `onArrive` (1800 ms) is only a fallback. */
-const ARRIVE_HOLD_MS = 1000;   // spec 900 + ~100 ms: the map's rAF notices p = 1 a frame or two after the store clock
+const ARRIVE_HOLD_MS = 1000;
+const EXIT_HOLD_MS = 1500;     // 방에서 출발: 문까지 걷는 1.4초 + 사라지는 찰나 (RoomStage WALK_MS) — 그 뒤에 지도로   // spec 900 + ~100 ms: the map's rAF notices p = 1 a frame or two after the store clock
 const DEFAULT_LEAVE_MS = 460;
 /** Mount the next ride's map (hidden) this long before departure, in sim ms, so the departure morph lands on a live map. */
 const PREWARM_SIM_MS = 150_000;
@@ -84,7 +87,7 @@ export function Home() {
   const dismissSummary = useWorld(s => s.dismissSummary);
   const markRequestTold = useWorld(s => s.markRequestTold);
 
-  const { phase: preview, world: previewWorld, now: previewNow, camera: previewCamera } = usePreview();
+  const { phase: preview, world: previewWorld, now: previewNow, camera: previewCamera, leave: previewLeave, sheet: previewSheet } = usePreview();
   const previewOverlay = usePreviewOverlay();
   const isPreview = preview !== null;
   /** a `?preview=timetable&hour=` world carries its own "now" */
@@ -97,6 +100,8 @@ export function Home() {
   const closePreviewCall = useCallback(() => setPreviewClosed(s => ({ ...s, call: true })), []);
   /** `?preview=active:…&camera=1` — 마운트 때 카메라를 연 것으로 친다. 스토어는 안 건드린다 (dev/preview.ts 계약) */
   const [previewCam, setPreviewCam] = useState(previewCamera);
+  /** `?preview=timetable&sheet=1` — 시간표 시트가 열린 채로 뜬다 (카드·판정 미리보기용). 스토어의 ttOpen은 안 건드린다 */
+  const [previewSheetOpen, setPreviewSheetOpen] = useState(previewSheet);
 
   // the map's arrival beat can hand over to the scene slightly before the sim tick flips the phase
   useEffect(() => { if (storePhase.kind !== 'moving') setArrivedKey(null); }, [storePhase.kind]);
@@ -117,7 +122,20 @@ export function Home() {
     }
     if (holdRef.current?.key === key && performance.now() < holdRef.current.until) phase = movingPhase(phase.act.arriveAt, phase.act);
   }
-  const holdUntil = phase.kind === 'moving' && holdRef.current?.key === phase.act.key ? holdRef.current.until : null;
+  // ── departure hold: waiting(2.5D 방) → moving for the ride leaving that place keeps the room for EXIT_HOLD_MS wall ms —
+  //    the character walks out the door first (ADR-0015 개정 2), then the map comes ──
+  const exitRef = useRef<{ key: string; until: number; waiting: Extract<Phase, { kind: 'waiting' }> } | null>(null);
+  if (!isPreview && phase.kind === 'moving') {
+    const key = phase.act.key;
+    const prev = lastPhaseRef.current;
+    if (prev.kind === 'waiting' && prev.at.id === phase.act.fromPlace.id && roomFor(sceneTypeFor(prev.at.type)) && exitRef.current?.key !== key) {
+      exitRef.current = { key, until: performance.now() + EXIT_HOLD_MS, waiting: prev };
+    }
+  }
+  const leavingRoom = !isPreview && phase.kind === 'moving' && exitRef.current?.key === phase.act.key && performance.now() < exitRef.current.until;
+  if (leavingRoom) phase = exitRef.current!.waiting;
+  const holdUntil = phase.kind === 'moving' && holdRef.current?.key === phase.act.key ? holdRef.current.until
+    : leavingRoom ? exitRef.current!.until : null;
   useEffect(() => {
     if (holdUntil === null) return;
     const id = window.setTimeout(() => wake(n => n + 1), Math.max(0, holdUntil - performance.now()) + 4);
@@ -173,7 +191,7 @@ export function Home() {
 
   const render = (p: Phase, isGhost: boolean): ReactNode => {
     switch (p.kind) {
-      case 'waiting': return <TimetableScreen phase={p} world={previewWorld ?? undefined} />;
+      case 'waiting': return <TimetableScreen phase={p} world={previewWorld ?? undefined} leaving={leavingRoom || isGhost || previewLeave} />;
       case 'moving': return holdMap ? <div className="scr-hold" /> : <MapScene act={p.act} onArrive={isGhost || isPreview ? undefined : onArrive} />;
       case 'active': return <ActivityScreen phase={p} />;
       // 만화의 "다음" 버튼은 시간표를 **시트로** 연다 — 기본 화면을 시간표로 바꾸면 내릴 수 없고 크롬의 링 버튼도 사라진다.
@@ -212,14 +230,14 @@ export function Home() {
   return (
     <div className={`home home--${screen}`}>
       {layers.map(l => <div key={l.key} className={l.cls}>{l.node}</div>)}
-      <TopChrome now={now} tz={phase.tz} label={chromeLabel(now, phase, homeCity)} tone={screen === 'sleep' ? 'paper' : 'ink'} onBook={() => setBookOpen(true)} onTimetable={() => setTtOpen(true)} hideTimetable={screen === 'timetable'} onFriends={() => setFriendsOpen(true)} onChat={() => setChatOpen(true)} unread={unread} scale={scale} />
+      <TopChrome now={now} tz={phase.tz} label={chromeLabel(now, phase, homeCity)} tone={screen === 'sleep' ? 'paper' : 'ink'} onBook={() => setBookOpen(true)} onTimetable={() => setTtOpen(true)} onFriends={() => setFriendsOpen(true)} onChat={() => setChatOpen(true)} unread={unread} scale={scale} />
       {showChat && <ChatOverlay tz={phase.tz} onClose={() => setChatOpen(false)} />}
       {/* 혼잣말: 대가 없이 지나가는 1단계 (ADR-0001 §1). 시트가 떠 있으면 자리를 비켜 주고, 지도 위(이동 중·도착 홀드)에는 안 띄운다 —
           도착 혼잣말(store tick 'arrive-ask', ADR-0004 오너 결정 6)은 활동 화면에서 보인다 */}
       {sayVisible && say && <SayBubble text={say.text} onDone={dismissSay} />}
       {activeCall && <CallOverlay key={activeCall.id} call={activeCall} tz={phase.tz} onDone={previewOverlay.call && activeCall === previewOverlay.call ? closePreviewCall : undefined} />}
       {friendsOpen && <FriendsOverlay onClose={() => setFriendsOpen(false)} />}
-      {ttOpen && screen !== 'timetable' && <TimetableScreen phase={pseudoWaiting(phase, now)} asSheet onClose={() => setTtOpen(false)} world={previewWorld ?? undefined} />}
+      {(ttOpen || previewSheetOpen) && <TimetableScreen phase={pseudoWaiting(phase, now)} asSheet onClose={() => { setTtOpen(false); setPreviewSheetOpen(false); }} world={previewWorld ?? undefined} />}
       {/* 그려서 알려줘 (ADR-0004): 시간표 시트(z 45) 위. 카드 분기의 "✎ 카드 대신 그려서 알려줄래" / 그림 카드의 "다시 그리기"가 연다 */}
       {sketchOpen && <SketchOverlay blockId={sketchOpen} onClose={() => setSketchOpen(null)} />}
       {/* 카메라: nowMs는 ActivityScreen과 같은 식으로 progress에서 되짚는다 — 화면은 스토어의 now를 따로 안 읽는다. preview면 샷은 오버레이 로컬 */}

@@ -174,6 +174,70 @@ interface PublishedActivity { key: string /* `${dayKey}:${blockId}` */; agentId:
 `{ "activities": PublishedActivity[] }` (arriveAt 순). 친구가 아니면 `403`, 창이 7일을 넘으면 `400`.
 프론트는 remote 친구의 오늘~내일을 받아 동행 카드와 친구 목록의 '지금'에 쓴다.
 
+## 2.5 SNS — 미디어 · 글 · 좋아요 · 피드 (초안, ADR-0020·0021. 2026-09-11)
+
+> 구현 전 초안. 서버 DTO·프론트 타입이 생기면 이 절이 진실이 된다. 사진은 픽셀(ADR-0020)이고 글은 opaque 문서가 아니라 서버 리소스다(ADR-0021).
+
+타입
+
+```ts
+interface Media { id: string; ownerId: string; kind: 'shot' | 'sketch' | 'npc'; bytes: number; createdAt: number }
+interface PostCut { shotId: string; actKey: string; win: 0 | 1 | 2 | 3; by: 'user' | 'agent' }
+interface Post { id: string; authorId: string; createdAt: number; cuts: PostCut[]; caption: string;
+                 place: string; area: string; city: string; category?: string; dateKey: string;
+                 companions: string[]; editedByOwner: boolean; likes: number; likedByMe: boolean }
+interface FeedItem { post: Post; author: RemoteAgent & { visibility: 'public' | 'private'; repShotId?: string };
+                     why?: string /* 추천 구간의 이유 칩. 친구 글엔 없음 */ }
+```
+
+### PUT /api/media/{id}
+
+**id는 클라이언트가 만든다** — 32자 hex(`^[0-9a-f]{32}$`). 찍는 순간 폰이 id를 정하고 책·글은 업로드 전에도 그 id로 가리킨다(오프라인·dev 시계에서도 책이 먼저 산다).
+본문 `image/webp`(Safari 폴백 `image/png`) 그대로, ≤ 60 KB, 긴 변 ≤ 300px. 쿼리 `?kind=shot|sketch|npc` → 응답 (201) `Media`.
+**멱등**: 같은 소유자가 같은 id를 다시 올리면 바이트를 버리고 (200) 기존 `Media`. 다른 소유자의 id면 `403`. `kind=npc`는 내 폰의 가상 친구 글(ADR-0021 결정 6)이며 내 용량으로 센다. 파일은 `backend/data/media/<id>`.
+
+### GET /api/media/{id}
+
+저장된 타입(`image/webp`·`image/png`) 그대로. 권한: 소유자, 소유자의 친구, 또는 그 id를 참조하는 공개 글이 있을 때. 아니면 `403`(없으면 `404`). `Cache-Control: private, max-age=31536000`.
+헤더 인증이라 `<img src>`로는 못 받는다 — 프론트는 `X-User-Id`를 붙여 fetch하고 blob URL로 그린다(폰 캐시는 IndexedDB LRU, ADR-0020 §5).
+
+### POST /api/posts
+
+요청 `{ "cuts": PostCut[] (1~10), "caption" (≤ 300자), "place", "area", "city", "category"?, "dateKey", "companions": string[], "editedByOwner" }`
+→ 응답 (201) `Post`. `cuts[].shotId`는 전부 내 미디어여야 한다(`400`). `companions`는 서버가 내 친구 목록과 교집합만 남긴다.
+
+### PATCH /api/posts/{id}
+
+`{ "cuts"?, "caption"? }` → `Post`. 작성자만. 고치면 `editedByOwner: true`.
+
+### DELETE /api/posts/{id}
+
+`204`. 글이 참조하던 미디어 중 책이 참조하지 않는 것은 함께 지운다.
+
+### POST /api/posts/{id}/like · DELETE /api/posts/{id}/like
+
+`{ "likes": n, "likedByMe": boolean }`. 멱등. 비공개 계정의 글은 친구만(`403`).
+
+### GET /api/feed?cursor=<opaque>&limit=20
+
+```json
+{ "items": FeedItem[], "next": "<cursor>" | null }
+```
+
+*   앞부분은 **친구 글**(시간 역순), 다 나오면 `items[].why`가 붙는 **추천 글**이 이어진다. 경계는 클라이언트가 `why` 유무로 안다.
+*   추천 점수는 서버만 안다: `0.5 취향유사도 + 0.3 인기도 + 0.2 신선도`, 인기도 `log(1+likes)`에 시간 감쇠, 탐색 몫 10~15%,
+    같은 작성자 연속 제한, 본 글·비공개·친구·자기 자신 제외. 취향은 발행 일정(§2.3)과 좋아요에서 계산한다.
+*   가상 친구 글은 여기 없다 — 프론트가 로컬에서 친구 구간에 끼운다.
+
+### GET /api/users/{id}/posts?cursor=&limit=
+
+그 사람의 글 격자. 비공개 + 친구 아님 `403`. `GET /api/me/posts`는 내 것.
+
+### PUT /api/me/agent (개정)
+
+요청에 `"gender": "female" | "male"`(ADR-0023), `"visibility": "public" | "private"`(기본 `private`), `"repShotId"?`(대표컷 핀)이 추가된다.
+`RemoteAgent`에 같은 세 칸이 실린다. 성별은 서버가 검증만 하고 추정하지 않는다.
+
 ## 2.4 LLM 관문
 
 기존 Node 백엔드의 계약을 그대로 옮겼다 (ADR-0006·0007·0009). 프롬프트·파서·스키마는 `backend/src/*.ts`를 글자 단위로

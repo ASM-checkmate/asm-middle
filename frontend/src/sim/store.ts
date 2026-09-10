@@ -1050,6 +1050,14 @@ export const useWorld = create<WorldState>((set, get) => {
    * '컷 고치기'라 답해 놓고 화면을 닫은 채 하루가 저물면 자기 전 창에서 그대로 올린다 (SNS_SPEC §8 "그날 안 올렸으면 자기 전에").
    * 사용자가 없으면(오프라인으로 시작) 초안도 물음도 없다 — 올릴 길이 없는데 묻고 "올릴게" 하지 않는다.
    */
+  /**
+   * 시계를 돌려(jumpTo) 건너뛴 활동은 만화가 없다 (tick의 gap 처리는 점프 뒤엔 안 돈다) — 초안은 책의 컷으로 만들어지므로 오늘 끝난
+   * 활동은 초안을 짓기 전에 여기서 정산한다 (settle은 멱등: 이미 책에 있으면 그대로). 실시간에는 tick이 먼저 해 둬서 아무 일도 없다
+   */
+  const settleToday = (t: number) => {
+    const s = get();
+    for (const a of s.timeline) if (a.dayKey === s.today && a.endAt <= t && a.option.category !== 'sleep' && !s.book.some(c => c.id === `c:${a.key}`)) comicFor(a);
+  };
   const pumpAgentPost = (t: number) => {
     const s = get();
     const ap = s.agentPost;
@@ -1069,9 +1077,7 @@ export const useWorld = create<WorldState>((set, get) => {
       return;
     }
     if (ap.lastPostDay === s.today || ap.skippedDay === s.today || !relaxedWindow(s.phase) || !currentUser()) return;
-    // 시계를 돌려(jumpTo) 건너뛴 활동은 만화가 없다 (tick의 gap 처리는 점프 뒤엔 안 돈다) — 초안은 책의 컷으로 만들어지므로 오늘 끝난
-    // 활동은 여기서 정산한다 (settle은 멱등: 이미 책에 있으면 그대로). 실시간에는 tick이 먼저 해 둬서 아무 일도 없다
-    for (const a of s.timeline) if (a.dayKey === s.today && a.endAt <= t && a.option.category !== 'sleep' && !s.book.some(c => c.id === `c:${a.key}`)) comicFor(a);
+    settleToday(t);
     const cur = get();
     const d = decidePost(postCtxOf(cur), cur.phase);
     if (d.kind === 'none') return;
@@ -1315,7 +1321,8 @@ export const useWorld = create<WorldState>((set, get) => {
       const s = get();
       // 이미 쥔 초안이 있으면 그걸 지금 (묻는 중이었어도 — DEV가 재촉한 것)
       if (s.agentPost.pending) { postNextTryAt = 0; tryPost(s.now); return; }
-      const draft = buildDraft(postCtxOf(s));
+      settleToday(s.now);
+      const draft = buildDraft(postCtxOf(get()));
       if (!draft) { set({ say: { text: '아직 올릴 컷이 없어', at: s.now } }); return; }
       delete draft.reason;
       setAgentPost({ pending: { draftId: draft.id, dueAt: s.now, asked: false, draft } });
@@ -1324,7 +1331,8 @@ export const useWorld = create<WorldState>((set, get) => {
     askPostNow: () => {
       const s = get();
       if (s.agentPost.pending) return;   // 이미 묻는 중이거나 올리는 중 — 두 초안을 쥐지 않는다
-      const base = buildDraft(postCtxOf(s));
+      settleToday(s.now);
+      const base = buildDraft(postCtxOf(get()));
       if (!base) { set({ say: { text: '아직 올릴 컷이 없어', at: s.now } }); return; }
       const draft: PostDraft = { ...base, reason: '지금 이거 올리려는데 봐줄래?' };
       askPost(draft, askRequest(draft, s.now), false);   // 고민 조건·주 2회 상한을 건너뛴다 — 세지 않는다

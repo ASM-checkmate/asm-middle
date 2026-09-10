@@ -129,33 +129,40 @@ export const bgTransforms = ({ w }: Size): string[] => [
 /** camera.css:53 `.cam-bg { transform: translateY(calc(var(--pitchn) * -0.55%)) }` — 각도에 따른 무대 패럴랙스 (px) */
 export const bgParallax = (pitch: number, { h }: Size): number => -0.0055 * pitch * h;
 
-// ─── 인물 자리 (camera.css:66-73) ─────────────────────────────────────────────
-export interface Cast { friend?: boolean; met?: boolean; ghost?: boolean }
-export interface CastLayout { me: Box; friend?: Box; met?: Box; ghost?: Box }
+// ─── 인물 자리 (camera.css:66-76) ─────────────────────────────────────────────
+/** `present`: 같은 공간에 있던 사람 수 (0~2) — 뒤의 왼쪽·오른쪽 (FRIENDS_SPEC §6 표) */
+export interface Cast { friend?: boolean; met?: boolean; present?: number }
+export interface CastLayout { me: Box; friend?: Box; met?: Box; present: Box[] }
+
+/** 배경 인물은 최대 둘 — 셋째부터는 그림에 없다 (agents.ts PRESENT_MAX와 같다) */
+export const PRESENT_MAX = 2;
 
 /**
  * 캐릭터 svg는 정사각(viewBox 200)이고 CSS width %는 `.cam-shot`(=프레임) 너비, bottom %는 높이 기준.
  * translate(-50%, 9%)는 자기 크기 기준. 그래서 x = left·w − 0.5·size, bottom = h − bottom·h + 0.09·size.
- *   .cam-me     left 50% (has-friend·has-met 39%, 둘 다 44%) bottom 22% width 84% translate(-50%, 9%)
- *   .cam-friend left 56% bottom 20% width 62% translateY(9%)
- *   .cam-met    left 60% bottom 18% width 53% translateY(9%)  (has-friend: right -6% bottom 16%)
- *   .cam-ghost  right -2% bottom 30% width 53%
+ *   .cam-me        left 50% (has-friend·has-met 39%, 둘 다 44%) bottom 22% width 84% translate(-50%, 9%)
+ *   .cam-friend    left 56% bottom 20% width 62% translateY(9%)
+ *   .cam-met       left 60% bottom 18% width 53% translateY(9%)  (has-friend: right -6% bottom 16%)
+ *   .cam-present-0 left 3%  bottom 33% width 34% translateY(9%)   (뒷모습, 나의 40 %)
+ *   .cam-present-1 right 1% bottom 35% width 32% translateY(9%)
  */
 export function castLayout({ w, h }: Size, cast: Cast): CastLayout {
   const box = (size: number, x: number, bottom: number): Box => ({ x, y: bottom - size, w: size, h: size });
   const me = 0.84 * w;
   const meLeft = cast.friend && cast.met ? 0.44 : cast.friend || cast.met ? 0.39 : 0.5;
-  const out: CastLayout = { me: box(me, meLeft * w - 0.5 * me, h - 0.22 * h + 0.09 * me) };
+  const out: CastLayout = { me: box(me, meLeft * w - 0.5 * me, h - 0.22 * h + 0.09 * me), present: [] };
   if (cast.friend) { const s = 0.62 * w; out.friend = box(s, 0.56 * w, h - 0.20 * h + 0.09 * s); }
   if (cast.met) {
     const s = 0.53 * w;
     out.met = cast.friend ? box(s, w + 0.06 * w - s, h - 0.16 * h + 0.09 * s) : box(s, 0.60 * w, h - 0.18 * h + 0.09 * s);
   }
-  if (cast.ghost) { const s = 0.53 * w; out.ghost = box(s, w + 0.02 * w - s, h - 0.30 * h); }
+  const n = Math.min(PRESENT_MAX, Math.max(0, cast.present ?? 0));
+  if (n >= 1) { const s = 0.34 * w; out.present.push(box(s, 0.03 * w, h - 0.33 * h + 0.09 * s)); }
+  if (n >= 2) { const s = 0.32 * w; out.present.push(box(s, w - 0.01 * w - s, h - 0.35 * h + 0.09 * s)); }
   return out;
 }
-/** camera.css:73 `.cam-ghost { opacity: .35 }` */
-export const GHOST_OPACITY = 0.35;
+/** camera.css `.cam-present { opacity: .85 }` */
+export const PRESENT_OPACITY = 0.85;
 
 // ─── 크롭 (camera.css:44-47) ──────────────────────────────────────────────────
 /** `.cam-shot { transform-origin: 50% 78% }` */
@@ -191,7 +198,8 @@ export function cropTransform(crop: ShotCrop, { w, h }: Size): string {
  */
 export const BLUR_AT_300 = { bg: 5, fg: 4, ghost: 0.5 } as const;
 export interface BlurRadii { bg: number; fg: number; ghost: number }
-/** feGaussianBlur stdDeviation (CSS blur(σ)와 같은 단위). 초점이 캐릭터(near)면 배경만, 배경(far)이면 인물만 흐리다 */
+/** feGaussianBlur stdDeviation (CSS blur(σ)와 같은 단위). 초점이 캐릭터(near)면 배경(무대·배경 인물)만, 배경(far)이면 앞의 인물만 흐리다.
+ *  `ghost`는 옛 실루엣 필터의 반지름 — 이제 그리지 않지만 정의는 남겨 둔다 (blurFilterDefs의 모양 불변) */
 export function blurRadii(crop: ShotCrop, { h }: Size): BlurRadii {
   const k = h / DEFAULT_LONG_EDGE;
   const dof = crop.dof ?? 0;

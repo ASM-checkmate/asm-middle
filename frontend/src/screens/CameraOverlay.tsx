@@ -7,8 +7,9 @@ import { hhmmIn } from '../sim/tz';
 import { Character, type Pose } from '../character';
 import { Scene, sceneTypeFor } from '../scenes';
 import { Button } from '../ui';
-import { GHOST, poseFor } from './util';
+import { poseFor, presentLook, shotCastOf, type PresentFigure } from './util';
 import { DEFAULT_LOOK } from '../sim/types';
+import { castAt } from '../sim/agents';
 import { bakeShot, newShotId, type BakeInput } from '../photo/bake';
 import { putLocal } from '../sim/media';
 import './camera.css';
@@ -60,27 +61,28 @@ export interface ShotStageProps {
   crop: Crop;
   /** 동행 색 (있으면 오른쪽 옆에 손 흔드는 친구) */
   friendColor?: string;
-  /** 말을 건 마주침 상대의 색 */
+  /** 말을 건 마주침 상대의 색 (encounter.at 뒤부터) */
   metColor?: string;
-  /** 못 걸어본 사람의 실루엣 색 */
-  seenColor?: string;
+  /** 같은 공간에 있던 사람들 (FRIENDS_SPEC §6): 뒷모습·작게·얼굴 없이 뒤의 왼쪽·오른쪽에, 최대 둘 */
+  present?: PresentFigure[];
   /** 썸네일: 캐릭터 루프도 멈춘다 (무대는 항상 scene--still) */
   still?: boolean;
   className?: string;
 }
 
 /**
- * 무대 한 장: 정지 Scene + 캐릭터(프레임 너비 84 %, 발이 78 % 높이) + 동행/마주침, 그 위에 사용자 크롭(% 단위).
+ * 무대 한 장: 정지 Scene + 캐릭터(프레임 너비 84 %, 발이 78 % 높이) + 동행/마주침/배경 인물, 그 위에 사용자 크롭(% 단위).
  * 뷰파인더·필름 썸네일이 같은 컴포넌트를 쓰니 "찍은 그대로"가 보장된다 — 만화의 사용자 컷도 이걸 쓰면 같은 그림이 나온다.
  */
-export function ShotStage({ type, pose, crop, friendColor, metColor, seenColor, still, className = '' }: ShotStageProps) {
+export function ShotStage({ type, pose, crop, friendColor, metColor, present, still, className = '' }: ShotStageProps) {
   return (
     // 변수는 무대(.cam-stage)에 둔다: 밝기·톤은 무대가, transform은 그 안의 .cam-shot이, blur는 .scene/캐릭터가 물려받아 읽는다
     <div className={`cam-stage ${friendColor ? 'has-friend' : ''} ${metColor ? 'has-met' : ''} ${className}`} style={cropVars(crop)}>
       <div className="cam-shot">
         {/* 배경은 프레임보다 넓게(가로 3장·세로 2배) — 밀고 돌려도 끝이 안 보인다. 양옆은 거울처럼 뒤집어 이어 붙인다 */}
         <div className="cam-bg"><Still type={type} /><Still type={type} /><Still type={type} /></div>
-        {seenColor && <Chara className="cam-ghost" pose="idle" size={190} variant="friend" color={seenColor} paused={still} />}
+        {/* 배경 인물: 뒷모습(얼굴 없음) — 비공개 계정 사람이 남의 사진에 얼굴로 나오는 일이 없다 (ADR-0022). 설렘 대상만 슬쩍 돌아본 3/4 얼굴 (AFFECTION_SPEC §4) */}
+        {present?.slice(0, 2).map((p, i) => <Chara key={i} className={`cam-present cam-present-${i}`} pose="idle" size={120} variant="friend" color={p.color} look={presentLook(p.hairStyle)} back glance={p.glance} paused={still} />)}
         {friendColor && <Chara className="cam-friend" pose="wave" size={224} variant="friend" color={friendColor} paused={still} />}
         <Chara className="cam-me" pose={pose} size={300} paused={still} />
         {metColor && <Chara className="cam-met" pose="wave" size={190} variant="friend" color={metColor} paused={still} />}
@@ -107,7 +109,8 @@ export interface CameraOverlayProps {
  * 지금 창만 셔터가 듣고(재촬영은 같은 창을 덮어쓴다: store.addShot), 지난 창은 잠겨 에이전트가 채우고(열화 컷), 미래 창은 비활성.
  * 마운트는 Home이 한다(active phase에서만) — 만화는 endAt에 한 번 만들어져 굳으니 그 뒤의 샷은 갈 곳이 없다.
  */
-export function CameraOverlay({ act, progress, nowMs, companions, encounter, preview, onClose }: CameraOverlayProps) {
+/** `companions`/`encounter`는 Home이 phase에서 넘기지만 그림은 castAt이 정한다 (아래) — 헤더 칩이 없는 화면이라 읽지 않는다 */
+export function CameraOverlay({ act, progress, nowMs, preview, onClose }: CameraOverlayProps) {
   const addShot = useWorld(s => s.addShot);
   const dropShotId = useWorld(s => s.dropShotId);
   const stored = useWorld(s => s.shots);
@@ -131,10 +134,10 @@ export function CameraOverlay({ act, progress, nowMs, companions, encounter, pre
   const dragRef = useRef<{ id: number; sx: number; sy: number; x0: number; y0: number; w: number; h: number; moved: boolean } | null>(null);
 
   const pose = poseFor(act.option);
-  const friend = companions[0];
-  const met = encounter?.talked ? encounter.agent : null;
-  const seen = encounter && !encounter.talked;
-  const stage = { type: act.place.type, pose, friendColor: friend?.color, metColor: met?.color, seenColor: seen ? GHOST : undefined };
+  // 찍는 순간의 인물 구성 (ADR-0022): 동행은 정면, 말을 건 상대는 encounter.at 뒤부터 정면, 같은 공간의 사람들은 뒷모습.
+  // phase의 companions/encounter는 헤더 칩용 그대로 두고 그림은 castAt 하나로 — 방(RoomStage)·만화와 같은 규칙
+  const memory = useWorld(s => s.memory);
+  const stage = { type: act.place.type, pose, ...shotCastOf(castAt(act, nowMs, memory)) };
 
   // ── 드래그 (pointer capture): 프레임 밖으로 나가도 놓을 때까지 따라온다 ──
   const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -191,11 +194,12 @@ export function CameraOverlay({ act, progress, nowMs, companions, encounter, pre
     addShot({ actKey: act.key, win: now, at: nowMs, crop: { ...crop }, shotId: id });
     setFlash(n => n + 1);
     try { navigator.vibrate?.(24); } catch { /* 진동 없는 브라우저 */ }
-    // 무대(ShotStage)에 보이던 그대로: 장면·자세·크롭·내 겉모습·동행·말 튼 상대·실루엣. 60 KB를 넘거나(BakeOversizeError) 어떤 이유로든 못 구우면
+    // 무대(ShotStage)에 보이던 그대로: 장면·자세·크롭·내 겉모습·동행·말 튼 상대·배경 인물. 60 KB를 넘거나(BakeOversizeError) 어떤 이유로든 못 구우면
     // id를 떼어 옛 경로(crop 재렌더)로 둔다 — 그 사이 다시 찍었으면 다른 id라 건드리지 않는다
     const input: BakeInput = {
       type: sceneTypeFor(act.place.type), pose, crop: { ...crop }, look: look ?? DEFAULT_LOOK,
-      friend: friend ? { color: friend.color } : undefined, met: met ? { color: met.color } : undefined, ghost: !!seen,
+      friend: stage.friendColor ? { color: stage.friendColor } : undefined, met: stage.metColor ? { color: stage.metColor } : undefined,
+      present: stage.present?.map(p => ({ color: p.color, look: presentLook(p.hairStyle), ...(p.glance ? { glance: true } : {}) })),
     };
     void bakeShot(input).then(b => putLocal(id, b.blob, 'shot')).catch((e: unknown) => {
       console.warn(`camera: 굽기 실패 — 옛 경로로 (${id})`, e);

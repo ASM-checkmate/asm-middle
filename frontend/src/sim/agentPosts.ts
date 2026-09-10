@@ -13,6 +13,7 @@ import type { FeedItem, PostCut, PostDraft, PostIn } from './posts';
 import { MAX_CAPTION, MAX_CUTS, validPostCut } from './posts';
 import { POST_CHOICES, type AgentRequest } from './requests';
 import { AGENTS, agentById, agentDayPlan, agentNames, type Agent, type AgentActivity } from './agents';
+import { crushTarget } from './affection';
 import type { Encounters } from './timeline';
 import { placeById, tzOf } from './places';
 import { rng } from './rng';
@@ -39,8 +40,6 @@ const NEW_FRIEND_MS = DAY_MS;
 /** "평소랑 다른 하루": 최근 14일의 만화에서 상위 3 범주에 오늘 범주가 없을 때 — 역사가 이만큼은 있어야 뜻이 있다 */
 const UNUSUAL_LOOKBACK_MS = 14 * DAY_MS;
 const UNUSUAL_MIN_HISTORY = 4;
-/** 설렘 2단계 (AFFECTION_SPEC) — crush.v가 이 이상이면 잘 보이고 싶은 상대 */
-const CRUSH_MIN = 0.5;
 /** 올리기 실패 뒤 다시 시도하기까지 (sim ms): 60s → 2m → … ≤ 15m */
 export const POST_RETRY_BASE_MS = 60_000;
 export const POST_RETRY_MAX_MS = 15 * 60_000;
@@ -248,9 +247,9 @@ export function worryLine(ctx: PostCtx, draft: PostDraft, comics: Comic[], acts:
     .filter(x => x.ts.length >= LIKE_MIN)
     .sort((a, b) => Math.max(...b.ts) - Math.max(...a.ts));
   for (const x of liked) { const n = nameOf(x.id, memory); if (n) return `${n} 이거 볼 텐데, 이 컷 괜찮아?`; }
-  // 2. 에이전트가 잘 보이고 싶은 상대 — 설렘 2단계 이상 (M5가 채운다, 여기서는 읽기만)
-  const crush = [...memory.friends].filter(f => (f.crush?.v ?? 0) >= CRUSH_MIN).sort((a, b) => (b.crush?.v ?? 0) - (a.crush?.v ?? 0))[0];
-  if (crush) return `${hante(crush.name)} 좀 멋있게 나온 걸로 올리고 싶은데 골라줄래?`;
+  // 2. 에이전트가 잘 보이고 싶은 상대 — 설렘 좋아함 이상 (AFFECTION_SPEC §1 띠, sim/affection.ts가 한 사람을 고른다; M5가 채운다, 여기서는 읽기만)
+  const crush = crushTarget(memory, 'like');
+  if (crush) return `${hante(crush.friend.name)} 좀 멋있게 나온 걸로 올리고 싶은데 골라줄래?`;
   // 3. 남이 나옴 — 컷에 동행
   for (const id of draft.companions) { const n = nameOf(id, memory); if (n) return `${irang(n)} 같이 찍힌 건데 올려도 돼?`; }
   // 4. 주인이 그린 낙서

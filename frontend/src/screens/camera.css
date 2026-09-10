@@ -56,7 +56,9 @@
 .cam-bg .scene:nth-child(2) { left: 0; }
 .cam-bg .scene:nth-child(3) { left: 100%; transform: scaleX(-1); }
 .cam-stage .cam-me, .cam-stage .cam-friend, .cam-stage .cam-met { filter: blur(calc(var(--dof, 0) * var(--fgblur, 0) * 5px)); }
-.cam-thumb .cam-bg, .cm-p.is-user .cam-bg { filter: blur(calc(var(--dof, 0) * var(--bgblur, 1) * 2.4px)); }
+/* 배경 인물은 무대와 함께 흐려진다 (초점이 캐릭터면 같이 흐리고, 배경이면 같이 선명) — 뒤에 있다는 게 심도로도 읽힌다 */
+.cam-stage .cam-present { filter: blur(calc(var(--dof, 0) * var(--bgblur, 1) * 6px)); }
+.cam-thumb .cam-bg, .cm-p.is-user .cam-bg, .cam-thumb .cam-stage .cam-present, .cm-p.is-user .cam-stage .cam-present { filter: blur(calc(var(--dof, 0) * var(--bgblur, 1) * 2.4px)); }
 .cam-thumb .cam-stage .cam-me, .cam-thumb .cam-stage .cam-friend, .cam-thumb .cam-stage .cam-met,
 .cm-p.is-user .cam-stage .cam-me, .cm-p.is-user .cam-stage .cam-friend, .cm-p.is-user .cam-stage .cam-met { filter: blur(calc(var(--dof, 0) * var(--fgblur, 0) * 2px)); }
 .cam-stage::before, .cam-stage::after { content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none; }
@@ -66,11 +68,15 @@
 .cam-me { position: absolute; left: 50%; bottom: 22%; width: 84%; height: auto; transform: translate(-50%, 9%); z-index: 3; }
 .cam-stage.has-friend .cam-me, .cam-stage.has-met .cam-me { left: 39%; }
 .cam-stage.has-friend.has-met .cam-me { left: 44%; }
-/* 동행은 오른쪽 옆에 (ActivityScreen .act-friend와 같은 자리), 마주친 상대는 그 앞, 못 걸어본 사람은 뒤의 실루엣 */
+/* 동행은 오른쪽 옆에 (ActivityScreen .act-friend와 같은 자리), 마주친 상대는 그 앞 */
 .cam-friend { position: absolute; left: 56%; bottom: 20%; width: 62%; height: auto; transform: translateY(9%); z-index: 2; }
 .cam-met { position: absolute; left: 60%; bottom: 18%; width: 53%; height: auto; transform: translateY(9%); z-index: 4; }
 .cam-stage.has-friend .cam-met { left: auto; right: -6%; bottom: 16%; }
-.cam-ghost { position: absolute; right: -2%; bottom: 30%; width: 53%; height: auto; z-index: 1; opacity: .35; filter: grayscale(1) blur(.6px); }
+/* 같은 공간에 있던 사람들 (FRIENDS_SPEC §6 표): 뒤의 띠(bottom 33~35 %)에 뒷모습으로 작게(나의 40 %), 왼쪽 하나·오른쪽 하나, 살짝 흐리게.
+   숫자는 photo/geometry.ts castLayout이 그대로 옮겨 적는다 — 바꾸면 거기도 */
+.cam-present { position: absolute; width: 34%; height: auto; transform: translateY(9%); z-index: 1; opacity: .85; }
+.cam-present-0 { left: 3%; bottom: 33%; }
+.cam-present-1 { left: auto; right: 1%; bottom: 35%; width: 32%; }
 
 /* 캠코더 OSD (만화 .cm-k와 같은 시각 배지) + 코랄 모서리 마크 */
 .cam-osd { position: absolute; top: 8px; left: 8px; z-index: 6; font-family: var(--mono); font-size: 11px; background: var(--ink); color: var(--paper); border-radius: 5px; padding: 2px 6px; letter-spacing: .04em; pointer-events: none; }

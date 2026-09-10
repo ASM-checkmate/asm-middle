@@ -5,6 +5,7 @@ import type { Status } from './status';
 import { pickupRule } from './call';
 import { hhmmIn, weekdayKoIn } from './tz';
 import { LATE_WHY, whereOf, type ChatMsg } from './chat';
+import { topCrush, type CrushStage } from './affection';
 import { api, authHeaders } from './api';
 
 // ─── LLM 관문 (docs/adr/0006-backend-and-llm.md · BACKEND-CONTRACT §3.2) ─────────────────────────────
@@ -58,7 +59,11 @@ export function setTier(t: LlmTier) { try { localStorage.setItem(TIER_KEY, t); }
 export interface ReplyRequest {
   tier: Exclude<LlmTier, 'off'>;
   agent: { name: string; traits: string[]; likes: string[]; dislikes: string[] };
-  situation: { where: string; doing: string; hhmm: string; lateWhy: string | null; mood: number; fatigue: number; worry: Exclude<WorryKey, 'none'> | null };
+  situation: {
+    where: string; doing: string; hhmm: string; lateWhy: string | null; mood: number; fatigue: number; worry: Exclude<WorryKey, 'none'> | null;
+    /** 설렘 대상과 단계 (CONTRACT §2.4, AFFECTION_SPEC §4) — 서버는 "직접 인정하지 않는다"를 못 박는다. 관심 아래면 null. 숫자는 보내지 않는다 */
+    crush: { name: string; stage: CrushStage } | null;
+  };
   recent: { from: 'me' | 'agent'; text: string }[];
   texts: string[];
   /** 묶음 id — 서버는 같은 (사용자, batch)의 진행 중 호출을 새 호출이 오면 취소한다 (BACKEND-CONTRACT §2.4) */
@@ -91,6 +96,8 @@ export function requestOf(texts: string[], s: { phase: Phase; status: Status; me
   const { where, doing } = whereOf(s.phase);
   const { ok, block } = pickupRule(s.phase);
   const worry = s.memory.worry && s.memory.worry.key !== 'none' && s.now - s.memory.worry.at < WORRY_FRESH_MS ? s.memory.worry.key : null;
+  const top = topCrush(s.memory);
+  const crush = top ? { name: top.name, stage: top.stage } : null;
   const recent = s.messages
     .filter(m => m.at <= s.now && m.batch !== batch && m.id !== `${batch}:r`)
     .slice(-RECENT_N)
@@ -98,7 +105,7 @@ export function requestOf(texts: string[], s: { phase: Phase; status: Status; me
   return {
     tier,
     agent: { name: s.memory.name, traits: s.memory.traits, likes: s.memory.likes, dislikes: s.memory.dislikes },
-    situation: { where, doing, hhmm: hhmmIn(s.now, s.phase.tz), lateWhy: ok ? null : LATE_WHY[block ?? 'quiet'], mood: Math.round(s.status.mood), fatigue: Math.round(s.status.fatigue), worry },
+    situation: { where, doing, hhmm: hhmmIn(s.now, s.phase.tz), lateWhy: ok ? null : LATE_WHY[block ?? 'quiet'], mood: Math.round(s.status.mood), fatigue: Math.round(s.status.fatigue), worry, crush },
     recent,
     texts,
     batch,

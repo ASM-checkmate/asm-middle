@@ -1,13 +1,13 @@
 import { create } from 'zustand';
-import type { ActivityOption, Anchor, BlockId, BlockPlan, Category, Friend, Comic, DayKey, DaySummaryItem, Gender, Journey, LlmDayPlan, LlmPlans, Look, Memory, Phase, RemoteCache, ScheduledActivity, ShotWin, UserShot, Visibility } from './types';
+import type { ActivityOption, Anchor, BlockId, BlockPlan, Category, Friend, Comic, DayKey, DaySummaryItem, Gender, Journey, LlmDayPlan, LlmPlans, Look, Memory, Phase, Place, RemoteCache, ScheduledActivity, ShotWin, UserShot, Visibility } from './types';
 import { isLook, splitDayKey } from './types';
 import type { WorryKey } from './types';
-import { BLOCK_ORDER, CATEGORIES, blockEndAt, blockSlotIn, blockStartAt } from './blocks';
+import { BLOCK_ORDER, CATEGORIES, blockEndAt, blockSlotIn, blockStartAt, categoryDef } from './blocks';
 import { DAY_MS, HOUR_MS, addDaysKey, compareDayKeys, dayEndOfKey, dayKeyIn, dayStartIn, dayStartOfKey, isValidTz, ownerTz } from './tz';
 import { isRealClock, loadClock, saveClock, simNow, withScale, jumpedTo, resetClock, type ClockState } from './clock';
 import { PLACES, cityKeyOfName, cityNameKo, hasPlace, placeById, registerCity, tzOf } from './places';
 import { optionsFromCards, suggestOptions, withStayDays } from './suggest';
-import { AGENTS, agentActivityAt, agentById, agentNames, agentOfFriend, companionCtx, friendOf, isRemoteId, remoteAgents, setRemoteCache, type Agent } from './agents';
+import { AGENTS, agentActivityAt, agentById, agentNames, agentOfFriend, appendLearned, companionCtx, friendOf, isRemoteId, learnedLine, remoteAgents, setRemoteCache, type Agent } from './agents';
 import { appearanceOf, arrivedKeys, emptyRemote, friendOfRemote, mergeRemote, pendingSlots, pruneRemote, publishWindow, remoteFriendIds, remoteHomeId, timelineSig, validRemote } from './remote';
 import { makeComic } from './comic';
 import { shotsFor, trimShots } from './shots';
@@ -25,8 +25,9 @@ import { addFriendRemote, checkHealth, onLocalSave, publishAgent, publishSchedul
 import { flushUploads, isUploaded, mediaReady, putLocal, startMediaQueue, subscribeUploaded } from './media';
 import { currentUser } from './api';
 import { isShotId } from '../photo/geometry';
-import { onLike, useSns } from './sns';
-import type { Post, PostDraft, PostIn } from './posts';
+import { onFeedLoaded, onLike, useSns } from './sns';
+import type { FeedItem, Post, PostDraft, PostIn } from './posts';
+import { crushAfterActivity, crushTarget, decayAll, emptyAgentLikes, pickAutoLikes, topCrush, validAgentLikes, type AgentLikes } from './affection';
 import { BEDTIME_GRACE_MS, POST_RETRY_BASE_MS, POST_RETRY_MAX_MS, askRequest, buildDraft, decidePost, emptyAgentPost, makeNpcPost, noteLikeIn, npcPostsDue, postInOf, relaxedWindow, validAgentPost, weekKeyOf, type AgentPostState, type NpcBaker, type PostCtx } from './agentPosts';
 
 /** Seed memory: the first launch starts from 모모; onboarding (`updateMemory`) overwrites name/likes/traits. */
@@ -49,9 +50,9 @@ export type MemoryPatch = Partial<Pick<Memory, 'name' | 'likes' | 'dislikes' | '
 /** "다른 제안 보기" counter per day and block. */
 export type Regen = Record<DayKey, Partial<Record<BlockId, number>>>;
 /** The pure inputs of the timeline — the bundle the helpers below pass around. `remote`는 진짜 사람 에이전트 캐시 (§3.4, 없으면 null). */
-export interface World { days: Days; anchor: Anchor; memory: Memory; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; llmPlans: LlmPlans; remote?: RemoteCache | null; agentPost?: AgentPostState }
+export interface World { days: Days; anchor: Anchor; memory: Memory; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; llmPlans: LlmPlans; remote?: RemoteCache | null; agentPost?: AgentPostState; agentLikes?: AgentLikes }
 /** v5 그대로 — `shots`(ADR-0004)·`llmPlans`(ADR-0010)·`remote`(BACKEND-CONTRACT §3.4)·`agentPost`(ADR-0021)는 optional 필드라 옛 저장본은 빈 값으로 읽는다 (버전을 올리지 않는다). */
-interface Persisted { v: 5; days: Days; anchor: Anchor; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; llmPlans?: LlmPlans; remote?: RemoteCache; agentPost?: AgentPostState }
+interface Persisted { v: 5; days: Days; anchor: Anchor; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; llmPlans?: LlmPlans; remote?: RemoteCache; agentPost?: AgentPostState; agentLikes?: AgentLikes }
 
 const WORLD_KEY = 'theworld.world.v5';   // + 대화 실 (ADR-0002). 옛 판은 한 번만 읽어 올린다
 const WORLD_KEY_V4 = 'theworld.world.v4';  // legacy: days + anchor(+status), 대화 실 없음 (ADR-0001)
@@ -185,7 +186,7 @@ const validShots = (raw: unknown): UserShot[] => {
       && (c.pitch === undefined || Number.isFinite(c.pitch)) && (c.light === undefined || Number.isFinite(c.light)) && (c.dof === undefined || Number.isFinite(c.dof)) && (c.focus === undefined || c.focus === 'near' || c.focus === 'far');
   }).map(x => (x.shotId === undefined || isShotId(x.shotId) ? x : (({ shotId: _drop, ...rest }) => rest)(x)));
 };
-const persistedOf = (w: World): Persisted => ({ v: 5, days: w.days, anchor: w.anchor, journeys: w.journeys, regen: w.regen, encounters: w.encounters, requests: w.requests, calls: w.calls, messages: w.messages, dueCalls: w.dueCalls, shots: w.shots, llmPlans: w.llmPlans, ...(w.remote ? { remote: w.remote } : {}), ...(w.agentPost ? { agentPost: w.agentPost } : {}) });
+const persistedOf = (w: World): Persisted => ({ v: 5, days: w.days, anchor: w.anchor, journeys: w.journeys, regen: w.regen, encounters: w.encounters, requests: w.requests, calls: w.calls, messages: w.messages, dueCalls: w.dueCalls, shots: w.shots, llmPlans: w.llmPlans, ...(w.remote ? { remote: w.remote } : {}), ...(w.agentPost ? { agentPost: w.agentPost } : {}), ...(w.agentLikes ? { agentLikes: w.agentLikes } : {}) });
 const horizonFor = (t: number) => t + HORIZON_MS;
 const build = (w: World, t: number) => buildTimeline(w.anchor, w.days, w.memory, w.journeys, horizonFor(t), w.encounters);
 
@@ -301,6 +302,26 @@ function friendProposal(id: BlockId, dayKey: DayKey, myCity: string, friend: Fri
 }
 
 /**
+ * 설렘이 좋아함 이상이면 그 사람이 그 블록에 가는 곳이 카드 후보에 오른다 (AFFECTION_SPEC §4 "계획 후보에 그 사람이 자주 가는 곳", ADR-0023 영향).
+ * 동행이 아니다 — friendId·proposedBy 없이 장소·활동만, 이유는 얼버무린 "왠지 {동네} 가고 싶어" (이름·단계는 절대 안 나온다). 그 사람의 하루(NPC는 시드,
+ * 진짜 사람은 발행된 일정)에서 내 도시 안·집이 아닌 활동일 때만. 없으면 null. 결정적 — 난수 없음
+ */
+function crushCard(memory: Memory, blockId: BlockId, dayKey: DayKey, myCity: string): ActivityOption | null {
+  const top = crushTarget(memory, 'like');
+  if (!top) return null;
+  const agent = agentOfFriend(top.friend);
+  const act = agentActivityAt(agent, blockId, dayKey);
+  if (!act || act.placeId === agent.homePlaceId) return null;
+  let place: Place;
+  try { place = placeById(act.placeId); } catch { return null; }
+  if (place.city !== myCity || place.type === 'friend_home' || place.type === 'home') return null;
+  return { id: `${blockId}-crush-${place.id}`, title: stripNames(act.option.title, false), reason: `왠지 ${place.area} 가고 싶어`, emoji: act.option.emoji, placeId: place.id, category: act.option.category };
+}
+/** 카드 3장 중 셋째를 설렘 카드로 — 그 장소가 이미 카드에 있거나 다른 블록이 쓰는 곳(`used`, suggestOptions의 usedPlaceIds와 같은 문)이면 그대로. 계획 전체가 아니라 후보 하나다 */
+const withCrushCard = (options: ActivityOption[], card: ActivityOption | null, used: readonly string[]): ActivityOption[] =>
+  !card || options.some(o => o.placeId === card.placeId) || used.includes(card.placeId) ? options : [...options.slice(0, 2), card];
+
+/**
  * The agent decides a block **when it starts** — nothing is pre-filled any more (FRIENDS_SPEC §1). A free block
  * that has not started stays empty (category null, options []) unless (a) it is the day the trip is due home, or
  * (b) a friend already planned something here, which pre-fills it as a companion plan. A started free block gets a
@@ -357,6 +378,9 @@ export function decide(dayKey: DayKey, w: World, horizon: number, now: number): 
           : earn ? 'work'
             : worry ?? llm?.category ?? r.pick(CATEGORIES.filter(c => c.id !== 'travel' && c.id !== 'meal')).id;
       if (!p.options.length) p.options = llm && llm.category === p.category && llm.options.every(o => hasPlace(o.placeId)) ? llm.options : suggestOptions(ctx(p.category));
+      // 정말 빈 블록(범주도 사용자가 안 고른)의 카드 3장 중 하나는 설렘 대상이 가는 곳 (AFFECTION_SPEC §4) — 숙소 밤은 빼고. 카드의 범주는 그 사람 활동의 것이라
+      // 사용자가 '운동'이라 골라 둔 블록엔 끼우지 않는다 (고르면 블록 이름이 바뀐다). 설렘이 없으면 카드는 그대로다
+      if (p0.category === null && !p0.options.length && !hotel) p.options = withCrushCard(p.options, crushCard(w.memory, id, dayKey, from.city), usedPlaceIds(plans, id));
       if (p.category === 'meal') p.options = rankMealOptions(p.options, w.memory);
       if (hotel && p.category === 'rest') p.options = [...p.options.filter(o => o.placeId === hotel.id), ...p.options.filter(o => o.placeId !== hotel.id)];
       // 에이전트의 자기 선택도 사용자의 확정과 **같은 문**을 지난다 (sim/review.ts):
@@ -461,6 +485,11 @@ function prune(w: World, now: number, onAct: (a: ScheduledActivity) => void): Wo
  * The comic of a finished activity: reuse the book's copy, else write it, remember the visit and — when the talk
  * roll succeeded — the new friend (FRIENDS_SPEC §4: 활동이 끝나면 friends에 추가). The encounter log counts every
  * 마주침, talked or not, so running into the same agent again is likelier to end in a hello. Pure.
+ *
+ * 같이 놀았으면 SNS 친구 (FRIENDS_SPEC §6, ADR-0022 결정 3): 동행(`companions`)과 말을 튼 상대(`encounter.talked` — 대화 롤 성공 이후는 동행이다,
+ * §6 표) 마다 친구가 아니면 그 자리에서 친구가 되고, 우정(`bond`)이 1 오르고, 상대에 대해 알게 된 한 줄이 `learned`에 쌓인다 (규칙·결정적, 중복 없이
+ * 12개). 같은 공간에 있기만 한 사람(`presentNearby`)은 마주침 카운트만 오른다 (§6 표 "관계 효과: 없음. 마주침 카운트만" — SNS '최근 마주친',
+ * 다음 굴림의 '또 봤네' +20 %). 동행은 세지 않는다. 만화 id로 멱등이라 한 활동이 두 번 세지지 않는다.
  */
 function settle(a: ScheduledActivity, book: Comic[], memory: Memory, encounters: Encounters, shots: UserShot[] = []): { comic: Comic; book: Comic[]; memory: Memory; encounters: Encounters } {
   const existing = book.find(b => b.id === `c:${a.key}`);
@@ -470,17 +499,28 @@ function settle(a: ScheduledActivity, book: Comic[], memory: Memory, encounters:
   let nextMemory = a.place.type === 'home'
     ? memory
     : { ...memory, visited: [...memory.visited.filter(v => !(v.placeId === a.place.id && v.at === a.endAt)), { placeId: a.place.id, at: a.endAt }].slice(-VISITED_CAP) };
-  let nextEncounters = encounters;
+  let nextEncounters = { ...encounters };
   const e = a.encounter;
-  if (e) {
-    nextEncounters = { ...encounters, [e.agentId]: (encounters[e.agentId] ?? 0) + 1 };
-    const agent = agentById(e.agentId);
-    if (e.talked && !e.again && agent && !nextMemory.friends.some(f => f.id === e.agentId)) {
-      nextMemory = { ...nextMemory, friends: [...nextMemory.friends, friendOf(agent, { at: a.endAt, placeId: a.place.id })] };
+  // 마주침 카운트: 굴림 상대와 같은 공간의 사람 전부 (동행은 presentNearby에 없다)
+  for (const id of new Set([...(e ? [e.agentId] : []), ...(a.presentNearby ?? [])])) nextEncounters[id] = (nextEncounters[id] ?? 0) + 1;
+  // 같이 논 사람: 말을 튼 상대(새 친구든 `again`이든) + 동행
+  const played = [...(e?.talked ? [e.agentId] : []), ...a.companions.filter(id => id !== e?.agentId)];
+  for (const id of played) {
+    const agent = agentById(id);
+    let friends = nextMemory.friends;
+    if (!friends.some(f => f.id === id)) {
+      if (!agent) continue;
+      friends = [...friends, friendOf(agent, { at: a.endAt, placeId: a.place.id })];
       // 진짜 사람이면 서버에도 적는다 (BACKEND-CONTRACT §3.4 d — 대칭·멱등, 불 붙이고 잊는다)
-      if (isRemoteId(e.agentId)) addFriendRemote(e.agentId, a.endAt, a.place.id);
+      if (isRemoteId(id)) addFriendRemote(id, a.endAt, a.place.id);
     }
+    const label = categoryDef(a.option.category).label;
+    friends = friends.map(f => f.id === id ? { ...f, bond: (f.bond ?? 0) + 1, learned: appendLearned(f.learned, learnedLine(a, id, label, f.learned ?? [])) } : f);
+    nextMemory = { ...nextMemory, friends };
   }
+  // 설렘 (AFFECTION_SPEC §3, ADR-0023): 사다리 뒤에 — 동행은 소폭, 마주침은 크게, 같은 공간의 친구는 "서로 봤다". 이성이고 내 성별을 알 때만.
+  // 상대의 성별·취향은 풀·서버 프로필에서 (옛 저장본의 친구 칸엔 성별이 없다)
+  nextMemory = crushAfterActivity(nextMemory, a, id => { const ag = agentById(id); return ag ? { gender: ag.gender, likes: ag.likes } : null; });
   return { comic, book: [...book, comic], memory: nextMemory, encounters: nextEncounters };
 }
 
@@ -537,6 +577,10 @@ export interface WorldState {
   agentPost: AgentPostState;
   /** 주인이 그 사람 글에 좋아요를 켰다 (sns.onLike → 여기) — "관심 있는 사람" 고민의 재료 */
   noteLike: (authorId: string) => void;
+  /** 에이전트가 먼저 누른 좋아요의 기록 (sim/affection, AFFECTION_SPEC §4): 누른 글 id·오늘 누른 수. world 저장본에 실린다 */
+  agentLikes: AgentLikes;
+  /** 피드 한 장이 오면(sns.onFeedLoaded → 여기) 설렘이 좋아함 이상인 사람의 글에 에이전트가 먼저 좋아요 — 글마다 한 번, 하루 3개. 주인의 좋아요 기록엔 안 적힌다 */
+  agentAutoLike: (items: readonly FeedItem[]) => void;
   /** 그림 캔버스 오버레이가 열린 블록 (없으면 null) */
   sketchOpen: BlockId | null;
   /** 카메라 오버레이가 열려 있나 */
@@ -681,7 +725,7 @@ export interface WorldState {
 const comicCache = new Map<string, Comic>();
 const summaryOf = (acts: ScheduledActivity[], comicOf: (a: ScheduledActivity) => Comic): DaySummaryItem[] =>
   [...acts].sort((a, b) => a.endAt - b.endAt).slice(-SUMMARY_CAP).map(a => ({ blockId: a.blockIds[0], act: a, comic: comicOf(a) }));
-const worldOf = (s: WorldState): World => ({ days: s.days, anchor: s.anchor, memory: s.memory, journeys: s.journeys, regen: s.regen, encounters: s.encounters, requests: s.requests, calls: s.calls, messages: s.messages, dueCalls: s.dueCalls, shots: s.shots, llmPlans: s.llmPlans, remote: s.remote, agentPost: s.agentPost });
+const worldOf = (s: WorldState): World => ({ days: s.days, anchor: s.anchor, memory: s.memory, journeys: s.journeys, regen: s.regen, encounters: s.encounters, requests: s.requests, calls: s.calls, messages: s.messages, dueCalls: s.dueCalls, shots: s.shots, llmPlans: s.llmPlans, remote: s.remote, agentPost: s.agentPost, agentLikes: s.agentLikes });
 
 // ─── 가상 친구 글의 굽기 (ADR-0021 결정 6) ──────────────────────────────────────────────
 // bakeShot(photo/bake.tsx)·sceneTypeFor(scenes/index.tsx)는 .tsx라 node 하네스가 못 읽는다 — 브라우저에서만 동적으로 올리고, 하네스는
@@ -733,7 +777,8 @@ export const useWorld = create<WorldState>((set, get) => {
   const messages0 = (Array.isArray(persisted?.messages) ? persisted.messages : []).filter(m => !m.id.startsWith('nego:'));
   const dueCalls0 = (Array.isArray(persisted?.dueCalls) ? persisted.dueCalls : []).map(d => (d.worry !== undefined && !isWorryKey(d.worry) ? { ...d, worry: undefined } : d));
   const agentPost0 = validAgentPost(persisted?.agentPost);
-  let w: World = { days: validDays(persisted?.days), anchor: validAnchor(persisted?.anchor, now, memory), memory, journeys: persisted?.journeys ?? {}, regen: persisted?.regen ?? {}, encounters, requests: requests0, calls: Array.isArray(persisted?.calls) ? persisted.calls : [], messages: messages0, dueCalls: dueCalls0, shots, llmPlans: validLlmPlans(persisted?.llmPlans), remote, agentPost: agentPost0 };
+  const agentLikes0 = validAgentLikes(persisted?.agentLikes);
+  let w: World = { days: validDays(persisted?.days), anchor: validAnchor(persisted?.anchor, now, memory), memory, journeys: persisted?.journeys ?? {}, regen: persisted?.regen ?? {}, encounters, requests: requests0, calls: Array.isArray(persisted?.calls) ? persisted.calls : [], messages: messages0, dueCalls: dueCalls0, shots, llmPlans: validLlmPlans(persisted?.llmPlans), remote, agentPost: agentPost0, agentLikes: agentLikes0 };
   const gapActs: ScheduledActivity[] = [];
   const remember = (a: ScheduledActivity) => { settleLocal(a); if (a.endAt > lastSeen && a.endAt <= now) gapActs.push(a); };
   w = prune(w, now, remember);
@@ -748,6 +793,7 @@ export const useWorld = create<WorldState>((set, get) => {
   const first = decide(today, w, horizonFor(now), now);
   w = { ...w, days: first.days };
   for (const a of first.timeline) if (a.endAt <= now) remember(a);
+  memory = decayAll(memory, now);   // 2주 넘게 안 본 마음은 식는다 (AFFECTION_SPEC §3) — 켜 둔 동안은 날이 바뀔 때(sync), 껐다 켜면 여기서
   w = { ...w, memory, encounters };
   const initialPhase = phaseAt(now, first.timeline, w.anchor, memory, settleLocal);
   const initialStatus = foldStatus(w.anchor, first.timeline, now, memory);
@@ -807,6 +853,8 @@ export const useWorld = create<WorldState>((set, get) => {
   // 주인의 좋아요 → "관심 있는 사람" 기록 (SNS_SPEC §9). **물은** 초안이 있으면 글쓰기 화면이 미리 채울 수 있게 useSns에도 둔다 —
   // 묻지 않고 올리는 중인 초안(asked=false)은 엔진의 것이라 화면에 안 보인다 (보이면 주인이 올리기/고치기를 눌러 두 번 올라간다)
   onLike(id => get().noteLike(id));
+  // 에이전트의 먼저 좋아요 (AFFECTION_SPEC §4) — 피드 한 장이 올 때마다
+  onFeedLoaded(items => get().agentAutoLike(items));
   if (agentPost0.pending?.asked) useSns.getState().setDraft(agentPost0.pending.draft);
   // 실패 뒤 백오프 — recompute가 tick마다(1초) 돌고 디바운스(800 ms)가 그보다 짧아, 이게 없으면 죽은 서버를 초마다 두드린다
   let remoteFailures = 0;
@@ -941,6 +989,7 @@ export const useWorld = create<WorldState>((set, get) => {
       let { book, memory, encounters } = s;
       w = prune(w, t, a => { const r = settle(a, book, memory, encounters, s.shots); book = r.book; memory = r.memory; encounters = r.encounters; comicCache.set(a.key, r.comic); });
       const shots = trimShots(s.shots, w.anchor.t);
+      memory = decayAll(memory, t);   // 날이 바뀌면 설렘의 시간 감쇠 (AFFECTION_SPEC §3)
       w = { ...w, memory, encounters, shots, days: liveOut({ ...w, memory, encounters, shots }, t) };
       const today = currentDayKey(t, build(w, t), w.anchor.tz);
       if (book !== s.book) save(BOOK_KEY, book);
@@ -1097,7 +1146,8 @@ export const useWorld = create<WorldState>((set, get) => {
     for (const due of npcPostsDue(s.memory, s.today, t, have)) {
       npcTried.add(due.postId);
       void makeNpcPost(due, { bake, putLocal }).then(
-        item => { const cur = useSns.getState(); cur.setLocalPosts([item, ...cur.localPosts]); },
+        // 새 가상 친구 글은 피드를 다시 받지 않아도 먼저 좋아요의 후보다 (AFFECTION_SPEC §4) — 설렘 대상은 대개 NPC라 여기서 안 보면 다음 SNS 열기까지 안 눌린다
+        item => { const cur = useSns.getState(); cur.setLocalPosts([item, ...cur.localPosts]); get().agentAutoLike([]); },
         () => { /* 굽기·저장 실패 — 오늘은 건너뛴다 */ },
       );
     }
@@ -1200,7 +1250,7 @@ export const useWorld = create<WorldState>((set, get) => {
     clock, now, anchor: w.anchor, days: w.days, today, tz: initialPhase.tz, memory, agents: [...remoteAgents(), ...AGENTS], encounters, status: initialStatus, requests: w.requests, calls: w.calls, activeCall: null, onboarded,
     messages: w.messages, dueCalls: w.dueCalls, chatOpen: false, chatSeen: load<number>(CHAT_SEEN_KEY, now), llmTier: getTier(), tripBusy: null, llmPlans: w.llmPlans, planBusy: false, say: null,
     backend: sync0.backend, sync: sync0.sync, remote: w.remote ?? null,
-    shots: w.shots, sketchOpen: null, cameraOpen: false, agentPost: agentPost0,
+    shots: w.shots, sketchOpen: null, cameraOpen: false, agentPost: agentPost0, agentLikes: agentLikes0,
     plans: w.days[today], journeys: w.journeys, regen: w.regen, book,
     timeline: first.timeline,
     phase: initialPhase,
@@ -1465,6 +1515,18 @@ export const useWorld = create<WorldState>((set, get) => {
       }
     },
     noteLike: (authorId) => { set({ agentPost: noteLikeIn(get().agentPost, authorId, get().now) }); persist(); },
+    agentAutoLike: (items) => {
+      const s = get();
+      const sns = useSns.getState();
+      // 받은 장(진짜 사람의 글) + 내 폰이 만든 가상 친구 글 — 설렘 대상은 대개 NPC라 걔들 글이 빠지면 이 행동이 안 보인다
+      const local = new Set(sns.localPosts.map(i => i.post.id));
+      const cands = [...items, ...sns.localPosts].map(i => ({ id: i.post.id, authorId: i.post.authorId, likedByMe: i.post.likedByMe }));
+      const { state, picked } = pickAutoLikes(s.memory, cands, s.agentLikes, s.today);
+      if (!picked.length) return;
+      set({ agentLikes: state }); persist();
+      // 주인이 아니라 에이전트가 누른 것 — 주인의 좋아요 기록(noteLike)에 안 적힌다. 서버가 거절하면 sns가 되돌린다 (기록은 남아 다시 안 누른다)
+      for (const id of picked) { if (local.has(id)) sns.likeLocalToggle(id, 'agent'); else void sns.likeToggle(id, 'agent'); }
+    },
     callAgent: () => {
       const s = get();
       if (s.activeCall) return;
@@ -1537,7 +1599,7 @@ export const useWorld = create<WorldState>((set, get) => {
       const batch = openBatch(s.messages, s.now) ?? id;
       const mine = s.messages.filter(m => m.batch === batch && m.from === 'me');
       const texts = [...mine.map(m => m.text), text];
-      const reply = replyToAll(texts, { phase: s.phase, status: s.status, name: s.memory.name, seed: `${batch}:${texts.length}`, now: s.now });
+      const reply = replyToAll(texts, { phase: s.phase, status: s.status, name: s.memory.name, seed: `${batch}:${texts.length}`, now: s.now, crush: topCrush(s.memory) });
       const readAt = s.now + reply.readMs;
       const stale = new Set([`${batch}:r`, `worry:${batch}`, `ask:${batch}`]);
       // 답장은 **도착할 시각을 달고** 지금 저장된다. 실은 `at <= now`만 그리므로 늦은 답장이 저절로 늦게 뜬다.
@@ -1566,7 +1628,10 @@ export const useWorld = create<WorldState>((set, get) => {
         const req = requestOf(texts, { phase: s.phase, status: s.status, memory, messages: msgs, now: s.now }, s.llmTier, batch);
         // 규칙 답장이 뜨기 전까지만 기다린다 (sim 시간이 실시간이면 delayMs가 그 여유다)
         const budget = Math.max(4_000, Math.min(30_000, reply.delayMs / Math.max(s.clock.scale, 1) - 1_000));
-        scheduleReply(batch, req, budget, r => get().applyLlmReply(batch, seq, r));
+        // 설렘 대상이 실린 요청의 `text: null`은 침묵이 아니라 서버가 이름을 먼저 꺼낸 답을 버린 것일 수 있다 (ReplyService.leaksCrushName) —
+        // 그땐 규칙 답장을 남긴다. 침묵(읽씹)은 잃지만, 아무 답도 안 하는 것보다 낫다 (CONTRACT §2.4)
+        const ruleText = reply.text;
+        scheduleReply(batch, req, budget, r => get().applyLlmReply(batch, seq, r.text === null && req.situation.crush ? { ...r, text: ruleText } : r));
       }
     },
     setLlmTier: (t) => { setTier(t); set({ llmTier: t }); if (t !== 'off') void get().planDay(); },
@@ -1772,7 +1837,7 @@ export const useWorld = create<WorldState>((set, get) => {
       const remote = s.remote ? { ...s.remote, slots: {} } : null;
       setRemoteCache(remote, { meId: s.sync.userId, homeCity: homeCityOf(s.memory) });
       publishedSig = null;
-      set({ clock: c, anchor, days: {}, regen: {}, llmPlans: {}, today: dayKeyIn(t, anchor.tz), tz: anchor.tz, plans: emptyPlans(), timeline: [], summary: null, gap: null, requests: [], calls: [], activeCall: null, selectedBlock: null, messages: [], dueCalls: [], chatOpen: false, say: null, shots: [], sketchOpen: null, cameraOpen: false, remote, agentPost: emptyAgentPost() });
+      set({ clock: c, anchor, days: {}, regen: {}, llmPlans: {}, today: dayKeyIn(t, anchor.tz), tz: anchor.tz, plans: emptyPlans(), timeline: [], summary: null, gap: null, requests: [], calls: [], activeCall: null, selectedBlock: null, messages: [], dueCalls: [], chatOpen: false, say: null, shots: [], sketchOpen: null, cameraOpen: false, remote, agentPost: emptyAgentPost(), agentLikes: emptyAgentLikes() });
       useSns.getState().setDraft(null);
       recompute(t);
     },

@@ -45,16 +45,24 @@ check('나: 너비 84% (233.52), 가운데', near(me.w, 233.52) && near(me.x + m
 // 발(viewBox y 182/200)이 78% 높이 언저리: bottom = 300·.78 + .09·233.52 = 255.0 → 발 y = bottom − 233.52·(1 − .91) = 234 ≈ 78% (234)
 check('나: 발이 78% 높이에 닿는다', near(me.y + me.h * 0.91, 234, 1), String(me.y + me.h * 0.91));
 const wf = G.castLayout(S, { friend: true });
-check('동행 있으면 나는 39%로', near(wf.me.x + wf.me.w / 2, 0.39 * 278) && !!wf.friend && !wf.met && !wf.ghost, JSON.stringify(wf));
+check('동행 있으면 나는 39%로', near(wf.me.x + wf.me.w / 2, 0.39 * 278) && !!wf.friend && !wf.met && wf.present.length === 0, JSON.stringify(wf));
 check('동행: left 56%, 너비 62%', wf.friend && near(wf.friend.x, 0.56 * 278) && near(wf.friend.w, 0.62 * 278), JSON.stringify(wf.friend));
 const wm = G.castLayout(S, { met: true });
 check('상대만: 나 39%, 상대 left 60% 너비 53%', near(wm.me.x + wm.me.w / 2, 0.39 * 278) && wm.met && near(wm.met.x, 0.60 * 278) && near(wm.met.w, 0.53 * 278), JSON.stringify(wm));
 const wb = G.castLayout(S, { friend: true, met: true });
 check('둘 다: 나 44%, 상대는 right -6% (x = 1.06w − .53w)', near(wb.me.x + wb.me.w / 2, 0.44 * 278) && wb.met && near(wb.met.x, 0.53 * 278), JSON.stringify(wb));
 check('둘 다: 상대 bottom 16% (동행 없을 때 18%)', wb.met && wm.met && wb.met.y + wb.met.h > wm.met.y + wm.met.h, '');
-const wg = G.castLayout(S, { ghost: true });
-check('실루엣: right -2%, bottom 30%, 나는 가운데 그대로', wg.ghost && near(wg.ghost.x + wg.ghost.w, 1.02 * 278) && near(wg.ghost.y + wg.ghost.h, 0.7 * 300) && near(wg.me.x, me.x), JSON.stringify(wg));
-check('자리는 결정적', JSON.stringify(G.castLayout(S, { friend: true, met: true, ghost: true })) === JSON.stringify(G.castLayout(S, { friend: true, met: true, ghost: true })), '');
+// 같은 공간에 있던 사람들 (FRIENDS_SPEC §6, camera.css .cam-present-0/-1): 뒤의 왼쪽(left 3% bottom 33% width 34%)·오른쪽(right 1% bottom 35% width 32%), 나는 가운데 그대로
+const wp1 = G.castLayout(S, { present: 1 });
+check('배경 인물 하나: 왼쪽 3%, 너비 34% (나의 40%), 나는 가운데 그대로', wp1.present.length === 1 && near(wp1.present[0].x, 0.03 * 278) && near(wp1.present[0].w, 0.34 * 278) && near(wp1.me.x, me.x), JSON.stringify(wp1));
+check('배경 인물: 발이 33% 높이 언저리 (bottom 33% + 9% 자기 크기)', near(wp1.present[0].y + wp1.present[0].h, 300 - 0.33 * 300 + 0.09 * 0.34 * 278), String(wp1.present[0].y + wp1.present[0].h));
+const wp2 = G.castLayout(S, { present: 2 });
+check('배경 인물 둘: 둘째는 오른쪽 1%, 너비 32%, 더 뒤(bottom 35%)', wp2.present.length === 2 && near(wp2.present[1].x + wp2.present[1].w, 0.99 * 278) && near(wp2.present[1].w, 0.32 * 278) && wp2.present[1].y + wp2.present[1].h < wp2.present[0].y + wp2.present[0].h, JSON.stringify(wp2.present));
+check('배경 인물은 둘까지 (셋을 줘도 둘)', G.castLayout(S, { present: 3 }).present.length === 2 && G.PRESENT_MAX === 2, '');
+check('배경 인물은 나보다 뒤에서 작다 (너비 < 나의 절반)', wp2.present.every(b => b.w < wp2.me.w / 2 && b.y < wp2.me.y + wp2.me.h * 0.5), '');
+check('동행·상대·배경 둘이 한꺼번에', (() => { const l = G.castLayout(S, { friend: true, met: true, present: 2 }); return !!l.friend && !!l.met && l.present.length === 2 && near(l.me.x + l.me.w / 2, 0.44 * 278); })(), '');
+check('자리는 결정적', JSON.stringify(G.castLayout(S, { friend: true, met: true, present: 2 })) === JSON.stringify(G.castLayout(S, { friend: true, met: true, present: 2 })), '');
+check('배경 인물의 흐림 정도 .85', G.PRESENT_OPACITY === 0.85, String(G.PRESENT_OPACITY));
 
 // ── 크롭 ──────────────────────────────────────────────────────────────────────
 console.log('\n── 크롭 ──');

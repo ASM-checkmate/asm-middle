@@ -1,5 +1,6 @@
-import type { ActivityOption, BlockId, Category, DayKey, Friend, Memory, Place, PlaceType, PublishedActivity, RemoteAgent, RemoteCache, RemoteHit } from './types';
-import { makeDayKey, splitDayKey } from './types';
+import type { ActivityOption, BlockId, CastFigure, Category, ComicCast, DayKey, Friend, Gender, Look, Memory, Place, PlaceType, PublishedActivity, RemoteAgent, RemoteCache, RemoteHit, ScheduledActivity } from './types';
+import { LOOK_HAIR_STYLES, makeDayKey, splitDayKey } from './types';
+import { crushStage } from './affection';
 import { BLOCK_ORDER, blockAtIn, blockEndAt, blockStartAt } from './blocks';
 import { dayKeyIn, dayStartOfKey } from './tz';
 import { hasPlace, placeById, registerRemotePlaces, tzOf } from './places';
@@ -22,18 +23,20 @@ export interface Agent {
   likes: string[];
   traits: string[];
   hairStyle?: string;
+  /** 성별 (AFFECTION_SPEC §2) — 설렘은 이성에게만. NPC는 풀에 적혀 있고, 진짜 사람은 서버 프로필에서. 없으면 모름 (추정하지 않는다) */
+  gender?: Gender;
 }
 
-/** 민수·하나 are the seed friends; the six below are other users' agents (the NPC pool) until a server exists. */
+/** 민수·하나 are the seed friends; the six below are other users' agents (the NPC pool) until a server exists. 성별은 넷씩 (ADR-0023 — 가상 친구도 성별을 가진다) */
 export const AGENTS: Agent[] = [
-  { id: 'minsu',  name: '민수', homePlaceId: 'minsu-home',  color: '#5FC9A6', emoji: '🐥', likes: ['게임', '떡볶이', '한강'],        traits: ['외향적', '수다스러운'], hairStyle: 'short' },
-  { id: 'hana',   name: '하나', homePlaceId: 'hana-home',   color: '#A9DCF5', emoji: '🐰', likes: ['카페', '그림 그리기', '전시'],   traits: ['조용한', '느긋한'],     hairStyle: 'bob' },
-  { id: 'jiwoo',  name: '지우', homePlaceId: 'jiwoo-home',  color: '#F6C445', emoji: '🐤', likes: ['커피', '책', '산책'],            traits: ['호기심 많은', '외향적'], hairStyle: 'curly' },
-  { id: 'taerin', name: '태린', homePlaceId: 'taerin-home', color: '#5FC9A6', emoji: '🦊', likes: ['전시', '그림 그리기', '빵'],     traits: ['조용한', '섬세한'],     hairStyle: 'long' },
-  { id: 'doyun',  name: '도윤', homePlaceId: 'doyun-home',  color: '#A9DCF5', emoji: '🐧', likes: ['러닝', '자전거', '한강'],        traits: ['느긋한', '낯가리는'],   hairStyle: 'short' },
-  { id: 'serin',  name: '세린', homePlaceId: 'serin-home',  color: '#FF9A8B', emoji: '🐱', likes: ['영화', '시장', '먹는 거'],       traits: ['수다스러운', '외향적'], hairStyle: 'bob' },
-  { id: 'hyeon',  name: '현이', homePlaceId: 'hyeon-home',  color: '#8FD694', emoji: '🐢', likes: ['책', '공부', '카페'],            traits: ['조용한', '낯가리는'],   hairStyle: 'short' },
-  { id: 'bomi',   name: '보미', homePlaceId: 'bomi-home',   color: '#6B7BB5', emoji: '🐶', likes: ['음악', '바다', '사진'],          traits: ['호기심 많은', '느긋한'], hairStyle: 'curly' },
+  { id: 'minsu',  name: '민수', homePlaceId: 'minsu-home',  color: '#5FC9A6', emoji: '🐥', likes: ['게임', '떡볶이', '한강'],        traits: ['외향적', '수다스러운'], hairStyle: 'short', gender: 'male' },
+  { id: 'hana',   name: '하나', homePlaceId: 'hana-home',   color: '#A9DCF5', emoji: '🐰', likes: ['카페', '그림 그리기', '전시'],   traits: ['조용한', '느긋한'],     hairStyle: 'bob',   gender: 'female' },
+  { id: 'jiwoo',  name: '지우', homePlaceId: 'jiwoo-home',  color: '#F6C445', emoji: '🐤', likes: ['커피', '책', '산책'],            traits: ['호기심 많은', '외향적'], hairStyle: 'curly', gender: 'male' },
+  { id: 'taerin', name: '태린', homePlaceId: 'taerin-home', color: '#5FC9A6', emoji: '🦊', likes: ['전시', '그림 그리기', '빵'],     traits: ['조용한', '섬세한'],     hairStyle: 'long',  gender: 'female' },
+  { id: 'doyun',  name: '도윤', homePlaceId: 'doyun-home',  color: '#A9DCF5', emoji: '🐧', likes: ['러닝', '자전거', '한강'],        traits: ['느긋한', '낯가리는'],   hairStyle: 'short', gender: 'male' },
+  { id: 'serin',  name: '세린', homePlaceId: 'serin-home',  color: '#FF9A8B', emoji: '🐱', likes: ['영화', '시장', '먹는 거'],       traits: ['수다스러운', '외향적'], hairStyle: 'bob',   gender: 'female' },
+  { id: 'hyeon',  name: '현이', homePlaceId: 'hyeon-home',  color: '#8FD694', emoji: '🐢', likes: ['책', '공부', '카페'],            traits: ['조용한', '낯가리는'],   hairStyle: 'short', gender: 'male' },
+  { id: 'bomi',   name: '보미', homePlaceId: 'bomi-home',   color: '#6B7BB5', emoji: '🐶', likes: ['음악', '바다', '사진'],          traits: ['호기심 많은', '느긋한'], hairStyle: 'curly', gender: 'female' },
 ];
 
 const agentIndex = new Map(AGENTS.map(a => [a.id, a]));
@@ -119,12 +122,111 @@ export const remoteNow = (agentId: string, now: number): PublishedActivity | nul
 
 /** NPC 인덱스 → remote 캐시 순 */
 export const agentById = (id: string): Agent | null => agentIndex.get(id) ?? remoteIndex.get(id) ?? null;
-/** The memory entry a friendship writes — `metAt`/`metPlaceId` come from the encounter that made it. */
-export const friendOf = (a: Agent, met?: { at: number; placeId: string }): Friend =>
-  met ? { id: a.id, name: a.name, homePlaceId: a.homePlaceId, color: a.color, emoji: a.emoji, metAt: met.at, metPlaceId: met.placeId }
-      : { id: a.id, name: a.name, homePlaceId: a.homePlaceId, color: a.color, emoji: a.emoji };
+/** The memory entry a friendship writes — `metAt`/`metPlaceId` come from the encounter that made it. 성별은 알 때만 복사한다 (AFFECTION_SPEC §2) */
+export const friendOf = (a: Agent, met?: { at: number; placeId: string }): Friend => ({
+  id: a.id, name: a.name, homePlaceId: a.homePlaceId, color: a.color, emoji: a.emoji,
+  ...(met ? { metAt: met.at, metPlaceId: met.placeId } : {}),
+  ...(a.gender ? { gender: a.gender } : {}),
+});
 /** A friend resolved back to their agent (the pool is the source of likes/traits/colour). */
 export const agentOfFriend = (f: Friend): Agent => agentById(f.id) ?? { ...f, likes: [], traits: [] };
+
+// ─── 사진 속 인물 (FRIENDS_SPEC §6 표, ADR-0022) ─────────────────────────────
+// 같은 공간(co-present)과 같이 놀기(companion)는 그림에서 갈린다: 동행은 같은 프레임에 정면, 배경 인물은 뒷모습·작게·얼굴 없이.
+// 말을 건 상대는 `encounter.at` 전엔 배경의 한 사람이고 그 뒤부터 정면이다 — 화면(방·카메라·만화)은 전부 이 한 함수로 "그 순간의 인물"을 받는다.
+
+/** 에이전트의 머리 모양 — 풀·서버 값이 여섯 칸의 허용값일 때만 (아니면 기본 단발) */
+export const hairStyleOf = (a: Agent | null | undefined): Look['hairStyle'] | undefined =>
+  a && (LOOK_HAIR_STYLES as readonly string[]).includes(a.hairStyle ?? '') ? (a.hairStyle as Look['hairStyle']) : undefined;
+
+const figureOf = (a: Agent): CastFigure => { const h = hairStyleOf(a); return h ? { id: a.id, color: a.color, hairStyle: h } : { id: a.id, color: a.color }; };
+/** 배경 인물이 설렘 대상(관심부터)이면 뒷모습 대신 슬쩍 돌아본 모습 (AFFECTION_SPEC §4) — 그 순간의 memory가 정하고, 만화는 그 결과를 cast에 기억한다 */
+const glancing = (memory: Memory, fig: CastFigure): CastFigure => (crushStage(memory.friends.find(f => f.id === fig.id)?.crush?.v) ? { ...fig, glance: true } : fig);
+
+/** 배경 인물은 최대 둘 (카메라 무대의 왼쪽·오른쪽 뒤) */
+export const PRESENT_MAX = 2;
+/** 굴림 상대를 배경의 맨 앞에 — presentNearby는 셋까지 남기지만 그림은 둘이라, id 순서에서 밀리면 대화 전에 아예 안 보이고 `at`에 불쑥 나타난다. 나머지는 id 오름차순 그대로 */
+const keepFirst = <T>(xs: T[], isKeep: (x: T) => boolean): T[] => [...xs.filter(isKeep), ...xs.filter(x => !isKeep(x))];
+
+/** `castAt`의 결과 — 동행(정면), 만난 사람(`at` 뒤, 정면·손 흔듦), 같은 공간의 사람들(뒷모습, ≤ 2) */
+export interface Cast {
+  companions: Friend[];
+  met?: { agent: Agent; color: string; hairStyle?: Look['hairStyle'] };
+  present: CastFigure[];
+}
+
+/**
+ * 순수: 활동 `act`의 `t` 순간에 그림에 나올 사람들. 동행은 memory.friends(없으면 풀)에서, 만난 사람은 `encounter.talked && t ≥ encounter.at`일 때만,
+ * 배경은 `presentNearby`에서 만난 사람을 뺀 둘 — 굴림 상대가 아직 배경이면 맨 앞(잘리지 않게). `at`이 없는 옛 마주침은 처음부터 만난 것으로 본다.
+ */
+export function castAt(act: ScheduledActivity, t: number, memory: Memory): Cast {
+  const companions = act.companions
+    .map(id => memory.friends.find(f => f.id === id) ?? (agentById(id) ? friendOf(agentById(id)!) : null))
+    .filter((f): f is Friend => !!f);
+  const e = act.encounter;
+  const friendMet = e && memory.friends.find(f => f.id === e.agentId);
+  const metAgent = e && e.talked && t >= (e.at ?? -Infinity) ? agentById(e.agentId) ?? (friendMet ? agentOfFriend(friendMet) : null) : null;
+  const met = metAgent ? { agent: metAgent, color: metAgent.color, hairStyle: hairStyleOf(metAgent) } : undefined;
+  const present = keepFirst((act.presentNearby ?? []).filter(id => id !== metAgent?.id && !act.companions.includes(id)), id => id === e?.agentId)
+    .map(id => agentById(id)).filter((a): a is Agent => !!a)
+    .slice(0, PRESENT_MAX).map(a => glancing(memory, figureOf(a)));
+  return met ? { companions, met, present } : { companions, present };
+}
+
+/** 만화가 기억할 인물 구성 (Comic.cast) — makeComic이 활동에서 뽑는다. 난수 없음 */
+export function comicCastOf(act: ScheduledActivity, memory: Memory): ComicCast {
+  const companions = act.companions
+    .map(id => { const a = agentById(id); const f = memory.friends.find(x => x.id === id); return a ? figureOf(a) : f ? { id: f.id, color: f.color } : null; })
+    .filter((x): x is CastFigure => !!x);
+  const e = act.encounter;
+  // 굴림 상대(말을 텄든 아니든)가 맨 앞 — castOfComic이 둘로 자를 때 잘리지 않게. 나머지는 presentNearby 순서(id 오름차순)
+  const present = keepFirst((act.presentNearby ?? []).filter(id => !act.companions.includes(id)), id => id === e?.agentId).map(id => agentById(id)).filter((a): a is Agent => !!a).map(a => glancing(memory, figureOf(a)));
+  const metAgent = e?.talked ? agentById(e.agentId) : null;
+  const met = metAgent ? { ...figureOf(metAgent), at: e!.at ?? act.arriveAt } : undefined;
+  return met ? { companions, met, present } : { companions, present };
+}
+
+/** 저장된 인물 구성(Comic.cast)에서 컷 시각 `t`의 그림 — castAt과 같은 규칙, 옛 활동이 지워진 뒤에도 같은 컷. 배경 인물의 `glance`는 찍힐 때 기억한 그대로 */
+export function castOfComic(cast: ComicCast, t: number): { companions: CastFigure[]; met?: CastFigure; present: CastFigure[] } {
+  const met = cast.met && t >= cast.met.at ? { id: cast.met.id, color: cast.met.color, ...(cast.met.hairStyle ? { hairStyle: cast.met.hairStyle } : {}) } : undefined;
+  const present = keepFirst(cast.present.filter(p => p.id !== met?.id), p => p.id === cast.met?.id).slice(0, PRESENT_MAX);
+  return met ? { companions: cast.companions, met, present } : { companions: cast.companions, present };
+}
+
+// ─── "알게 된 것" (FRIENDS_SPEC §6, ADR-0022 결정 6) ──────────────────────────
+/** 장소 유형별 한 줄 후보 — 같이 놀 때마다 하나씩 memory.friends[id].learned에 쌓인다 (친한 친구 프로필의 접기 토글) */
+const LEARNED_BY_TYPE: Partial<Record<PlaceType, string[]>> = {
+  cafe: ['커피 마시며 수다 떠는 걸 좋아함', '아메리카노만 마심', '창가 자리 좋아함'],
+  restaurant: ['잘 먹음', '매운 거 잘 먹음', '반찬 리필 잘 함'],
+  park: ['걷는 거 좋아함', '강아지 보면 멈춤'], river: ['강바람 쐬는 거 좋아함', '자전거 잘 탐'],
+  gym: ['운동 열심히 함', '러닝머신파'], library: ['조용한 데 좋아함', '책 빨리 읽음'], museum: ['전시 보면 설명문 다 읽음'],
+  bar: ['술 잘 마심', '안주 잘 고름'], cinema: ['영화 취향 비슷함', '쿠키 영상까지 봄'], arcade: ['게임 잘함', '인형뽑기 집착'],
+  market: ['길거리 음식 좋아함', '흥정 잘함'], beach: ['바다 좋아함'], island: ['바다 좋아함'], mountain: ['산 잘 탐'],
+  mall: ['구경 좋아함', '옷 고르는 데 오래 걸림'], home: ['집에서 노는 거 좋아함'], friend_home: ['집 깔끔함', '집에서 노는 거 좋아함'],
+  temple: ['조용한 데 좋아함'], hotel: ['짐 많음'],
+};
+export const LEARNED_CAP = 12;
+/** "카페 레이어드 연남에서 그림 그리기" → "그림 그리기" (screens/util.shortTitle과 같은 규칙 — sim은 screens를 못 본다) */
+const stemOf = (title: string) => { const s = title.replace(/^.*?(에서|에|까지)\s?/, '').replace(/\(\d박\)$/, '').trim(); return s || title; };
+
+/**
+ * 같이 논 활동에서 상대에 대해 알게 된 한 줄 — 규칙·결정적 (시드 `learn:${act.key}:${id}`), 이미 적힌 줄은 피한다.
+ * 후보: 장소 유형 줄 · "{장소} 자주 감" · "{범주} 좋아함" · "{활동} 같이 함". 후보가 다 적혀 있으면 null (더 알 게 없다)
+ */
+export function learnedLine(act: ScheduledActivity, id: string, categoryLabel: string, already: readonly string[]): string | null {
+  const r = rng(`learn:${act.key}:${id}`);
+  const pool = [
+    ...(LEARNED_BY_TYPE[act.place.type] ?? []),
+    `${act.place.name} 자주 감`, `${categoryLabel} 좋아함`, `${stemOf(act.option.title)} 같이 함`,
+  ];
+  return r.shuffle(pool).find(l => !already.includes(l)) ?? null;
+}
+/** learned에 한 줄 덧붙인다 — 중복 없이, 최근 12개만 */
+export const appendLearned = (learned: readonly string[] | undefined, line: string | null): string[] => {
+  const cur = learned ?? [];
+  if (!line || cur.includes(line)) return [...cur];
+  return [...cur, line].slice(-LEARNED_CAP);
+};
 
 // ─── an agent's own day ──────────────────────────────────────────────────────
 /** One block of an agent's day, in absolute ms (its home zone). */

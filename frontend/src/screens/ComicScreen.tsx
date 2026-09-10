@@ -4,10 +4,11 @@ import type { ActivityOption, BlockId, Comic, ComicPanel, Phase, PlaceType, Shot
 import { DEFAULT_LOOK } from '../sim/types';
 import { blockDef, categoryDef, nextBlockId } from '../sim/blocks';
 import { cityNameKo, placeById } from '../sim/places';
+import { castOfComic } from '../sim/agents';
 import { Character } from '../character';
 import { sceneTypeFor } from '../scenes';
 import { Bubble, Button, CompanionChip, JetlagChip, type ChipFriend } from '../ui';
-import { beatPose, bookIntent, castOf, poseFor, shotCount, type ShotCast } from './util';
+import { beatPose, bookIntent, castOf, panelCast, poseFor, presentLook, shotCastOf, shotCount, type ShotCast } from './util';
 import { ShotStage } from './CameraOverlay';
 import { hhmmIn } from '../sim/tz';
 import { PhotoImg } from '../photo/PhotoImg';
@@ -85,7 +86,7 @@ export function ComicScreen({ phase, onNext }: { phase: ComicPhase; onNext: (blo
         {fx && <div className="cm-diff-say">{fx.line}</div>}
         {/* "내가 N장, 모모가 M장" / "안 찍길래 내가 대충 찍었어" — 계획대로였을 때도, 옛 만화에도 붙는다 (ADR-0004) */}
         <ShotsLine shots={shots} name={memory.name} />
-        {/* 사용자 컷은 카메라가 찍을 때의 인물 구성(동행·마주침) 그대로 — 만화엔 없으니 phase에서 넘긴다 */}
+        {/* 인물 구성은 만화가 기억한다(comic.cast, ADR-0022) — 그게 없는 옛 만화만 phase에서 되찾은 것으로 그린다 */}
         <div className="cm-gridwrap"><ComicPanels comic={comic} option={act.option} friendColor={friend?.color} tz={phase.tz} cast={castOf(phase.companions, enc)} /></div>
       </div>
       <Character className="cm-me" pose="happy" size={170} />
@@ -127,26 +128,29 @@ export function SketchNote({ src, className = '' }: { src: string; className?: s
 /**
  * The 2x2 grid (also used by the book viewer). Each panel: bg colour + poses + friend + caption strip.
  * 컷마다 화각·기울기·시각이 다르다 — 정중앙 전신 네 컷은 "그린 그림"으로 읽히기 때문이다 (ADR-0001).
- * @param cast 사용자 컷의 인물 구성 (util.castOf — 없으면 컷의 withFriend로 동행만 그린다: 지평선 밖 옛 만화)
+ * 인물 구성: 만화가 기억하는 `comic.cast`가 있으면 컷의 시각(p.t)으로 되찾는다 — 말을 튼 순간(met.at) 전의 컷은 그 사람이 배경의 뒷모습,
+ * 뒤의 컷은 정면 (FRIENDS_SPEC §6). 없는 옛 만화는 `cast`(util.castOf — 타임라인에서 되찾은 것), 그것도 없으면 컷의 withFriend로 동행만.
+ * @param cast 옛 만화의 인물 구성 (util.castOf)
  */
 export function ComicPanels({ comic, option, friendColor, tz, cast }: { comic: Comic; option?: ActivityOption; friendColor?: string; tz?: string; cast?: ShotCast }) {
   // 에이전트 컷의 스티커 이름은 memory.name (Friend/Agent 이름이 아니다 — CONTRACT 문구 규칙)
   const agentName = useWorld(s => s.memory.name);
+  const castFor = (p: ComicPanel): ShotCast | undefined => (comic.cast ? shotCastOf(castOfComic(comic.cast, p.t ?? comic.createdAt)) : cast);
   return (
     <div className="cm-grid">
-      {comic.panels.map((p, i) => <Panel key={i} p={p} i={i} comicId={comic.id} option={option} friendColor={friendColor} tz={tz} placeType={comic.placeType} agentName={agentName} cast={cast} />)}
+      {comic.panels.map((p, i) => <Panel key={i} p={p} i={i} comicId={comic.id} option={option} friendColor={friendColor} tz={tz} placeType={comic.placeType} agentName={agentName} cast={castFor(p)} timed={!!comic.cast} />)}
     </div>
   );
 }
 
-function Panel({ p, i, comicId, option, friendColor, tz, placeType, agentName, cast }: { p: ComicPanel; i: number; comicId: string; option?: ActivityOption; friendColor?: string; tz?: string; placeType: PlaceType; agentName: string; cast?: ShotCast }) {
+/** @param timed cast가 comic.cast에서 컷 시각으로 되찾은 것 — 만난 사람은 시각이 정한다 (util.panelCast) */
+function Panel({ p, i, comicId, option, friendColor, tz, placeType, agentName, cast, timed }: { p: ComicPanel; i: number; comicId: string; option?: ActivityOption; friendColor?: string; tz?: string; placeType: PlaceType; agentName: string; cast?: ShotCast; timed: boolean }) {
   const look = useWorld(s => s.memory.look);
   const patchPanelShot = useWorld(s => s.patchPanelShot);
   const ref = useRef<HTMLDivElement>(null);
   const mine = p.by === 'user';
   // 사용자 컷은 카메라 뷰파인더에 보이던 포즈(poseFor) 그대로 — 옵션을 못 찾는 옛 만화(book)에서만 비트 포즈로 대신한다
   const pose = mine ? (option ? poseFor(option) : beatPose(p.beat)) : beatPose(p.beat, option);
-  const left = p.withFriend || p.beat === 'arrive';
   // 옛 만화(질감 이전에 저장된 것)에는 crop/t가 없다 — 그때는 원래대로 정중앙 전신으로 그린다
   const c = p.crop ?? { scale: 1, x: 0, y: 0, rot: 0 };
   // 에이전트 컷의 --cx/--cy는 px (사용자 컷은 ShotStage가 %로 직접 받는다 — CONTRACT ComicPanel.unit). 옛 경로의 .cm-shot에만 단다 —
@@ -156,10 +160,9 @@ function Panel({ p, i, comicId, option, friendColor, tz, placeType, agentName, c
   const flaws = p.flaws ?? [];
   const cls = ['cm-p', mine ? 'is-user' : '', p.withFriend ? 'has-f' : '', p.blur ? 'is-blur is-miss' : '', flaws.length ? 'has-flaw' : '', ...flaws.map(f => `is-${f}`)]
     .filter(Boolean).join(' ');
-  // 사용자 컷의 인물 구성: 카메라가 찍을 때 서 있던 그대로(cast). 모르면 컷의 withFriend로 동행만. 에이전트 컷은 동행뿐
-  const fColor = mine ? (cast ? cast.friendColor : p.withFriend ? friendColor : undefined) : p.withFriend ? friendColor : undefined;
-  const mColor = mine ? cast?.metColor : undefined;
-  const sColor = mine ? cast?.seenColor : undefined;
+  // 컷의 인물 구성 (util.panelCast): 사용자 컷은 찍을 때 그대로, 에이전트 컷은 동행은 withFriend일 때만·만난 사람은 컷의 시각대로(timed), 배경 인물은 cast대로
+  const { friendColor: fColor, metColor: mColor, present } = panelCast(p, cast, friendColor, timed);
+  const left = p.withFriend || p.beat === 'arrive' || !!mColor;
 
   // ── 옛 컷은 다음 열람 때 한 번 굽는다 (ADR-0020 결정 2) — 브라우저에서만, 컷마다 한 번, ?preview 화면은 제외 ──
   // 사용자 컷: 카메라와 같은 BakeInput(무대·자세·% 크롭·겉모습·인물). 에이전트 컷: 근사 — 원래 컷은 무대 없이 단색 바닥 + 소품 +
@@ -175,7 +178,7 @@ function Panel({ p, i, comicId, option, friendColor, tz, placeType, agentName, c
     const h = el?.clientHeight || w * 1.08;
     const crop: ShotCrop = mine || p.unit === 'pct' ? { ...c } : { ...c, x: (c.x / w) * 100, y: (c.y / h) * 100 };
     const id = newShotId();
-    void bakeShot({ type: sceneTypeFor(placeType), pose, crop, look: look ?? DEFAULT_LOOK, friend: fColor ? { color: fColor } : undefined, met: mColor ? { color: mColor } : undefined, ghost: !!sColor })
+    void bakeShot({ type: sceneTypeFor(placeType), pose, crop, look: look ?? DEFAULT_LOOK, friend: fColor ? { color: fColor } : undefined, met: mColor ? { color: mColor } : undefined, present: present?.map(f => ({ color: f.color, look: presentLook(f.hairStyle), ...(f.glance ? { glance: true } : {}) })) })
       .then(b => putLocal(id, b.blob, 'shot'))
       .then(() => patchPanelShot(comicId, i, id))
       .catch((e: unknown) => { console.warn(`comic: 컷 굽기 실패 — 옛 경로로 (${key})`, e); });
@@ -185,14 +188,15 @@ function Panel({ p, i, comicId, option, friendColor, tz, placeType, agentName, c
 
   // 옛 경로: 픽셀이 없거나 못 받았을 때 crop으로 다시 그린다
   const legacy = mine ? (
-    /* 카메라 뷰파인더와 **같은 컴포넌트**(ShotStage): 정지 무대 + 캐릭터(발이 78 % 높이) + 동행/마주침/실루엣, 크롭은 % —
+    /* 카메라 뷰파인더와 **같은 컴포넌트**(ShotStage): 정지 무대 + 캐릭터(발이 78 % 높이) + 동행/마주침/배경 인물, 크롭은 % —
        컷 비율(1/1.08)도 같아 "찍은 그대로"다. 인물 구성을 모르면(cast 없음) 컷의 withFriend로 동행만 */
-    <ShotStage type={placeType} pose={pose} crop={c} friendColor={fColor} metColor={mColor} seenColor={sColor} still className="cm-usr" />
+    <ShotStage type={placeType} pose={pose} crop={c} friendColor={fColor} metColor={mColor} present={present} still className="cm-usr" />
   ) : (
     <div className="cm-shot" style={vars}>
       <Prop beat={p.beat} withFriend={!!p.withFriend} />
       <Character className={`cm-c ${left ? 'is-left' : ''}`} pose={pose} size={118} />
-      {p.withFriend && <Character className="cm-f" pose="wave" size={100} variant="friend" color={friendColor} />}
+      {/* 옆의 인물: 만난 사람이 있는 컷(at 뒤)이면 그 사람 색으로, 아니면 동행 색 — 옛 경로라 배경 인물은 안 그린다 (구운 컷엔 있다) */}
+      {(p.withFriend || mColor) && <Character className="cm-f" pose="wave" size={100} variant="friend" color={mColor ?? fColor} />}
     </div>
   );
   return (

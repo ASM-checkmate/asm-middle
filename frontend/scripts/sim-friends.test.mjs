@@ -78,6 +78,25 @@ check('re-choosing the proposal restores the companion plan', S().plans[propBloc
 act = S().timeline.find(a => a.dayKey === today && a.blockIds[0] === propBlock);
 check('…and the companion is back on the timeline', !!act && act.companions.includes(companion.friendId), JSON.stringify(act?.companions));
 
+console.log('\n── 같이 놀면 우정이 오른다 (FRIENDS_SPEC §6, ADR-0022) ──');
+// 동행 활동이 끝나면(만화 구간에서 정산) 그 친구의 bond가 1, 알게 된 것이 한 줄. 같은 활동은 두 번 세지 않는다 (settle 멱등)
+const bondBefore = S().memory.friends.find(f => f.id === companion.friendId)?.bond ?? 0;
+freezeClockAt(act.endAt + 2 * MIN);
+S().jumpTo(act.endAt + 2 * MIN);
+S().tick();
+const bonded = S().memory.friends.find(f => f.id === companion.friendId);
+check('the companion is still a friend (never removed)', !!bonded, JSON.stringify(S().memory.friends.map(f => f.id)));
+check('bond went up by one after the shared activity', bonded?.bond === bondBefore + 1, JSON.stringify([bondBefore, bonded?.bond]));
+check('one "알게 된 것" line was learned', Array.isArray(bonded?.learned) && bonded.learned.length === 1 && typeof bonded.learned[0] === 'string', JSON.stringify(bonded?.learned));
+S().jumpTo(act.endAt + 3 * MIN);
+S().tick();
+check('…and the same activity does not count twice', S().memory.friends.find(f => f.id === companion.friendId)?.bond === bondBefore + 1, JSON.stringify(S().memory.friends.find(f => f.id === companion.friendId)));
+const otherFriend = S().memory.friends.find(f => f.id !== companion.friendId);
+// 우연히 또 만나 말을 튼(again) 활동도 같이 논 것으로 세니, 그것까지 없었을 때만 0이다
+const reMet = S().timeline.filter(a => a.endAt <= S().now && a.encounter?.talked && a.encounter.agentId === otherFriend?.id).length;
+check('a friend who neither came along nor was re-met keeps bond 0', (otherFriend?.bond ?? 0) === reMet, JSON.stringify([reMet, otherFriend]));
+freezeClockAt(T0);
+
 console.log('\n── 제목에는 친구 이름을 넣지 않는다 ──');
 const NAMES = AGENTS.map(a => a.name);
 const titles = [];
@@ -140,6 +159,9 @@ S().tick();
 const made = S().memory.friends.find(f => f.id === first.encounter.agentId);
 check('after it ends: a new friend with metAt / metPlaceId', !!made && made.metAt === first.endAt && made.metPlaceId === first.place.id, JSON.stringify(made));
 check('the encounter log counted it', (S().encounters[first.encounter.agentId] ?? 0) >= 1, JSON.stringify(S().encounters));
+// 말을 튼 상대는 그 활동을 같이 논 것 (FRIENDS_SPEC §6 표: 대화 롤 성공 이후 = 동행) — 우정 +1, 알게 된 것 한 줄. 같은 공간에 있기만 한 사람은 카운트만
+if (fresh) check('a talk counts as playing together: bond 1, one learned line', made?.bond === 1 && made?.learned?.length === 1, JSON.stringify(made));
+check('everyone co-present is counted in the encounter log', first.presentNearby.every(id => (S().encounters[id] ?? 0) >= 1), JSON.stringify([first.presentNearby, S().encounters]));
 
 const metDay = dayKeyIn(first.endAt, S().tz);
 const okOn = day => BLOCK_ORDER.some(b => b !== 'sleep' && companionCtx(S().memory, b, day, dayStartOfKey(day)).homeOk(made.id));

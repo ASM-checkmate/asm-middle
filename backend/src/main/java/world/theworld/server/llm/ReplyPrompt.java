@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import world.theworld.server.llm.LlmDtos.Agent;
+import world.theworld.server.llm.LlmDtos.Crush;
 import world.theworld.server.llm.LlmDtos.RecentMsg;
 import world.theworld.server.llm.LlmDtos.ReplyRequest;
 import world.theworld.server.llm.LlmDtos.Situation;
@@ -33,6 +34,19 @@ public final class ReplyPrompt {
 
   static final Map<String, String> WORRY_KO = Map.of("work", "일", "people", "사람", "body", "몸", "money", "돈", "focus", "집중", "blue", "기분", "bored", "심심함");
 
+  /** 설렘은 행동으로만 드러난다 (AFFECTION_SPEC §4, ADR-0023 결정 3) — 단계는 알려주되 인정은 못 하게. */
+  static final String CRUSH_RULE = "누가 물어도 직접 인정하지 않는다 — 얼버무리거나 딴청을 부린다. 이름은 먼저 꺼내지 않는다.";
+
+  /** 단계별 한 문장. 단계는 검증을 지나 세 값뿐이다. 이름은 "하늘이가"·"유리를"처럼 사람 이름꼴로 — "하늘이 좋다"는 날씨 얘기로 읽힌다. */
+  static String crushLine(Crush c) {
+    String who = Text.calling(c.name());
+    return switch (c.stage()) {
+      case "interest" -> "요즘 " + Text.josa(who, "이", "가") + " 조금 신경 쓰인다.";
+      case "like" -> "요즘 " + Text.josa(who, "이", "가") + " 좋다.";
+      default -> Text.josa(who, "을", "를") + " 많이 좋아한다.";
+    };
+  }
+
   public record Prompt(String system, String user) {}
 
   private static String list(List<String> xs) {
@@ -54,6 +68,7 @@ public final class ReplyPrompt {
     lines.add("지금 상황: " + s.hhmm() + ", " + s.where() + "에서 " + s.doing() + ". 기분 " + s.mood() + "/100, 피로 " + s.fatigue() + "/100.");
     lines.add(s.lateWhy() != null && !s.lateWhy().isEmpty() ? "아까는 " + s.lateWhy() + " 못 봤고 이제 봤다. 첫마디에 짧게 미안하다고 한다." : "");
     lines.add(s.worry() != null && !s.worry().isEmpty() ? "며칠 안에 사용자가 " + WORRY_KO.get(s.worry()) + " 때문에 힘들다고 했다. 기억하고 있다." : "");
+    lines.add(s.crush() != null ? crushLine(s.crush()) + " " + CRUSH_RULE : "");
     lines.add("");
     lines.add("규칙:");
     lines.add("- 한국어 반말, 카톡 말투. 한두 문장, 60자 안. 줄바꿈 없이. 이모지는 거의 안 쓴다. 존댓말·영어 금지.");

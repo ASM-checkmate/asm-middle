@@ -32,6 +32,12 @@ const saveLocalPosts = (items: FeedItem[]) => { try { localStorage.setItem(LOCAL
 const likeListeners = new Set<(authorId: string) => void>();
 export const onLike = (fn: (authorId: string) => void): (() => void) => { likeListeners.add(fn); return () => { likeListeners.delete(fn); }; };
 const noteLiked = (authorId: string) => { for (const fn of likeListeners) { try { fn(authorId); } catch { /* 듣는 쪽의 오류는 좋아요를 막지 않는다 */ } } };
+/** 누가 눌렀나 — 주인(기본)이면 "관심 있는 사람" 기록에 적히고, 에이전트(AFFECTION_SPEC §4 먼저 좋아요)면 적히지 않는다 */
+export type LikeBy = 'me' | 'agent';
+/** 피드 한 장을 받은 뒤 듣는다 (받은 항목들) — 스토어의 에이전트 먼저 좋아요(sim/affection pickAutoLikes)가 여기 붙는다. 돌려주는 함수로 끊는다 */
+const feedListeners = new Set<(items: readonly FeedItem[]) => void>();
+export const onFeedLoaded = (fn: (items: readonly FeedItem[]) => void): (() => void) => { feedListeners.add(fn); return () => { feedListeners.delete(fn); }; };
+const noteFeedLoaded = (items: readonly FeedItem[]) => { for (const fn of feedListeners) { try { fn(items); } catch { /* 듣는 쪽의 오류는 피드를 막지 않는다 */ } } };
 
 /**
  * 한 사람의 글 격자 (프로필). 항목이 없으면 아직 안 받은 것. `failed`면 마지막 요청이 거절됐다 — 이유는 `error`(posts.lastError 그대로,
@@ -50,8 +56,8 @@ export interface SnsState {
   feedError: string;
   /** 피드를 (더) 받는다. `reset`이면 처음부터. 같은 글은 한 번만, 순서는 받은 그대로 */
   loadFeed(reset?: boolean): Promise<void>;
-  /** 좋아요 토글 — 먼저 화면을 바꾸고, 서버가 거절하면 되돌린다. 서버가 준 수가 진실이다. 연타하면 마지막 누름의 답만 적는다 */
-  likeToggle(postId: string): Promise<void>;
+  /** 좋아요 토글 — 먼저 화면을 바꾸고, 서버가 거절하면 되돌린다. 서버가 준 수가 진실이다. 연타하면 마지막 누름의 답만 적는다. `by: 'agent'`면 주인의 좋아요 기록(onLike)에 안 적힌다 */
+  likeToggle(postId: string, by?: LikeBy): Promise<void>;
 
   // ── 내 글 ──
   myPosts: Post[];
@@ -80,8 +86,8 @@ export interface SnsState {
   /** 에이전트가 써 둔 오늘의 초안 — 채팅의 '컷 고치기'나 내 글 탭에서 글쓰기 화면이 이걸 미리 채운 채 열린다 */
   draft: PostDraft | null;
   setDraft(draft: PostDraft | null): void;
-  /** 가상 친구 글의 좋아요 — 서버가 없으니 내 폰에서만 뒤집힌다 */
-  likeLocalToggle(postId: string): void;
+  /** 가상 친구 글의 좋아요 — 서버가 없으니 내 폰에서만 뒤집힌다. `by: 'agent'`면 주인의 좋아요 기록에 안 적힌다 */
+  likeLocalToggle(postId: string, by?: LikeBy): void;
 
   // ── UI 플래그 (화면은 다음 단계 — 여기서는 자리만) ──
   snsOpen: boolean;
@@ -150,12 +156,14 @@ export const useSns = create<SnsState>((set, get) => ({
     if (!reset && s.feedEnded) return;
     set({ feedLoading: true });
     const r = await fetchFeed(reset ? null : s.feedNext);
-    if (!r) { set({ feedLoading: false, feedError: lastError || 'feed: failed' }); return; }   // 실패 — 있던 것은 그대로, 이유만 적는다
+    // 실패(사용자 없음·오프라인) — 있던 것은 그대로, 이유만 적는다. 받은 장이 없어도 듣는 쪽엔 알린다: 에이전트의 먼저 좋아요는 내 폰의 가상 친구 글도 보니까
+    if (!r) { set({ feedLoading: false, feedError: lastError || 'feed: failed' }); noteFeedLoaded([]); return; }
     const base = reset ? [] : get().feed;   // 그 사이 좋아요가 바뀌었을 수 있으니 지금 것에 잇는다
     set({ feed: appendFeed(base, r.items), feedNext: r.next, feedEnded: r.next === null, feedLoading: false, feedError: '' });
+    noteFeedLoaded(r.items);   // 에이전트의 먼저 좋아요 — 받은 장 + 로컬 글 (AFFECTION_SPEC §4)
   },
 
-  async likeToggle(postId) {
+  async likeToggle(postId, by = 'me') {
     const cur = findPost(get(), postId);
     if (!cur) return;
     const on = !cur.likedByMe;
@@ -164,7 +172,7 @@ export const useSns = create<SnsState>((set, get) => ({
     likeSeq.set(postId, seq);
     // 먼저 화면에
     set(s => mapEverywhere(s, postId, p => ({ ...p, likedByMe: on, likes: Math.max(0, p.likes + (on ? 1 : -1)) })));
-    if (on) noteLiked(cur.authorId);
+    if (on && by === 'me') noteLiked(cur.authorId);
     const r = await setLike(postId, on);
     // 그 사이 또 눌렀으면 이 답은 낡았다 — 마지막 누름의 답이 적는다 (순서가 뒤바뀌어 와도 화면이 서버와 어긋나지 않게)
     if (likeSeq.get(postId) !== seq) return;
@@ -230,14 +238,14 @@ export const useSns = create<SnsState>((set, get) => ({
   // 가상 친구 글은 내 폰의 문서다 — 넣거나 좋아요를 뒤집을 때마다 저장한다 (최신 30편, 중복 없이)
   setLocalPosts: items => { const localPosts = normalizeLocal(items); set({ localPosts }); saveLocalPosts(localPosts); },
   setDraft: draft => set({ draft }),
-  likeLocalToggle: postId => {
+  likeLocalToggle: (postId, by = 'me') => {
     const cur = get().localPosts.find(i => i.post.id === postId);
     if (!cur) return;
     const on = !cur.post.likedByMe;
     const localPosts = get().localPosts.map(i => (i.post.id !== postId ? i : { ...i, post: { ...i.post, likedByMe: on, likes: Math.max(0, i.post.likes + (on ? 1 : -1)) } }));
     set({ localPosts });
     saveLocalPosts(localPosts);
-    if (on) noteLiked(cur.author.id);
+    if (on && by === 'me') noteLiked(cur.author.id);
   },
   setSnsOpen: open => set(open ? { snsOpen: true } : { snsOpen: false, profileOpen: null, composeOpen: false }),
   setSnsTab: tab => set({ snsTab: tab }),

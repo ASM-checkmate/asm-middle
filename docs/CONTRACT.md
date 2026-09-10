@@ -293,7 +293,8 @@ interface Likes { likes: number; likedByMe: boolean }          // POST/DELETE /a
   "agent": { "name": "모모", "traits": ["느긋한"], "likes": ["카페"], "dislikes": [] },
   "situation": { "where": "연남동 카페", "doing": "커피 마시는 중", "hhmm": "16:25",
                  "lateWhy": null | "자느라" | "이동 중이라" | "조용히 해야 하는 데라" | "밥 먹느라",
-                 "mood": 70, "fatigue": 20, "worry": null | "work" | "people" | "body" | "money" | "focus" | "blue" | "bored" },
+                 "mood": 70, "fatigue": 20, "worry": null | "work" | "people" | "body" | "money" | "focus" | "blue" | "bored",
+                 "crush": null | { "name": "하늘", "stage": "interest" | "like" | "love" } },
   "recent": [ { "from": "me" | "agent", "text": "…" } ],
   "texts": ["야", "어디야", "뭐해"],
   "batch": "b1" }
@@ -302,6 +303,10 @@ interface Likes { likes: number; likedByMe: boolean }          // POST/DELETE /a
 *   `recent`는 이번 묶음을 뺀 최근 대화, 오래된 것부터. 서버는 마지막 12줄만 본다.
 *   `texts`는 이번 묶음 — 연달아 보낸 내 말들. 1개 이상, 서버는 마지막 8줄만 본다.
 *   `mood`·`fatigue`는 0–100.
+*   `situation.crush`는 선택 — 설렘 대상의 이름(1–40자)과 단계(ADR-0023, AFFECTION_SPEC §4). 없으면 생략하거나 null.
+    숫자(`crush.v`)는 보내지 않는다 — 단계는 프런트가 AFFECTION_SPEC §1의 띠(`crushStage`)로 고르고, 여럿이면 `v`가 가장 큰 한 사람(`crushTarget`).
+    있으면 서버가 프롬프트에 단계 한 줄과 "직접 인정하지 않는다" 규칙을 넣고, 사용자·최근 대화가 꺼낸 적 없는 그 이름이 답장에 나오면 답장을 null로 돌린다.
+    이름·단계가 틀린 모양이면 400이 아니라 없는 것으로 친다.
 *   `batch`는 묶음 id(선택). 같은 (사용자, batch)의 진행 중 호출은 새 호출이 오면 서버가 취소하고, 취소된 쪽은
     `502 { error: 'reply cancelled: …' }`로 끝난다 — 답은 마지막 묶음에만 필요하다.
 
@@ -316,7 +321,8 @@ interface Likes { likes: number; likedByMe: boolean }          // POST/DELETE /a
 ```
 
 *   `text: null`은 읽고 답하지 않는다는 뜻(읽씹). 프론트는 규칙 답장을 지운다 — 단, 규칙이 이미
-    전화를 약속한 묶음이면 규칙 답장을 남긴다.
+    전화를 약속한 묶음이면 규칙 답장을 남긴다. `situation.crush`를 실은 요청의 `null`은 서버가 이름을 먼저 꺼낸 답을 버린 것일 수도
+    있어(AFFECTION_SPEC §4, `ReplyService.leaksCrushName` — 사람 이름꼴만 본다) 그때도 규칙 답장을 남긴다.
 *   `worry`·`callMe`는 규칙이 못 알아들은 것을 모델이 알아들었을 때만 프론트가 뒤처리한다. 상황과 무관하게 세운다 —
     못 받는 상황이면 프론트가 막힌 것이 끝난 뒤로 벨을 예약하고, 둘 다 true면 곧 거는 고민 전화 하나다 (ADR-0013).
 *   `trip`은 사용자가 어디로 여행 가자고 했을 때 그 도시 이름(한국어, ≤30자). 프론트는 아는 도시면

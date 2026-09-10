@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import world.theworld.server.common.ApiException;
 import world.theworld.server.llm.LlmDtos.Agent;
+import world.theworld.server.llm.LlmDtos.Crush;
 import world.theworld.server.llm.LlmDtos.RecentMsg;
 import world.theworld.server.llm.LlmDtos.ReplyRequest;
 import world.theworld.server.llm.LlmDtos.Situation;
@@ -71,9 +72,21 @@ public final class ReplyValidator {
         s.get("where").asText(), s.get("doing").asText(), s.get("hhmm").asText(),
         isText(lateWhy) ? lateWhy.asText() : null,
         num(s.get("mood"), 60), num(s.get("fatigue"), 30),
-        isText(worry) && LlmDtos.WORRY_KEYS.contains(worry.asText()) ? worry.asText() : null),
+        isText(worry) && LlmDtos.WORRY_KEYS.contains(worry.asText()) ? worry.asText() : null,
+        crush(s.get("crush"))),
       recent,
       texts8,
       isText(batch) ? batch.asText() : null);
+  }
+
+  /** 설렘 대상 — 없거나(null/생략) 모양이 틀리면(이름 1~40자·단계 enum 밖) 조용히 없음으로. 400은 내지 않는다 (ADR-0023: 숫자는 서버에 안 온다). */
+  static Crush crush(JsonNode v) {
+    if (v == null || !v.isObject()) return null;
+    JsonNode name = v.get("name");
+    JsonNode stage = v.get("stage");
+    if (!isText(name) || !isText(stage) || !LlmDtos.CRUSH_STAGES.contains(stage.asText())) return null;
+    String n = Text.collapse(name.asText());
+    if (n.isEmpty() || n.length() > 40) return null;
+    return new Crush(n, stage.asText());
   }
 }

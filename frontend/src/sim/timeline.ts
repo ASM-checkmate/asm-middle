@@ -8,6 +8,7 @@ import { alongPath, cumulativeKm } from './geo';
 import { AGENTS, agentById, agentOfFriend, agentsAt, isRemoteId, remoteMeId, remoteSlotAt, rollTalk, rollTalkRemote, talkChance } from './agents';
 import { diverts, pickAlternative, rollFriction, type Outcome } from './friction';
 import { narrate } from './narrate';
+import { rng } from './rng';
 
 // ─── The timeline ────────────────────────────────────────────────────────────
 // One continuous stream of activities from the anchor (place · moment · zone) onwards, resolved block by block in
@@ -119,7 +120,7 @@ export function buildTimeline(anchor: Anchor, days: Days, memory: Memory, journe
     // a big jump starts a 24 h jet-lag window; activities inside that window inherit it so phases can show the chip
     const jetlagUntil = zoneJump ? arriveAt + JETLAG_MS : cursor.jetlagUntil !== null && cursor.jetlagUntil > arriveAt ? cursor.jetlagUntil : null;
     // 그림으로 정한 블록은 그림을 활동에 싣는다 (ADR-0004) — 로그 첫 줄과 만화 헤더가 act만 받으므로
-    acts.push({ key, dayKey, blockIds, option: opt, place: place2, fromPlace: cursor.place, journey, departAt, arriveAt, endAt, comicUntil, originTz: tz, tz: destTz, jetlagUntil, companions: opt.friendId ? [opt.friendId] : [], outcome, sketch: plan?.sketch, sketchVerdict: plan?.sketchVerdict, frugal: plan?.frugal });
+    acts.push({ key, dayKey, blockIds, option: opt, place: place2, fromPlace: cursor.place, journey, departAt, arriveAt, endAt, comicUntil, originTz: tz, tz: destTz, jetlagUntil, companions: opt.friendId ? [opt.friendId] : [], presentNearby: [], outcome, sketch: plan?.sketch, sketchVerdict: plan?.sketchVerdict, frugal: plan?.frugal });
     cursor = { place: place2, free: comicUntil, tz: destTz, jetlagUntil };
     t = blockSlotIn(comicUntil - 1, destTz).end;          // the rest of that block is waiting
   }
@@ -135,6 +136,10 @@ export function buildTimeline(anchor: Anchor, days: Days, memory: Memory, journe
  * 진짜 사람 먼저 (BACKEND-CONTRACT §3.4): 활동 key에 서버가 준 슬롯(world.remote.slots, 한 번만 채움)이 있으면 그 사람들이
  * NPC 풀보다 앞에 선다. 캐시가 비면 NPC 풀 그대로. 굴림 시드는 진짜 사람이면 두 id를 정렬한 것(양쪽이 같은 결과),
  * NPC면 예전 그대로 `${dayKey}:${placeId}:${memory.name}:${agentId}` (기존 결과 보존).
+ *
+ * 같은 공간 ≠ 같이 놀기 (FRIENDS_SPEC §6, ADR-0022): 걸러진 사람 **전부**가 `presentNearby`에 남는다 (id 오름차순, 최대 3 — 말을 건
+ * 상대는 잘리지 않는다). 굴림은 예전처럼 첫 사람(met[0])에게만, 하루 한 번. 말을 텄으면 `at`(활동의 30~64 % 지점, 시드 = 날짜·장소·둘의 id)
+ * 전까지는 배경의 한 사람이고 그 뒤부터 만난 사람이다 — 4컷 중 3컷째(65 %)가 만남 장면이라 그 앞에서 끝난다.
  */
 function addEncounters(acts: ScheduledActivity[], memory: Memory, encounters: Encounters): void {
   const talkedDays = new Set<DayKey>();
@@ -144,15 +149,33 @@ function addEncounters(acts: ScheduledActivity[], memory: Memory, encounters: En
       .filter(x => x.overlapMs >= ENCOUNTER_MIN_MS && !a.companions.includes(x.agent.id) && x.agent.homePlaceId !== memory.homePlaceId);
     if (!met.length) continue;
     const { agent, overlapMs } = met[0];
-    if (memory.friends.some(f => f.id === agent.id)) { a.encounter = { agentId: agent.id, talked: true, again: true }; continue; }
+    a.presentNearby = presentIds(met.map(x => x.agent.id), agent.id);
+    const meId = isRemoteId(agent.id) ? remoteMeId() ?? memory.name : memory.name;
+    const at = talkAt(a, meId, agent.id);
+    if (memory.friends.some(f => f.id === agent.id)) { a.encounter = { agentId: agent.id, talked: true, again: true, at }; continue; }
     if (talkedDays.has(a.dayKey)) { a.encounter = { agentId: agent.id, talked: false }; continue; }   // 하루 최대 1명
     const chance = talkChance({ myTraits: memory.traits, myLikes: memory.likes, agent, placeType: a.place.type, overlapMs, metBefore: (encounters[agent.id] ?? 0) > 0 });
     const talked = isRemoteId(agent.id)
-      ? rollTalkRemote(a.dayKey, a.place.id, remoteMeId() ?? memory.name, agent.id, chance)
+      ? rollTalkRemote(a.dayKey, a.place.id, meId, agent.id, chance)
       : rollTalk(a.dayKey, a.place.id, memory.name, agent.id, chance);
     if (talked) talkedDays.add(a.dayKey);
-    a.encounter = { agentId: agent.id, talked };
+    a.encounter = talked ? { agentId: agent.id, talked, at } : { agentId: agent.id, talked };
   }
+}
+
+const PRESENT_CAP = 3;
+/** 같은 공간의 사람들: id 오름차순, 최대 3 — 굴림 상대(`keep`)는 순서에서 밀려도 남는다 (대화 전엔 배경에 있어야 하니까) */
+export function presentIds(ids: string[], keep: string): string[] {
+  const sorted = [...new Set(ids)].sort();
+  if (sorted.length <= PRESENT_CAP || sorted.indexOf(keep) < PRESENT_CAP) return sorted.slice(0, PRESENT_CAP);
+  return [...sorted.slice(0, PRESENT_CAP - 1), keep];
+}
+/** 말을 트는 순간 — 활동 시간의 30~64 % 지점. 시드는 굴림과 같은 재료에 `meet:`를 붙인 것 (진짜 사람이면 두 id를 정렬: 양쪽이 같은 순간) */
+const TALK_AT: [number, number] = [0.30, 0.64];
+export function talkAt(a: ScheduledActivity, meId: string, agentId: string): number {
+  const [x, y] = isRemoteId(agentId) ? [meId, agentId].sort() : [meId, agentId];
+  const f = TALK_AT[0] + rng(`meet:${a.dayKey}:${a.place.id}:${x}:${y}`).next() * (TALK_AT[1] - TALK_AT[0]);
+  return Math.round(a.arriveAt + (a.endAt - a.arriveAt) * f);
 }
 
 // ─── phase ───────────────────────────────────────────────────────────────────

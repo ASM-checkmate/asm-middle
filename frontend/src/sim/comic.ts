@@ -3,7 +3,7 @@ import { splitDayKey } from './types';
 import { rng } from './rng';
 import type { FrictionKind } from './friction';
 import { cityNameKo, placeById } from './places';
-import { agentById } from './agents';
+import { agentById, comicCastOf } from './agents';
 import { blockSlotIn } from './blocks';
 
 // Rule-based 4-panel comic writer. Grounded in the real place type + what happened. (LLM later; keep signature.)
@@ -493,5 +493,7 @@ export function makeComic(act: ScheduledActivity, memory: Memory, shots: Partial
       ...act.companions.map(id => memory.friends.find(f => f.id === id)?.name ?? agentById(id)?.name).filter((n): n is string => !!n),
       ...(enc?.talked ? [other] : []),
     ],
+    // 찍힐 때의 인물 구성 (ADR-0022): 컷을 나중에 구울 때(ADR-0020 결정 2) 활동이 없어도 같은 그림 — 난수는 안 쓴다 (위 시드 순서 불변)
+    cast: comicCastOf(act, memory),
   };
 }

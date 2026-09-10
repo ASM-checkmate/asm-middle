@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import world.theworld.server.common.ApiException;
+import world.theworld.server.llm.LlmDtos.Crush;
 import world.theworld.server.llm.LlmDtos.ReplyRequest;
 
 /** server.ts validate — 검증 문자열과 관대한 정규화 (BACKEND-CONTRACT §2.4). */
@@ -56,6 +57,30 @@ class ReplyValidatorTest {
     assertThat(c.agent().likes()).isEmpty();
     assertThat(c.batch()).isEqualTo("b1");
     assertThat(ReplyValidator.validate(j(OK.replace("\"texts\"", "\"situation2\":1,\"texts\"").replace("\"hhmm\":\"02:00\"", "\"hhmm\":\"02:00\",\"worry\":\"work\",\"mood\":49.5"))).situation().mood()).isEqualTo(50);
+  }
+
+  private static ReplyRequest withCrush(String crushJson) throws Exception {
+    return ReplyValidator.validate(j(OK.replace("\"hhmm\":\"02:00\"", "\"hhmm\":\"02:00\",\"crush\":" + crushJson)));
+  }
+
+  /** situation.crush — 없음·null·틀린 모양은 전부 조용히 없음(400 아님). 이름은 공백을 접고 1~40자, 단계는 세 값뿐. */
+  @Test
+  void crushOptionalAndLenient() throws Exception {
+    assertThat(ReplyValidator.validate(j(OK)).situation().crush()).isNull();
+    assertThat(withCrush("null").situation().crush()).isNull();
+    assertThat(withCrush("\"하늘\"").situation().crush()).isNull();
+    assertThat(withCrush("{}").situation().crush()).isNull();
+    assertThat(withCrush("{\"name\":\"하늘\"}").situation().crush()).isNull();
+    assertThat(withCrush("{\"stage\":\"like\"}").situation().crush()).isNull();
+    assertThat(withCrush("{\"name\":\"하늘\",\"stage\":\"crush\"}").situation().crush()).isNull();
+    assertThat(withCrush("{\"name\":\"하늘\",\"stage\":0.7}").situation().crush()).isNull();
+    assertThat(withCrush("{\"name\":1,\"stage\":\"like\"}").situation().crush()).isNull();
+    assertThat(withCrush("{\"name\":\"  \",\"stage\":\"like\"}").situation().crush()).isNull();
+    assertThat(withCrush("{\"name\":\"" + "가".repeat(41) + "\",\"stage\":\"like\"}").situation().crush()).isNull();
+
+    assertThat(withCrush("{\"name\":\"하늘\",\"stage\":\"interest\"}").situation().crush()).isEqualTo(new Crush("하늘", "interest"));
+    assertThat(withCrush("{\"name\":\" 하늘 \\n \",\"stage\":\"love\"}").situation().crush()).isEqualTo(new Crush("하늘", "love"));
+    assertThat(withCrush("{\"name\":\"" + "가".repeat(40) + "\",\"stage\":\"like\"}").situation().crush().name()).hasSize(40);
   }
 
   @Test

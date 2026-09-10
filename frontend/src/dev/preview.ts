@@ -237,7 +237,7 @@ function fakeAct(place: Place, o: OptionText, journey: Journey, departAt: number
   const arriveAt = departAt + journey.totalMin * 60_000;
   const endAt = arriveAt + activityMin * 60_000;
   const dayKey = dayKeyIn(departAt, originTz);
-  return { key: `${dayKey}:${blockId}`, dayKey, blockIds: [blockId], option, place, fromPlace: from, journey, departAt, arriveAt, endAt, comicUntil: endAt + 8 * 60_000, originTz, tz: tzOf(place), jetlagUntil, companions: o.friendId ? [o.friendId] : [] };
+  return { key: `${dayKey}:${blockId}`, dayKey, blockIds: [blockId], option, place, fromPlace: from, journey, departAt, arriveAt, endAt, comicUntil: endAt + 8 * 60_000, originTz, tz: tzOf(place), jetlagUntil, companions: o.friendId ? [o.friendId] : [], presentNearby: [] };
 }
 
 function memory() { return useWorld.getState().memory; }
@@ -389,11 +389,14 @@ function buildPreview(spec: PreviewSpec, now0: number): PreviewBase {
       // `&p=` — 활동(ACTIVE_MIN분) 중 지금까지 지난 비율만큼 도착을 앞당긴다 (기본 .35 = 35분 전 도착)
       const departAt = now0 - (journey.totalMin + spec.p * ACTIVE_MIN) * 60_000;
       const act = fakeAct(place, o, journey, departAt, ACTIVE_MIN, spec.tz, from, spec.jetlag ? now0 + 20 * HOUR_MS : null);
-      // 마주침 미리보기: 말을 건 상대(새 친구)거나, 스쳐 지나간 실루엣 하나
-      const other = AGENTS.find(a => !memory().friends.some(f => f.id === a.id));
-      const encounter = spec.encounter && other ? { agentId: other.id, talked: spec.encounter === 'talked' } : undefined;
+      // 마주침 미리보기 (ADR-0022): 같은 공간에 NPC 둘이 있고(배경의 뒷모습), talked면 첫 사람과 활동 중간(50 %)에 말을 튼다 —
+      // `&p=0.35`(기본)면 아직 뒷모습, `&p=0.6`이면 옆에 서서 "안녕!". seen이면 둘 다 끝까지 배경
+      const others = AGENTS.filter(a => !memory().friends.some(f => f.id === a.id)).slice(0, 2);
+      const other = others[0];
+      const encounter = spec.encounter && other ? { agentId: other.id, talked: spec.encounter === 'talked', ...(spec.encounter === 'talked' ? { at: act.arriveAt + (act.endAt - act.arriveAt) * 0.5 } : {}) } : undefined;
+      const presentNearby = spec.encounter ? others.map(a => a.id).sort() : [];
       // `&sketch=1` — 아침에 그림으로 넘긴 활동: 로그 첫 줄 "그림은 못 알아봐서…"
-      return { spec, now0, act: { ...act, tz: spec.tz, encounter, ...(spec.sketch ? { sketch: SAMPLE_SKETCH } : {}) }, world };
+      return { spec, now0, act: { ...act, tz: spec.tz, encounter, presentNearby, ...(spec.sketch ? { sketch: SAMPLE_SKETCH } : {}) }, world };
     }
     case 'comic': {
       const world = spec.tz === ownerTz ? undefined : previewWorld(now0, spec.tz, true);

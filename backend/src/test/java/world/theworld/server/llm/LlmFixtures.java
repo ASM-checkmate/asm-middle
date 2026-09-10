@@ -24,7 +24,7 @@ public final class LlmFixtures {
   public static ReplyRequest replyReq() {
     return new ReplyRequest("small",
       new Agent("모모", List.of("느긋한"), List.of("카페"), List.of()),
-      new Situation("연남동 카페", "커피 마시는 중", "16:25", null, 70, 20, null),
+      new Situation("연남동 카페", "커피 마시는 중", "16:25", null, 70, 20, null, null),
       List.of(new RecentMsg("me", "잘 지내?"), new RecentMsg("agent", "나야 좋지! 너는?")),
       List.of("야", "어디야", "뭐해"), null);
   }

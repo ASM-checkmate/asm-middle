@@ -6,7 +6,7 @@ import { OwnerLookContext } from '../character';
 import { DEFAULT_LOOK, type Look, type PlaceType } from '../sim/types';
 import { ShotStage } from '../screens/CameraOverlay';
 import { BakeOversizeError, bakeShot, bakeSvg, type BakeInput, type BakedShot } from '../photo/bake';
-import { GHOST } from '../screens/util';
+import { presentLook } from '../screens/util';
 
 const CSS = `
 .blab{box-sizing:border-box;width:100%;height:100%;overflow:auto;background:var(--paper);color:var(--ink);padding:16px 14px 40px;font-family:var(--body)}
@@ -40,14 +40,19 @@ const presets: BakePreset[] = [
   { id: 'rest-far', label: '식당 · 초점 배경(인물 흐림)', input: { type: 'restaurant', pose: 'eat', look: LOOK_B, crop: { scale: 1.3, x: -20, y: 0, rot: -12, pitch: 6, light: 0.9, dof: 0.7, focus: 'far' } } },
   { id: 'park-friend', label: '공원 · 동행', input: { type: 'park', pose: 'idle', look: DEFAULT_LOOK, friend: { color: '#5FC9A6' }, crop: { scale: 1.15, x: 4, y: 2, rot: 2, pitch: 0, light: 1.1, dof: 0.4, focus: 'near' } } },
   { id: 'cafe-met', label: '카페 · 말 튼 상대', input: { type: 'cafe', pose: 'happy', look: LOOK_C, met: { color: '#FF6A48' }, crop: { scale: 1.05, x: -6, y: 4, rot: -3, pitch: 4, light: 0.8, dof: 0.5, focus: 'near' } } },
-  { id: 'river-ghost', label: '강변 · 못 걸어본 사람(실루엣)', input: { type: 'river', pose: 'idle', look: DEFAULT_LOOK, ghost: true, crop: { scale: 1, x: 8, y: -6, rot: 5, pitch: -8, light: 1.2, dof: 0.6, focus: 'near' } } },
+  // 같은 공간에 있던 사람들 (FRIENDS_SPEC §6): 뒤의 왼쪽·오른쪽에 뒷모습으로 작게 — 얼굴 없음, 머리 모양만 상대의 것
+  { id: 'river-present', label: '강변 · 같은 공간 둘(뒷모습) · 심도', input: { type: 'river', pose: 'idle', look: DEFAULT_LOOK, present: [{ color: '#F6C445', look: presentLook('curly') }, { color: '#6B7BB5', look: presentLook('long') }], crop: { scale: 1, x: 8, y: -6, rot: 5, pitch: -8, light: 1.2, dof: 0.6, focus: 'near' } } },
+  // 말을 튼 뒤: 상대는 앞에 정면, 나머지 한 사람은 그대로 뒤에
+  { id: 'cafe-present-met', label: '카페 · 뒷모습 하나 + 말 튼 상대', input: { type: 'cafe', pose: 'read', look: LOOK_C, met: { color: '#FF9A8B', look: presentLook('bob') }, present: [{ color: '#8FD694', look: presentLook('short') }], crop: { scale: 1.1, x: -4, y: 2, rot: -2, pitch: 3, light: 0.95, dof: 0.3, focus: 'near' } } },
+  // 슬쩍 돌아본 얼굴 (AFFECTION_SPEC §4 — M5가 설렘에 쓴다): 배경 인물이 뒷모습 대신 3/4 얼굴
+  { id: 'park-glance', label: '공원 · 돌아본 배경 인물(glance)', input: { type: 'park', pose: 'walk', look: DEFAULT_LOOK, present: [{ color: '#A9DCF5', look: presentLook('bob'), glance: true }, { color: '#5FC9A6', look: presentLook('short') }], crop: { scale: 1.2, x: 0, y: 4, rot: 0, pitch: 0, light: 1.05, dof: 0, focus: 'near' } } },
   { id: 'home-friend-met', label: '집 · 동행 + 상대 · 최대치', input: { type: 'home', pose: 'sit', look: LOOK_B, friend: { color: '#A9DCF5' }, met: { color: '#FFC64D' }, crop: { scale: 2.2, x: 35, y: 35, rot: 15, pitch: 18, light: 0.55, dof: 1, focus: 'near' } } },
 ];
 
-/** ShotStage는 PlaceType을 받는다 — 프리셋의 SceneType은 전부 PlaceType이기도 하다 */
+/** ShotStage는 PlaceType을 받는다 — 프리셋의 SceneType은 전부 PlaceType이기도 하다. 라이브 무대는 glance를 모른다 (굽기 전용, M5) */
 const stageProps = (p: BakeInput) => ({
   type: p.type as PlaceType, pose: p.pose, crop: p.crop,
-  friendColor: p.friend?.color, metColor: p.met?.color, seenColor: p.ghost ? GHOST : undefined,
+  friendColor: p.friend?.color, metColor: p.met?.color, present: p.present?.map(f => ({ color: f.color, hairStyle: f.look?.hairStyle })),
 });
 
 interface Result { url: string; shot: BakedShot; ms: number; error?: string }

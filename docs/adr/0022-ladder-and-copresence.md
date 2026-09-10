@@ -1,7 +1,7 @@
 # ADR-0022: 관계는 세 단계, 같은 공간에 있던 것은 같이 논 게 아니다
 
 *   날짜: 2026-09-11
-*   상태: 제안됨 (SNS 브랜치. 구현 전)
+*   상태: 채택됨 (SNS 브랜치, 2026-09-11 구현 — M4)
 
 ## 배경
 
@@ -34,7 +34,23 @@
 
 ## 영향
 
-*   `ScheduledActivity.presentNearby: string[]` 추가. 마주침 판정(`encounterOf`)이 대화 실패 시에도 여기에 적는다.
-*   활동 장면·촬영: 배경 인물 그리기(옆·뒷모습 변형은 ADR-0019의 뒷모습 세트 재사용), 대화 성공 시점부터 정면 전환.
+*   `ScheduledActivity.presentNearby: string[]` — `addEncounters`(sim/timeline.ts)가 같은 장소 30분 겹침을 통과한 사람 **전부**를 적는다
+    (동행 제외, id 오름차순, 최대 3, 굴림 상대는 잘리지 않음). 굴림은 예전처럼 첫 사람에게만·하루 한 번. 그림은 둘까지라(`PRESENT_MAX`)
+    `castAt`·`comicCastOf`·`castOfComic`은 굴림 상대를 배경의 맨 앞에 둔다 — id 순서에서 밀려 대화 전에 안 보이다가 `at`에 불쑥 나타나지 않게.
+*   `Encounter.at` — 말을 튼 순간. 활동 시간의 30~64 % 지점, 시드 `meet:{dayKey}:{placeId}:{me}:{agent}` (진짜 사람은 두 id 정렬). 상한이 64 %인
+    이유: 4컷 만화의 3컷째(65 %)가 만남 장면이라 그 컷은 반드시 정면이어야 한다. talked·again에만 있다.
+*   `castAt(act, t, memory)`(sim/agents.ts) 하나가 "그 순간의 인물"을 정한다: 동행(정면) · 만난 사람(`t ≥ at`, 정면·손 흔듦) · 같은 공간의
+    사람들(뒷모습, ≤ 2). 방(RoomStage)·활동 화면·카메라(찍는 순간)·만화가 전부 이걸 쓴다. 옛 실루엣(GHOST 색·흐림)은 없앴다.
+*   배경 인물의 그림: `Character back` + 상대의 머리 모양만(얼굴 없음, opacity .8~.85). 방에선 옆 손님 자리 → 창가·카운터 순, 카메라 무대에선
+    뒤의 왼쪽·오른쪽 띠(나의 40 %). 굽기(photo/bake·geometry `castLayout({present})`)가 같은 자리에 같은 모습으로 굽는다.
+    `Character glance`(3/4 얼굴)는 AFFECTION_SPEC §4의 "슬쩍 돌아본 모습"용으로 굽기 입력(`BakeFigure.glance`)까지만 뚫어 뒀다 — M5.
+*   `Comic.cast` — 만화가 찍힐 때의 인물 구성(동행·만난 사람+at·같은 공간)을 기억한다. 활동이 KEEP_DAYS 뒤 사라져도 컷을 나중에 구울 때
+    (ADR-0020 결정 2) `castOfComic(cast, panel.t)`로 같은 그림. 옛 만화(cast 없음)는 예전 경로(타임라인의 활동에서 되찾기).
+*   settle(sim/store.ts): 동행과 말을 튼 상대(`encounter.talked` — FRIENDS_SPEC §6 표의 "대화 롤 성공 이후"는 동행이다, `again`도) 마다 친구가
+    아니면 그 자리에서 친구(`friendOf` + 진짜 사람이면 `POST /api/friends`), `bond` +1, `learned`에 규칙 한 줄(시드 `learn:{act.key}:{id}`, 중복 없이
+    12개). 같은 공간의 사람은 마주침 카운트(`world.encounters`)만 오른다 — §6 표 "없음. 마주침 카운트만": SNS '최근 마주친'에 이름, 다음 굴림의
+    '또 봤네' +20 %. 동행은 세지 않는다. 서버 친구 관계는 그대로 — 단계는 로컬 계산이다.
+*   만화 컷의 인물(screens/util.ts `panelCast`): `comic.cast`가 있으면 그것이 전부다 — 만난 사람은 컷 시각이 정하고(withFriend와 무관), 없는 동행을
+    memory.friends[0] 색으로 채우지 않는다. 옛 만화(cast 없음)만 withFriend·friendColor의 옛 규칙.
 *   FRIENDS_SPEC 동행 표시 규칙의 얼굴 조항은 "우리가 임의로 그리지 않는다 — 본인이 SNS에 올린 대표컷만"으로 재해석했다.
-*   `memory.friends[id]`에 `bond`(우정 단계)·`learned[]`. 서버 친구 관계(`POST /api/friends`)는 그대로 — 단계는 로컬 계산이다.
+*   검사: scripts/sim-ladder.test.mjs (presentNearby·at·castAt·comic.cast·settle), sim-friends(우정 +1), sim-bake(배경 인물 자리).

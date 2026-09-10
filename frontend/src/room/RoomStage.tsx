@@ -5,12 +5,16 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Character, type Pose } from '../character';
 import type { LogLine } from '../sim/actlog';
-import type { Friend, PhaseEncounter } from '../sim/types';
+import type { Cast } from '../sim/agents';
+import { DEFAULT_LOOK, type Friend } from '../sim/types';
 import { rng } from '../sim/rng';
 import { Props, SeatItem, type Cue, type RoomSpec, type Spot } from './Room';
 import './room.css';
 
 const SIZE = 96;              // 인물 한 변 (px). 발은 그림의 91 % 행
+const PRESENT_SIZE = 84;      // 같은 공간에 있던 사람 — 조금 작게, 뒷모습 (FRIENDS_SPEC §6 표)
+/** 배경 인물 자리: 옆 손님 자리(ghostSeat) 다음은 방마다 이 이름 중 처음 있는 것 (창가·카운터·둘째 옆자리·물가…) */
+const PRESENT_SPOTS = ['window', 'counter', 'side2', 'shore', 'kiosk', 'water', 'mirror', 'escalator', 'label', 'fountain', 'kitchen', 'path'];
 const FEET = 0.91;
 const WALK_MS = 1400;
 const DWELL_MS = 4000;
@@ -35,8 +39,10 @@ export interface RoomStageProps {
   log: LogLine[];
   /** 자리에 앉았을 때의 자세 (활동 종류) */
   seatPose: Pose;
-  companions: Friend[];
-  encounter?: PhaseEncounter;
+  /** 지금 이 순간의 인물 구성 (sim/agents castAt): 동행은 옆자리 정면, 만난 사람은 `at` 뒤부터 met 자리에서 손 흔들고, 같은 공간의 사람들은 뒷모습으로 배경에 */
+  cast?: Cast;
+  /** cast 없이 동행만 (시간표의 기다리는 방 — TimetableScreen) */
+  companions?: Friend[];
   /** 결정론적 난수 시드 (활동 키) — 같은 활동은 다시 봐도 같은 순서로 움직인다 */
   seed: string;
   /** 출발: 문으로 걸어 나가 사라진다 (ADR-0015 개정 2). 한 번 true가 되면 되돌리지 않는다 */
@@ -55,8 +61,11 @@ function restingSpot(room: RoomSpec, log: LogLine[]): { spot: string; pose?: Cue
   return { spot, pose };
 }
 
-export function RoomStage({ room, log, seatPose, companions, encounter, seed, leaving = false }: RoomStageProps) {
+export function RoomStage({ room, log, seatPose, cast: castProp, companions = [], seed, leaving = false }: RoomStageProps) {
+  const cast: Cast = castProp ?? { companions, present: [] };
   const rest = restingSpot(room, log);
+  const presentRef = useRef(cast.present.length);          // 옆 손님 타이머가 읽는다 — 배경 인물이 있으면 그 자리에 손님이 안 온다
+  presentRef.current = cast.present.length;
   const [spot, setSpot] = useState(rest.spot);
   const [pose, setPose] = useState<Cue['pose'] | undefined>(rest.pose);
   const [walking, setWalking] = useState(false);
@@ -141,7 +150,8 @@ export function RoomStage({ room, log, seatPose, companions, encounter, seed, le
       tickStroll();
     });
     const tickGuest = () => later(span(GUEST_MS), () => {
-      if (!encounter && !reducedMotion()) {
+      // 임의의 옆 손님은 배경 인물이 없을 때만 — 같은 공간의 사람들이 그 자리(ghostSeat)를 쓴다
+      if (!presentRef.current && !reducedMotion()) {
         const color = r.pick(GUEST_COLORS);
         setGuest({ spot: room.door, color, gone: false, walking: true });
         later(60, () => setGuest(g => g && { ...g, spot: room.ghostSeat }));
@@ -170,10 +180,12 @@ export function RoomStage({ room, log, seatPose, companions, encounter, seed, le
   const seated = !walking && spot === room.seat;
   seatedRef.current = seated && !pose;
   const myPose: Pose = walking ? 'walk' : (pose ?? (seated ? seatPose : 'idle'));
-  const friend = companions[0];
-  const met = encounter?.talked ? encounter.agent : null;
-  const ghost = encounter && !encounter.talked ? encounter.agent : null;
-  const at = (s: Spot): CSSProperties => ({ transform: `translate(${s.x - SIZE / 2}px, ${s.y - SIZE * FEET}px)`, zIndex: Math.round(s.y) });
+  const friend = cast.companions[0];
+  const met = cast.met;
+  // 같은 공간에 있던 사람들: 옆 손님 자리부터, 그 다음은 방에 있는 이름난 자리 (창가·카운터…) — 최대 둘
+  const presentSpots = [room.ghostSeat, ...PRESENT_SPOTS.filter(s => s !== room.ghostSeat && !!room.spots[s])];
+  const present = cast.present.slice(0, presentSpots.length).map((p, i) => ({ ...p, spot: presentSpots[i]! }));
+  const at = (s: Spot, size = SIZE): CSSProperties => ({ transform: `translate(${s.x - size / 2}px, ${s.y - size * FEET}px)`, zIndex: Math.round(s.y) });
 
   return (
     <div className={`room ${fidget === 'sip' ? 'is-sipping' : ''}`} style={{ width: room.w, height: room.h }} aria-hidden="true">
@@ -190,23 +202,25 @@ export function RoomStage({ room, log, seatPose, companions, encounter, seed, le
           <Character pose={seatPose === 'draw' || seatPose === 'read' ? seatPose : 'sit'} size={SIZE} variant="friend" color={friend.color} />
         </div>
       )}
+      {/* 같은 공간에 있던 사람들 (FRIENDS_SPEC §6 표): 배경에 뒷모습·작게·얼굴 없이, 살짝 흐리게. 말을 건 상대도 `at` 전엔 이 중 하나고,
+          `at`이 지나면 배경에서 빠져 met 자리에 정면으로 선다. 설렘 대상(cast의 glance)만 슬쩍 돌아본 3/4 얼굴 (AFFECTION_SPEC §4) */}
+      {present.map(p => (
+        <div key={p.id} className="room-actor is-still is-present" style={at(room.spots[p.spot]!, PRESENT_SIZE)}>
+          <Character pose="idle" size={PRESENT_SIZE} variant="friend" color={p.color} look={p.hairStyle ? { ...DEFAULT_LOOK, hairStyle: p.hairStyle } : undefined} back glance={p.glance} paused />
+        </div>
+      ))}
       {met && (
         <>
           <div className="room-actor is-still is-seated" style={at(room.spots[room.metSpot]!)}>
-            <Character pose="wave" size={SIZE} variant="friend" color={met.color} />
+            <Character pose="wave" size={SIZE} variant="friend" color={met.color} look={met.hairStyle ? { ...DEFAULT_LOOK, hairStyle: met.hairStyle } : undefined} />
           </div>
           <div className="room-bubble is-stay" style={{ left: room.spots[room.metSpot]!.x, top: room.spots[room.metSpot]!.y - SIZE * FEET - 4, zIndex: 999 }}>안녕!</div>
         </>
       )}
-      {guest && (
+      {guest && !present.length && (
         <div className={`room-actor is-guest ${guest.gone ? 'is-gone' : ''} ${guest.walking ? '' : 'is-seated'} ${guest.walking && guest.spot === room.ghostSeat ? 'face-left' : ''}`} style={at(room.spots[guest.spot]!)}>
           {/* 들어올 땐 위로 걸으니 뒷모습, 앉으면 정면, 나갈 땐 아래로 걸으니 정면 */}
           <Character pose={guest.walking ? 'walk' : 'sit'} size={SIZE} variant="friend" color={guest.color} back={guest.walking && guest.spot === room.ghostSeat} />
-        </div>
-      )}
-      {ghost && (
-        <div className="room-actor is-still is-ghost" style={at(room.spots[room.ghostSeat]!)}>
-          <Character pose="sit" size={SIZE} variant="friend" color="#A08C76" paused />
         </div>
       )}
       {bubbles.map(b => (

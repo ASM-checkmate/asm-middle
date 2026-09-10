@@ -250,6 +250,7 @@ export function friendOfRemote(agent: RemoteAgent, metAt: number | null, metPlac
   const f: Friend = { id: agent.id, name: agent.name, homePlaceId: agent.homePlaceId, color: agent.color, emoji: agent.emoji };
   if (metAt !== null && Number.isFinite(metAt)) f.metAt = metAt;
   if (metPlaceId) f.metPlaceId = metPlaceId;
+  if (agent.gender) f.gender = agent.gender;   // 설렘은 이성에게만 (AFFECTION_SPEC §2) — 서버 프로필의 성별을 친구 칸에
   return f;
 }
 

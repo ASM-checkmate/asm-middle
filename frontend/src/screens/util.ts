@@ -1,5 +1,6 @@
-import type { ActivityOption, BlockId, Comic, DayKey, Friend, Phase, PhaseEncounter, PlaceType, TransportMode } from '../sim/types';
-import { splitDayKey } from '../sim/types';
+import type { ActivityOption, BlockId, Comic, ComicPanel, DayKey, Friend, Look, Phase, PhaseEncounter, PlaceType, TransportMode } from '../sim/types';
+import { DEFAULT_LOOK, splitDayKey } from '../sim/types';
+import { hairStyleOf, type Agent } from '../sim/agents';
 import { blockDef, weekdayKoIn } from '../sim/blocks';
 import { DAY_MS, dayStartIn, hhmmIn } from '../sim/tz';
 import { cityNameKo } from '../sim/places';
@@ -130,16 +131,44 @@ export const beatPose = (beat: 'arrive' | 'doing' | 'twist' | 'end', opt?: Activ
 /** Tiny cross-screen intent: which comic the book should open on. */
 export const bookIntent: { comicId: string | null } = { comicId: null };
 
-/** 말은 못 걸었지만 그 자리에 있던 사람의 실루엣 색 — ActivityScreen .act-ghost, 카메라(CameraOverlay), 만화의 사용자 컷이 같은 색을 쓴다 (--ink-3) */
-export const GHOST = '#A08C76';
-/** 사용자 컷의 무대 인물 — 카메라(CameraOverlay ShotStage)가 찍을 때 서 있던 그대로: 동행 색, 말 튼 상대 색, 못 걸어본 사람의 실루엣.
- *  만화(Comic)에는 없는 정보라 ComicScreen은 phase에서, BookOverlay는 타임라인의 활동에서 되찾아 ComicPanels에 넘긴다. */
-export interface ShotCast { friendColor?: string; metColor?: string; seenColor?: string }
+/** 카메라 무대의 배경 인물 하나 (FRIENDS_SPEC §6 표: 같은 공간에 있던 사람 — 뒷모습·작게·얼굴 없이). 색과 머리 모양뿐. `glance`면 설렘 대상이라 슬쩍 돌아본 모습 (AFFECTION_SPEC §4) */
+export interface PresentFigure { color: string; hairStyle?: Look['hairStyle']; glance?: boolean }
+/**
+ * 무대 인물 구성 — 카메라(CameraOverlay ShotStage)가 찍을 때 서 있던 그대로: 동행 색, 말 튼 상대 색, 같은 공간의 뒷모습들(≤ 2).
+ * 새 만화는 `comic.cast`(sim/agents castOfComic)로 컷마다 그 시각의 구성을 되찾고, 이 모양은 옛 만화의 대체 경로다 —
+ * ComicScreen은 phase에서, BookOverlay는 타임라인의 활동에서 `castOf`로 만들어 ComicPanels에 넘긴다.
+ */
+export interface ShotCast { friendColor?: string; metColor?: string; present?: PresentFigure[] }
+/** 옛 경로 — 만난 사람은 정면, 말 못 건 사람은 배경의 뒷모습 하나 (활동의 presentNearby까지는 모른다) */
 export const castOf = (companions: Friend[], encounter?: PhaseEncounter): ShotCast => ({
   friendColor: companions[0]?.color,
   metColor: encounter?.talked ? encounter.agent.color : undefined,
-  seenColor: encounter && !encounter.talked ? GHOST : undefined,
+  present: encounter && !encounter.talked ? [presentOf(encounter.agent)] : undefined,
 });
+/**
+ * 한 컷에 그릴 인물 (ComicScreen Panel — 구운 컷과 옛 경로가 같은 규칙). 사용자 컷은 찍을 때 서 있던 그대로(cast). 에이전트 컷: 동행은 withFriend일
+ * 때만(구도 규칙 — 1컷은 혼자 도착), 만난 사람은 `timed`(comic.cast에서 컷 시각으로 되찾은 구성)면 시각이 정한다 — `at` 뒤 컷은 withFriend와 무관하게
+ * 정면(FRIENDS_SPEC §6 "뒤 컷은 정면"), 옛 경로(castOf, 시각 없음)는 withFriend 컷에만. cast가 있으면 그것이 전부다 — 없는 동행을 friendColor
+ * (memory.friends[0])로 채우지 않는다 (만난 사람 옆에 엉뚱한 친구가 서던 버그). cast도 없으면 컷의 withFriend로 동행만.
+ */
+export function panelCast(p: Pick<ComicPanel, 'by' | 'withFriend'>, cast: ShotCast | undefined, friendColor: string | undefined, timed: boolean): ShotCast {
+  const mine = p.by === 'user';
+  const fColor = cast ? (mine || p.withFriend ? cast.friendColor : undefined) : p.withFriend ? friendColor : undefined;
+  const mColor = mine || timed || p.withFriend ? cast?.metColor : undefined;
+  return { friendColor: fColor, metColor: mColor, present: cast?.present };
+}
+/** `castAt`(sim/agents) 결과 → 무대 props — 활동 화면·카메라가 지금 시각으로, 만화가 컷 시각으로 */
+export const shotCastOf = (c: { companions: { color: string }[]; met?: { color: string; hairStyle?: Look['hairStyle'] }; present: { color: string; hairStyle?: Look['hairStyle']; glance?: boolean }[] }): ShotCast => ({
+  friendColor: c.companions[0]?.color,
+  metColor: c.met?.color,
+  present: c.present.length ? c.present.map(p => presentOf(p)) : undefined,
+});
+const presentOf = (a: { color: string; hairStyle?: string; glance?: boolean }): PresentFigure => {
+  const h = hairStyleOf({ hairStyle: a.hairStyle } as Agent);
+  return { color: a.color, ...(h ? { hairStyle: h } : {}), ...(a.glance ? { glance: true } : {}) };
+};
+/** 배경 인물의 겉모습 — 머리 모양만 상대의 것, 나머지는 기본 (얼굴은 안 보인다) */
+export const presentLook = (hairStyle?: Look['hairStyle']): Look | undefined => (hairStyle ? { ...DEFAULT_LOOK, hairStyle } : undefined);
 
 // ─── 공백 (SPEC 자율 생활과 개입) ────────────────────────────────────────────
 /** "그저께" 보다 멀면 그냥 날짜로 부른다. */

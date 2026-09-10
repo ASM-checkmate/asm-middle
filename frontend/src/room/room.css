@@ -13,7 +13,13 @@
 .room-actor.is-still { transition: none; }
 .room-actor .ch { display: block; }
 .room-actor.face-left .ch { transform: scaleX(-1); }
-.room-actor.is-ghost .ch { opacity: .32; filter: grayscale(1); }
+/* 같은 공간에 있던 사람 (FRIENDS_SPEC §6 표, ADR-0022): 배경의 뒷모습 — 얼굴 없이, 살짝 흐리게. 관계가 아니라 그 순간의 사실 */
+.room-actor.is-present .ch { opacity: .8; }
+/* 방이 없는 장소(옛 정면 무대)의 배경 인물: 큰 캐릭터 뒤 왼쪽·오른쪽 위에 작게 (screens.css의 .act-met·.act-friend 어법) */
+.act-present { position: absolute; top: 236px; width: 132px; height: 132px; z-index: 1; opacity: .8; pointer-events: none; }
+.act-present-0 { left: 6px; }
+.act-present-1 { right: 6px; top: 228px; }
+.act.has-room .act-present { display: none; }
 /* 자리에 있을 때만 숨쉬기 — 걷는 중엔 캐릭터 자체의 bob이 있다 */
 .room-actor.is-seated .ch { animation: act-breathe 3s ease-in-out infinite; }
 /* 자리 표시: 그 자리 위에 떠서 3.6초 뒤 사라진다. 결제·주문·소음처럼 "무슨 일"이 방 안 어디서 났는지 */

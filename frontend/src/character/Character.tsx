@@ -21,6 +21,8 @@ export interface CharacterProps {
   paused?: boolean;
   /** 뒷모습 (방 안에서 위로 걸어갈 때): 얼굴 없이 뒤통수, 팔은 그대로 */
   back?: boolean;
+  /** 슬쩍 돌아본 모습 (AFFECTION_SPEC §4): 3/4 얼굴 — 이목구비가 보는 쪽으로 쏠린다. back보다 우선 (돌아봤으니 얼굴이 보인다) */
+  glance?: boolean;
   /** 겉모습 (ADR-0019). 없으면 'me'는 OwnerLookContext(내 캐릭터), 'friend'는 기본 */
   look?: Look;
 }
@@ -41,7 +43,8 @@ const LABEL: Record<Pose, string> = {
   draw: '그림 그리는 캐릭터', happy: '기뻐하는 캐릭터', eat: '먹는 캐릭터', read: '책 읽는 캐릭터', think: '생각하는 캐릭터',
 };
 
-export function Character({ pose = 'idle', size = 240, variant = 'me', color, className, style, paused, back = false, look: lookProp }: CharacterProps) {
+export function Character({ pose = 'idle', size = 240, variant = 'me', color, className, style, paused, back: backProp = false, glance = false, look: lookProp }: CharacterProps) {
+  const back = backProp && !glance;
   const owner = useOwnerLook();
   const look = lookProp ?? (variant === 'me' ? owner : undefined);
   const face = FACE[pose];
@@ -60,7 +63,7 @@ export function Character({ pose = 'idle', size = 240, variant = 'me', color, cl
   );
 
   return (
-    <svg className={cls} data-pose={pose} data-face={face} data-variant={variant} data-back={back || undefined} viewBox="0 0 200 200" width={size} height={size} style={st} role="img" aria-label={LABEL[pose]}>
+    <svg className={cls} data-pose={pose} data-face={face} data-variant={variant} data-back={back || undefined} data-glance={glance || undefined} viewBox="0 0 200 200" width={size} height={size} style={st} role="img" aria-label={LABEL[pose]}>
       <ellipse className="ch-shadow" cx="100" cy="190" rx="48" ry="7" fill={C.ink} opacity=".12" />
       <g className="ch-pose" transform={ROOT[pose]}>
         <g className="ch-root">
@@ -73,7 +76,7 @@ export function Character({ pose = 'idle', size = 240, variant = 'me', color, cl
           {pose === 'read' && <Book />}
           <g transform={`translate(100 96)${tilt ? ` rotate(${tilt})` : ''}`}>
             <g className="ch-head">
-              <Head face={face} variant={variant} chew={pose === 'eat'} back={back} look={look} eyesClass="ch-eyes" mouthClass="ch-mouth" cheeksClass="ch-cheeks" />
+              <Head face={face} variant={variant} chew={pose === 'eat'} back={back} quarter={glance} look={look} eyesClass="ch-eyes" mouthClass="ch-mouth" cheeksClass="ch-cheeks" />
             </g>
           </g>
           {armsFront && arms}

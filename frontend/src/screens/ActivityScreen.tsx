@@ -8,14 +8,15 @@ import { Scene, sceneTypeFor } from '../scenes';
 import { roomFor, RoomStage } from '../room';
 import { activityLog } from '../sim/actlog';
 import { hhmmIn } from '../sim/tz';
-import { fmtRemain, poseFor, progressLabel } from './util';
+import { castAt } from '../sim/agents';
+import { fmtRemain, poseFor, presentLook, progressLabel } from './util';
 import './camera.css';
 
 type Active = Extract<Phase, { kind: 'active' }>;
 
 /** State 3 — generic place scene (350px character on top), place tag, bottom status card.
  *  동행은 이름이 아니라 얼굴로 (FRIENDS_SPEC 동행 표시 규칙): the friend stands beside, the chip under the place tag.
- *  마주침(§4): 말을 걸었으면 상대가 옆에 서서 "안녕!", 못 걸었으면 배경에 실루엣만. */
+ *  마주침(§4·§6): 말을 튼 순간(`encounter.at`)부터 상대가 옆에 서서 "안녕!", 그 전과 못 걸어본 사람은 배경에 뒷모습만 (castAt). */
 export function ActivityScreen({ phase }: { phase: Active }) {
   const { act, remainingMin, progress, companions, encounter } = phase;
   // 결과가 아니라 과정을 본다 (ADR-0001): 타임스탬프 줄이 활동 중에 하나씩 쌓인다.
@@ -28,10 +29,12 @@ export function ActivityScreen({ phase }: { phase: Active }) {
   // 사진 (ADR-0004): 활동 중에만 찍을 수 있다 — 만화는 endAt에 한 번 만들어져 앨범에 굳는다. 오버레이는 Home이 띄운다.
   const setCameraOpen = useWorld(s => s.setCameraOpen);
   const shots = useWorld(s => s.shots);
+  const memory = useWorld(s => s.memory);
   const shotCount = Object.keys(shotsFor(shots, act.key)).length;
-  const friend = companions[0];
-  const met = encounter?.talked ? encounter.agent : null;
-  const seen = encounter && !encounter.talked ? encounter.agent : null;
+  // 지금 이 순간의 인물 구성 (ADR-0022) — 방·카메라·만화가 같은 규칙으로 그린다
+  const cast = castAt(act, nowMs, memory);
+  const friend = cast.companions[0];
+  const met = cast.met?.agent ?? null;
   const metChip: ChipFriend[] = met ? [{ id: met.id, name: met.name, color: met.color }] : [];
   // real place: 동네 (+ city when abroad) — no implementation vocabulary in the tag
   const where = act.place.country === 'KR' ? act.place.area : `${act.place.area} · ${cityNameKo(act.place.city)}`;
@@ -39,15 +42,15 @@ export function ActivityScreen({ phase }: { phase: Active }) {
   return (
     <div className={`act ${friend ? 'has-friend' : ''} ${met ? 'has-met' : ''} ${room ? 'has-room' : ''}`}>
       <div className="act-iris" />
-      {room && <RoomStage room={room} log={fullLog} seatPose={poseFor(act.option)} companions={companions} encounter={encounter} seed={act.key} />}
+      {room && <RoomStage room={room} log={fullLog} seatPose={poseFor(act.option)} cast={cast} seed={act.key} />}
       <div className="act-scene"><Scene type={act.place.type} /></div>
-      {/* 말은 못 걸었지만 그 자리에 있던 사람 — 배경의 흐린 실루엣 */}
-      {seen && <Character className="act-ghost" pose="idle" size={190} variant="friend" color="#A08C76" />}
+      {/* 같은 공간에 있던 사람들 — 배경에 뒷모습으로 작게 (얼굴 없음). 설렘 대상(glance)만 슬쩍 돌아본 얼굴 (AFFECTION_SPEC §4). 방이 있는 장소에선 RoomStage가 그린다 */}
+      {cast.present.map((p, i) => <Character key={p.id} className={`act-present act-present-${i}`} pose="idle" size={132} variant="friend" color={p.color} look={presentLook(p.hairStyle)} back glance={p.glance} />)}
       {friend && <Character className="act-friend" pose="wave" size={224} variant="friend" color={friend.color} />}
       <Character className="act-chara" pose={poseFor(act.option)} size={350} />
       {met && (
         <>
-          <Character className="act-met" pose="wave" size={190} variant="friend" color={met.color} />
+          <Character className="act-met" pose="wave" size={190} variant="friend" color={met.color} look={presentLook(cast.met?.hairStyle)} />
           <div className="act-met-bubble">안녕!</div>
         </>
       )}

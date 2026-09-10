@@ -175,6 +175,8 @@ export interface ChatCtx {
   seed: string;
   /** 지금 (sim ms). 막힌 상황이 끝나는 시각까지 얼마나 남았는지 셈한다. 없으면 막힌 게 지금 끝나는 걸로 본다. */
   now?: number;
+  /** 설렘 대상이 있나 (sim/affection topCrush). 있으면 "누구 좋아해?"에 얼버무린다 — 이름은 답에 절대 안 나온다 (AFFECTION_SPEC §4) */
+  crush?: { name: string } | null;
 }
 
 export interface ChatReply {
@@ -210,11 +212,11 @@ export function whereOf(phase: Phase): { where: string; doing: string } {
   }
 }
 
+const hasBatchim = (w: string) => { const c = w.charCodeAt(w.length - 1); return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 !== 0; };
 /** "집이야" / "카페야" — 받침이 있으면 '이야'. */
-const iya = (w: string) => {
-  const c = w.charCodeAt(w.length - 1);
-  return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 !== 0 ? `${w}이야` : `${w}야`;
-};
+const iya = (w: string) => (hasBatchim(w) ? `${w}이야` : `${w}야`);
+/** 이름 부르기 — 받침 있는 이름엔 '이' (하늘 → 하늘이, 유리 → 유리). agentPosts의 iga·서버 Text.calling과 같은 규칙 */
+const calling = (n: string) => (hasBatchim(n) ? `${n}이` : n);
 
 /** 못 받는 상황이 언제 끝나는지. 모르면 null — 그때는 그냥 한참 뒤에 본다. */
 function blockEndsAt(phase: Phase): number | null {
@@ -270,6 +272,17 @@ const MANY_PREFIX = ['ㅋㅋ 뭐야 한꺼번에', '어 이제 봤다', '오 많
 
 /** 답이 있는 물음 중 두 번째로 답해 줄 수 있는 것 — 첫 답에 짧게 덧붙인다. */
 const SECONDARY: ReadonlySet<Intent> = new Set(['where', 'what', 'howru']);
+
+/** "너 누구 좋아해?" — 설렘 대상이 있을 때만 이 말에 얼버무린다 (AFFECTION_SPEC §4 "물으면 얼버무린다"). 없으면 평소대로(love·unknown).
+ *  **사람**을 묻는 꼴만: "누구/누굴/누가/걔/그 애 좋아해", "좋아하는 사람", "짝사랑", "썸"(썸머는 아님). "커피 좋아해?"·"나 너 좋아해"는 love 그대로.
+ *  설렘 대상의 이름을 부르는 물음("너 하늘이 좋아해?")은 crushAsked가 이름으로 잡는다 */
+export const CRUSH_ASK_RE = /좋아하는\s*(사람|애)|짝사랑|(누구|누굴|누가|걔|그\s*(애|사람|여자|남자))\s*(좋아|생각)|썸(?!머)/;
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** 그 말이 마음을 묻는가 — 사람 물음(CRUSH_ASK_RE) 또는 설렘 대상의 이름꼴("하늘이/하늘이가/유리를 좋아해") */
+export const crushAsked = (text: string, name: string): boolean =>
+  CRUSH_ASK_RE.test(text) || new RegExp(`${escapeRe(calling(name))}(가|는|을|를|랑|은)?\\s*(좋아|생각)`).test(text);
+/** 얼버무리는 네 마디 — 이름·단계는 절대 안 나온다 */
+export const EVASIVE = ['뭐가. 아무것도 아니야', '갑자기 왜… 그런 거 없어', '…커피나 마시자', '몰라. 딴 얘기 하자'];
 
 /** 물음 하나에 대한 답. 상황이 같으면 같은 시드로 같은 문장. */
 function answer(intent: Intent, ctx: ChatCtx, r: ReturnType<typeof rng>, short: boolean): string {
@@ -356,6 +369,10 @@ export function replyToAll(texts: string[], ctx: ChatCtx): ChatReply {
     const delayMs = readGlance + thinkMs;
     return { readMs: readGlance, text: `${LATE_PREFIX[block ?? 'quiet']} 나중에 내가 걸게.`, delayMs, callMe: true, callInMs: askCallInMs(ctx.phase, ctxNow(ctx), delayMs, ctx.seed) };
   }
+
+  // 마음을 물으면 얼버무린다 — 설렘 대상이 있을 때만, 시드로 고른 한마디 (지쳤다·전화 갈래는 위에서 먼저 잡혔다)
+  const crush = ctx.crush;
+  if (crush && texts.some(t => crushAsked(t, crush.name))) return say(`${prefix}${r.pick(EVASIVE)}`);
 
   // 알아들은 줄이 있으면 못 알아들은 줄은 넘긴다
   const known = intents.filter(i => i !== 'unknown' && i !== 'ack');

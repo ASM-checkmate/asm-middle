@@ -66,7 +66,7 @@ const FIXED = { skin: '#FFD9B8', hair: '#3A2A22' } as const;
 export interface HeadProps {
   face?: Face;
   variant?: Variant;
-  /** 3/4 view: features slide toward +x (the travel direction of side-view sprites). */
+  /** 3/4 view: features slide toward +x (the travel direction of side-view sprites; Character `glance` — 슬쩍 돌아본 얼굴). */
   quarter?: boolean;
   /** Render both a closed and an open mouth (eat pose toggles them). */
   chew?: boolean;

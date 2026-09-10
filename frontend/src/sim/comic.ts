@@ -467,6 +467,8 @@ export function makeComic(act: ScheduledActivity, memory: Memory, shots: Partial
       // 사용자가 찍은 그대로: crop % 단위, 촬영 시각, 흐림·열화 없음 — 캡션은 그대로 둔다 (BLUR_CAPTION 치환 대상이 아니다)
       userCount++;
       p.by = 'user'; p.unit = 'pct'; p.t = mine.at; p.crop = { ...mine.crop }; p.blur = undefined;
+      // 찍는 순간 구운 픽셀의 id (ADR-0020) — 굽기가 실패한 샷엔 없다. 굴림(rng)은 건드리지 않는다
+      if (mine.shotId) p.shotId = mine.shotId;
       return;
     }
     p.by = 'agent'; p.unit = 'px';

@@ -7,7 +7,7 @@
 // around it (yesterday's flight from home landing this morning, the agent's picks for the rest), so the flight-covered
 // blocks, the local date title and the jet-lag chip can be screenshotted without living the trip.
 // `active…&camera=1`은 카메라 오버레이를 연 채로 시작한다 (Home이 usePreview().camera를 읽어 마운트, 샷은 오버레이의 로컬 state에만 —
-// 스토어는 안 쓴다). `&p=`는 활동 진행률(0..0.98, 기본 .35): 카메라의 "지금" 창(shots.ts winAt)이 이걸 따른다.
+// 스토어는 안 쓰고, 굽지도 올리지도 않는다: IDB·업로드 줄·서버에 아무것도 남기지 않는다). `&p=`는 활동 진행률(0..0.98, 기본 .35): 카메라의 "지금" 창(shots.ts winAt)이 이걸 따른다.
 import { useMemo, useRef } from 'react';
 import { decide, useWorld, type World } from '../sim/store';
 import type { ActivityOption, Anchor, BlockId, Category, Comic, DayKey, DaySummaryItem, Journey, Leg, Onboard, Phase, Place, PlaceType, ScheduledActivity, ShotWin, TransportMode, UserShot } from '../sim/types';

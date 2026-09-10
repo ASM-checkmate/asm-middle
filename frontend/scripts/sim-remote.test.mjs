@@ -46,6 +46,13 @@ const ok1 = validRemoteAgent(A1);
 check('멀쩡한 RemoteAgent는 통과하고 집은 friend_home·ownerFriendId 강제', !!ok1 && ok1.home.type === 'friend_home' && ok1.home.ownerFriendId === A1.id && ok1.homePlaceId === A1.home.id, JSON.stringify(ok1));
 check('집이 없거나 좌표가 틀리면 에이전트를 통째로 버린다', validRemoteAgent({ ...A1, home: undefined }) === null && validRemoteAgent({ ...A1, home: { ...A1.home, lng: 'x' } }) === null, '');
 check('이름이 비면 버린다', validRemoteAgent({ ...A1, name: '' }) === null, '');
+// SNS 세 칸 (§2.5 PUT /api/me/agent 개정): 살아남고, 틀린 값은 그 칸만 빠진다
+const REP = 'a'.repeat(32);
+const sns = validRemoteAgent({ ...A1, gender: 'female', visibility: 'public', repShotId: REP });
+check('gender·visibility·repShotId가 validRemoteAgent를 지나 남는다', sns?.gender === 'female' && sns.visibility === 'public' && sns.repShotId === REP, JSON.stringify(sns));
+const snsBad = validRemoteAgent({ ...A1, gender: 'robot', visibility: 'friends', repShotId: 'not-hex' });
+check('틀린 gender·visibility·repShotId는 그 칸만 빠지고 에이전트는 남는다', !!snsBad && snsBad.id === A1.id && !('gender' in snsBad) && !('visibility' in snsBad) && !('repShotId' in snsBad), JSON.stringify(snsBad));
+check('키가 없으면 없는 채로 (옛 응답·저장본)', !('visibility' in ok1) && !('gender' in ok1) && !('repShotId' in ok1), JSON.stringify(ok1));
 const P1 = pubOf(A1.id, '2026-09-03@Asia/Seoul', 'pm', 'layered-yeonnam', KST(2026, 9, 3, 14, 20), KST(2026, 9, 3, 17, 35));
 check('발행 활동은 통과, agentId는 준 값으로 덮인다', validPublished({ ...P1, agentId: 'liar' }, A1.id)?.agentId === A1.id, '');
 check('arriveAt ≥ endAt · 모르는 블록 · 틀린 시간대는 버린다', validPublished({ ...P1, endAt: P1.arriveAt }) === null && validPublished({ ...P1, blockId: 'brunch' }) === null && validPublished({ ...P1, tz: 'Mars/Olympus' }) === null, '');

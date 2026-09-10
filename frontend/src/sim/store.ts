@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ActivityOption, Anchor, BlockId, BlockPlan, Category, Friend, Comic, DayKey, DaySummaryItem, Journey, LlmDayPlan, LlmPlans, Look, Memory, Phase, RemoteCache, ScheduledActivity, ShotWin, UserShot } from './types';
+import type { ActivityOption, Anchor, BlockId, BlockPlan, Category, Friend, Comic, DayKey, DaySummaryItem, Gender, Journey, LlmDayPlan, LlmPlans, Look, Memory, Phase, RemoteCache, ScheduledActivity, ShotWin, UserShot, Visibility } from './types';
 import { isLook, splitDayKey } from './types';
 import type { WorryKey } from './types';
 import { BLOCK_ORDER, CATEGORIES, blockEndAt, blockSlotIn, blockStartAt } from './blocks';
@@ -22,6 +22,8 @@ import { narrate } from './narrate';
 import { MAX_LEN, WORRY_CALL_MS, ASK_CALL_MS, askCallInMs, openBatch, reactToWorry, replyToAll, tripFollowUp, trimMessages, type ChatMsg } from './chat';
 import { fetchPlan, fetchSketchRead, fetchTripPlan, getTier, planRequestOf, requestOf, scheduleReply, setTier, sketchRequestOf, type LlmTier, type PlanBlockRequest, type PlanCategory, type ReplyResponse, type SketchReadResponse } from './llm';
 import { addFriendRemote, checkHealth, onLocalSave, publishAgent, publishSchedule, refreshRemote, subscribeSync, syncArmed, syncSnapshot, type BackendStatus, type DocName, type SyncInfo } from './sync';
+import { isUploaded, startMediaQueue, subscribeUploaded } from './media';
+import { isShotId } from '../photo/geometry';
 
 /** Seed memory: the first launch starts from 모모; onboarding (`updateMemory`) overwrites name/likes/traits. */
 export const DEFAULT_MEMORY: Memory = {
@@ -115,6 +117,10 @@ const loadMemory = (): Memory => {
     worry: m.worry && isWorryKey(m.worry.key) && Number.isFinite(m.worry.at) ? m.worry : undefined,
     wish: m.wish && typeof m.wish.city === 'string' && Number.isFinite(m.wish.at) ? m.wish : undefined,
     look: isLook(m.look) ? m.look : undefined,
+    // SNS 세 칸 (CONTRACT §2.5 PUT /api/me/agent 개정) — 모양이 틀리면 없는 것으로 (없으면 서버에 키를 빼서 이전 값을 지킨다)
+    gender: m.gender === 'female' || m.gender === 'male' ? m.gender : undefined,
+    visibility: m.visibility === 'public' || m.visibility === 'private' ? m.visibility : undefined,
+    repShotId: isShotId(m.repShotId) ? m.repShotId : undefined,
   };
 };
 
@@ -165,7 +171,7 @@ const validDays = (raw: unknown): Days => {
 /** 캔버스가 만든 dataURL만 받는다 (SketchOverlay: `canvas.toDataURL('image/png')`). */
 const isSketch = (v: unknown): v is string => typeof v === 'string' && v.startsWith('data:image/');
 const isWin = (v: unknown): v is ShotWin => v === 0 || v === 1 || v === 2 || v === 3;
-/** 저장된 샷 검증 — 모양이 어긋난 항목은 버린다 (사용자 컷은 만화에 그대로 들어가므로 숫자여야 한다). */
+/** 저장된 샷 검증 — 모양이 어긋난 항목은 버린다 (사용자 컷은 만화에 그대로 들어가므로 숫자여야 한다). shotId는 32자 hex일 때만 남긴다 (ADR-0020) */
 const validShots = (raw: unknown): UserShot[] => {
   if (!Array.isArray(raw)) return [];
   return (raw as Partial<UserShot>[]).filter((x): x is UserShot => {
@@ -173,7 +179,7 @@ const validShots = (raw: unknown): UserShot[] => {
     return !!x && typeof x.actKey === 'string' && isWin(x.win) && Number.isFinite(x.at)
       && !!c && Number.isFinite(c.scale) && Number.isFinite(c.x) && Number.isFinite(c.y) && Number.isFinite(c.rot)
       && (c.pitch === undefined || Number.isFinite(c.pitch)) && (c.light === undefined || Number.isFinite(c.light)) && (c.dof === undefined || Number.isFinite(c.dof)) && (c.focus === undefined || c.focus === 'near' || c.focus === 'far');
-  });
+  }).map(x => (x.shotId === undefined || isShotId(x.shotId) ? x : (({ shotId: _drop, ...rest }) => rest)(x)));
 };
 const persistedOf = (w: World): Persisted => ({ v: 5, days: w.days, anchor: w.anchor, journeys: w.journeys, regen: w.regen, encounters: w.encounters, requests: w.requests, calls: w.calls, messages: w.messages, dueCalls: w.dueCalls, shots: w.shots, llmPlans: w.llmPlans, ...(w.remote ? { remote: w.remote } : {}) });
 const horizonFor = (t: number) => t + HORIZON_MS;
@@ -622,10 +628,31 @@ export interface WorldState {
   unsketchBlock: (id: BlockId) => void;
   /** 내 캐릭터의 겉모습을 바꾼다 (ADR-0019). undefined면 기본 모모로 */
   setLook: (look: Look | undefined) => void;
+  /** SNS 프로필 칸 — 성별(AFFECTION_SPEC §2, 주인이 직접 고른다)·계정 공개(SNS_SPEC §10)·대표컷 핀(§5). null이면 지운다. 서버엔 다음 tick이 보낸다 */
+  setSnsProfile: (patch: { gender?: Gender | null; visibility?: Visibility; repShotId?: string | null }) => void;
+  /** 에이전트가 지금 글을 올린다 (DEV·QA용). 여유 창을 기다리지 않는다. 채워지는 곳: sim/agentPosts */
+  postNow: () => void;
+  /** 에이전트가 지금 초안을 만들어 채팅으로 묻는다 (DEV·QA용). 고민 조건·주 2회 상한을 건너뛴다 */
+  askPostNow: () => void;
+  /**
+   * 초안의 결말 — 글쓰기 화면이 초안을 올렸거나(`posted`, postId 있음) 버렸을 때(`discarded`) 부른다.
+   * 채팅의 물음(AgentRequest)을 답한 것으로 적고, 오늘의 대기 초안을 비우고, 올렸으면 "올렸어 · 보러 가기" 한 줄을 남긴다. 채우는 곳: sim/agentPosts
+   */
+  resolvePostDraft: (draftId: string, outcome: 'posted' | 'discarded', postId?: string) => void;
   setSketchOpen: (id: BlockId | null) => void;
   setCameraOpen: (open: boolean) => void;
   /** 한 장 찍는다. 같은 actKey+win은 교체(뒤가 이김). 활동 종료 전(now < endAt)에만 — 만화는 endAt에 한 번 만들어진다. */
   addShot: (shot: UserShot) => void;
+  /**
+   * 굽기가 실패한 샷의 shotId를 뗀다 (ADR-0020: 픽셀이 없으면 옛 경로로 그린다). 그 사이 다시 찍었으면(다른 id) 건드리지 않는다.
+   * 활동이 끝난 뒤에 실패했으면 만화가 이미 그 id를 컷에 옮겼다 — 책의 컷에서도 뗀다 (화면이 다음 열람 때 다시 굽는다)
+   */
+  dropShotId: (shotId: string) => void;
+  /**
+   * 책의 컷에 구운 픽셀의 id를 적는다 (ADR-0020 결정 2: 옛 컷·에이전트 컷은 다음 열람 때 화면이 한 번 굽는다). 책 항목을 불변으로
+   * 바꾸고 저장한다(book 문서). 이미 id가 있거나 만화·컷을 못 찾으면 아무것도 안 한다
+   */
+  patchPanelShot: (comicId: string, panelIndex: number, shotId: string) => void;
   selectBlock: (id: BlockId | null) => void;
   dismissSummary: () => void;
   setBookOpen: (open: boolean) => void;
@@ -733,6 +760,8 @@ export const useWorld = create<WorldState>((set, get) => {
   let lastHealthAt = 0;
   // 동기화 모듈은 스토어를 모른다 — 상태가 바뀌면 여기로 복사해 화면(DevPanel·TopChrome)이 구독한다
   subscribeSync(s => set({ backend: s.backend, sync: s.sync }));
+  // 사진 업로드 줄 (ADR-0020): 밀린 사진을 올리고, 서버가 살아날 때마다 다시. dev 시계에도 올린다 (media.ts 머리 주석)
+  startMediaQueue();
 
   // ── 진짜 사람 에이전트 (BACKEND-CONTRACT §3.4) ──
   // 발행(내 확정 일정)·조회(같은 곳의 사람들, 친구, 친구의 하루)는 서버가 있고 시계가 실시간일 때만 — dev가 돌린 하루를
@@ -751,6 +780,8 @@ export const useWorld = create<WorldState>((set, get) => {
   let publishing = false;
   let profileSent = false;
   let profileSending = false;
+  // 대표 사진은 서버가 받은 뒤에야 프로필에 실린다(아래 publishProfile) — 올라가는 순간 다시 보낸다 (tick이 집어 간다)
+  subscribeUploaded(id => { if (id === get().memory.repShotId) profileSent = false; });
   // 실패 뒤 백오프 — recompute가 tick마다(1초) 돌고 디바운스(800 ms)가 그보다 짧아, 이게 없으면 죽은 서버를 초마다 두드린다
   let remoteFailures = 0;
   let nextRemoteAt = 0;
@@ -788,7 +819,14 @@ export const useWorld = create<WorldState>((set, get) => {
     let home; try { home = placeById(s.memory.homePlaceId); } catch { return false; }
     const look = appearanceOf(me);
     const clip = (v: string[]) => v.slice(0, 12).map(x => x.slice(0, 30));
-    const r = await publishAgent({ name: s.memory.name.slice(0, 40), color: look.color, emoji: look.emoji, hairStyle: look.hairStyle, likes: clip(s.memory.likes), traits: clip(s.memory.traits), home: { ...home, id: remoteHomeId(me), name: `${s.memory.name}네 집`, type: 'friend_home', ownerFriendId: me } });
+    const m = s.memory;
+    const r = await publishAgent({
+      name: m.name.slice(0, 40), color: look.color, emoji: look.emoji, hairStyle: look.hairStyle, likes: clip(m.likes), traits: clip(m.traits),
+      home: { ...home, id: remoteHomeId(me), name: `${m.name}네 집`, type: 'friend_home', ownerFriendId: me },
+      // SNS 세 칸(CONTRACT §2.5): 메모리에 있을 때만 싣는다 — 키를 빼면 서버가 이전 값을 지킨다 (되돌아가지 않게).
+      // repShotId는 서버가 받은 사진만 — 아직 줄에 선 id를 보내면 400 'repShotId not yours'로 프로필 전체가 막힌다 (올라가면 subscribeUploaded가 다시 보낸다)
+      ...(m.gender ? { gender: m.gender } : {}), ...(m.visibility ? { visibility: m.visibility } : {}), ...(m.repShotId && isUploaded(m.repShotId) ? { repShotId: m.repShotId } : {}),
+    });
     return r !== null;
   };
   /**
@@ -1104,6 +1142,19 @@ export const useWorld = create<WorldState>((set, get) => {
       if (look === undefined) delete memory.look;
       set({ memory }); save(MEMORY_KEY, memory);
     },
+    setSnsProfile: (patch) => {
+      const s = get();
+      const memory: Memory = { ...s.memory };
+      if (patch.gender !== undefined) { if (patch.gender === null) delete memory.gender; else if (patch.gender === 'female' || patch.gender === 'male') memory.gender = patch.gender; }
+      if (patch.visibility === 'public' || patch.visibility === 'private') memory.visibility = patch.visibility;
+      if (patch.repShotId !== undefined) { if (patch.repShotId === null) delete memory.repShotId; else if (isShotId(patch.repShotId)) memory.repShotId = patch.repShotId; }
+      set({ memory }); save(MEMORY_KEY, memory);
+      profileSent = false;   // 다음 tick이 PUT /api/me/agent로 보낸다 (없는 칸은 서버가 이전 값을 지킨다, CONTRACT §2.5)
+    },
+    // M3(에이전트 발행 엔진)이 채운다 — 그때까지는 아무 일도 안 한다
+    postNow: () => {},
+    askPostNow: () => {},
+    resolvePostDraft: () => {},
     sketchBlock: (id, dataUrl) => {
       const s = get();
       const p = s.plans[id];
@@ -1143,8 +1194,38 @@ export const useWorld = create<WorldState>((set, get) => {
       // 만화는 endAt에 한 번 만들어져 앨범에 고정된다 (settle) — 그 뒤의 샷은 반영될 곳이 없다
       if (!act || s.now >= act.endAt || !isWin(shot.win)) return;
       const rest = s.shots.filter(x => !(x.actKey === shot.actKey && x.win === shot.win));   // 재촬영: 뒤가 이긴다
-      set({ shots: trimShots([...rest, shot], s.anchor.t) });
+      // shotId는 모양이 맞을 때만 (validShots와 같은 규칙) — 나머지는 옛 경로
+      const clean: UserShot = isShotId(shot.shotId) ? shot : (({ shotId: _drop, ...r }) => r)(shot);
+      set({ shots: trimShots([...rest, clean], s.anchor.t) });
       persist();
+    },
+    dropShotId: (shotId) => {
+      const s = get();
+      const strip = <T extends { shotId?: string }>(x: T): T => (({ shotId: _drop, ...r }) => r as T)(x);
+      if (s.shots.some(x => x.shotId === shotId)) {
+        set({ shots: s.shots.map(x => (x.shotId === shotId ? strip(x) : x)) });
+        persist();
+      }
+      // 책에 이미 옮겨졌으면(endAt 뒤의 실패) 거기서도 — 안 그러면 픽셀 없는 id가 남아 그 컷은 영영 옛 경로로 그리고 다시 굽지도 않는다
+      if (!s.book.some(c => c.panels.some(p => p.shotId === shotId))) return;
+      const book = s.book.map(c => (c.panels.some(p => p.shotId === shotId) ? { ...c, panels: c.panels.map(p => (p.shotId === shotId ? strip(p) : p)) } : c));
+      for (const [key, cached] of comicCache) { const next = book.find(c => c.id === cached.id); if (next && next !== cached) comicCache.set(key, next); }
+      set({ book });
+      save(BOOK_KEY, book);
+    },
+    patchPanelShot: (comicId, panelIndex, shotId) => {
+      const s = get();
+      if (!isShotId(shotId)) return;
+      const i = s.book.findIndex(c => c.id === comicId);
+      const c = s.book[i];
+      const p = c?.panels[panelIndex];
+      if (!c || !p || p.shotId) return;
+      const next: Comic = { ...c, panels: c.panels.map((q, k) => (k === panelIndex ? { ...q, shotId } : q)) };
+      const book = s.book.map((q, k) => (k === i ? next : q));
+      // phase.comic·catch-up 시트는 comicCache에서 나온다 — 같이 바꿔야 다음 tick에 사진이 보인다
+      for (const [key, cached] of comicCache) if (cached.id === comicId) comicCache.set(key, next);
+      set({ book });
+      save(BOOK_KEY, book);
     },
     statusAt: (t) => { const s = get(); return foldStatus(s.anchor, s.timeline, t, s.memory); },
     answerRequest: (id, choiceId) => {

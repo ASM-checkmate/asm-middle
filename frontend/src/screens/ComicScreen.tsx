@@ -1,14 +1,27 @@
+import { useEffect, useRef } from 'react';
 import { useWorld } from '../sim/store';
-import type { ActivityOption, BlockId, Comic, ComicPanel, Phase, PlaceType } from '../sim/types';
+import type { ActivityOption, BlockId, Comic, ComicPanel, Phase, PlaceType, ShotCrop } from '../sim/types';
+import { DEFAULT_LOOK } from '../sim/types';
 import { blockDef, categoryDef, nextBlockId } from '../sim/blocks';
 import { cityNameKo, placeById } from '../sim/places';
 import { Character } from '../character';
+import { sceneTypeFor } from '../scenes';
 import { Bubble, Button, CompanionChip, JetlagChip, type ChipFriend } from '../ui';
 import { beatPose, bookIntent, castOf, poseFor, shotCount, type ShotCast } from './util';
 import { ShotStage } from './CameraOverlay';
 import { hhmmIn } from '../sim/tz';
+import { PhotoImg } from '../photo/PhotoImg';
+import { bakeShot, newShotId } from '../photo/bake';
+import { putLocal } from '../sim/media';
 
 type ComicPhase = Extract<Phase, { kind: 'comic' }>;
+
+/** `?preview=` QA 화면 — 스토어를 건드리지 않는다 (dev/preview.ts 계약): 옛 컷을 굽지도 책에 적지도 않는다 */
+const PREVIEW = typeof location !== 'undefined' && new URLSearchParams(location.search).has('preview');
+/** 이 세션에서 굽기를 시작한 컷 (`${comicId}:${index}`) — 같은 컷을 두 번 굽지 않는다 (실패해도 이 세션엔 다시 안 한다) */
+const baking = new Set<string>();
+/** 에이전트 컷의 px 크롭을 굽기의 % 단위로 옮길 때 컷 크기를 못 쟀을 때의 기본값 (폰 폭 390의 2열 격자 ≈ 170px) */
+const PANEL_W = 170;
 
 /** State 4 — 2x2 panels on paper-2, then two buttons: open in book (secondary; the comic is already saved) / next block (coral primary). */
 export function ComicScreen({ phase, onNext }: { phase: ComicPhase; onNext: (block: BlockId | null) => void }) {
@@ -121,42 +134,76 @@ export function ComicPanels({ comic, option, friendColor, tz, cast }: { comic: C
   const agentName = useWorld(s => s.memory.name);
   return (
     <div className="cm-grid">
-      {comic.panels.map((p, i) => <Panel key={i} p={p} i={i} option={option} friendColor={friendColor} tz={tz} placeType={comic.placeType} agentName={agentName} cast={cast} />)}
+      {comic.panels.map((p, i) => <Panel key={i} p={p} i={i} comicId={comic.id} option={option} friendColor={friendColor} tz={tz} placeType={comic.placeType} agentName={agentName} cast={cast} />)}
     </div>
   );
 }
 
-function Panel({ p, i, option, friendColor, tz, placeType, agentName, cast }: { p: ComicPanel; i: number; option?: ActivityOption; friendColor?: string; tz?: string; placeType: PlaceType; agentName: string; cast?: ShotCast }) {
+function Panel({ p, i, comicId, option, friendColor, tz, placeType, agentName, cast }: { p: ComicPanel; i: number; comicId: string; option?: ActivityOption; friendColor?: string; tz?: string; placeType: PlaceType; agentName: string; cast?: ShotCast }) {
+  const look = useWorld(s => s.memory.look);
+  const patchPanelShot = useWorld(s => s.patchPanelShot);
+  const ref = useRef<HTMLDivElement>(null);
   const mine = p.by === 'user';
   // 사용자 컷은 카메라 뷰파인더에 보이던 포즈(poseFor) 그대로 — 옵션을 못 찾는 옛 만화(book)에서만 비트 포즈로 대신한다
   const pose = mine ? (option ? poseFor(option) : beatPose(p.beat)) : beatPose(p.beat, option);
   const left = p.withFriend || p.beat === 'arrive';
   // 옛 만화(질감 이전에 저장된 것)에는 crop/t가 없다 — 그때는 원래대로 정중앙 전신으로 그린다
   const c = p.crop ?? { scale: 1, x: 0, y: 0, rot: 0 };
-  // 에이전트 컷의 --cx/--cy는 px (사용자 컷은 ShotStage가 %로 직접 받는다 — CONTRACT ComicPanel.unit)
+  // 에이전트 컷의 --cx/--cy는 px (사용자 컷은 ShotStage가 %로 직접 받는다 — CONTRACT ComicPanel.unit). 옛 경로의 .cm-shot에만 단다 —
+  // 구운 사진(<img class="cm-shot">)은 크롭이 이미 픽셀에 들어 있어 변수 없이(항등 transform) 그린다
   const vars = mine ? {} : { ['--rot' as string]: `${c.rot}deg`, ['--cs' as string]: String(c.scale), ['--cx' as string]: `${c.x}${p.unit === 'pct' ? '%' : 'px'}`, ['--cy' as string]: `${c.y}${p.unit === 'pct' ? '%' : 'px'}` };
-  // 에이전트가 대충 찍은 흔적 (ADR-0004 오너 결정 14): is-dark/is-blur는 CSS가, overzoom/cut/tilt는 crop에 이미 반영돼 있다
+  // 에이전트가 대충 찍은 흔적 (ADR-0004 오너 결정 14): is-dark/is-blur는 CSS가(.cm-shot — 구운 사진에도 그대로), overzoom/cut/tilt는 crop에 이미 반영돼 있다
   const flaws = p.flaws ?? [];
   const cls = ['cm-p', mine ? 'is-user' : '', p.withFriend ? 'has-f' : '', p.blur ? 'is-blur is-miss' : '', flaws.length ? 'has-flaw' : '', ...flaws.map(f => `is-${f}`)]
     .filter(Boolean).join(' ');
+  // 사용자 컷의 인물 구성: 카메라가 찍을 때 서 있던 그대로(cast). 모르면 컷의 withFriend로 동행만. 에이전트 컷은 동행뿐
+  const fColor = mine ? (cast ? cast.friendColor : p.withFriend ? friendColor : undefined) : p.withFriend ? friendColor : undefined;
+  const mColor = mine ? cast?.metColor : undefined;
+  const sColor = mine ? cast?.seenColor : undefined;
+
+  // ── 옛 컷은 다음 열람 때 한 번 굽는다 (ADR-0020 결정 2) — 브라우저에서만, 컷마다 한 번, ?preview 화면은 제외 ──
+  // 사용자 컷: 카메라와 같은 BakeInput(무대·자세·% 크롭·겉모습·인물). 에이전트 컷: 근사 — 원래 컷은 무대 없이 단색 바닥 + 소품 +
+  // 118px 캐릭터인데, 굽기는 무대 위의 캐릭터로 그린다(같은 자세·동행·열화 클래스). px 크롭(--cx/--cy, .cm-shot: rotate → scale →
+  // translate, origin 50 % 78 %)은 굽기의 % 단위로 옮긴다: 지금 그려진 컷의 크기로 나눈다 (못 재면 PANEL_W). 굽고 나면 다시 그릴 일이 없다
+  useEffect(() => {
+    if (p.shotId || PREVIEW || typeof document === 'undefined') return;
+    const key = `${comicId}:${i}`;
+    if (baking.has(key)) return;
+    baking.add(key);
+    const el = ref.current;
+    const w = el?.clientWidth || PANEL_W;
+    const h = el?.clientHeight || w * 1.08;
+    const crop: ShotCrop = mine || p.unit === 'pct' ? { ...c } : { ...c, x: (c.x / w) * 100, y: (c.y / h) * 100 };
+    const id = newShotId();
+    void bakeShot({ type: sceneTypeFor(placeType), pose, crop, look: look ?? DEFAULT_LOOK, friend: fColor ? { color: fColor } : undefined, met: mColor ? { color: mColor } : undefined, ghost: !!sColor })
+      .then(b => putLocal(id, b.blob, 'shot'))
+      .then(() => patchPanelShot(comicId, i, id))
+      .catch((e: unknown) => { console.warn(`comic: 컷 굽기 실패 — 옛 경로로 (${key})`, e); });
+    // 마운트 시점의 컷 한 번만 — 나머지 props는 그 컷의 파생값이라 deps에 넣지 않는다 (넣어도 baking이 막는다)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comicId, i, p.shotId]);
+
+  // 옛 경로: 픽셀이 없거나 못 받았을 때 crop으로 다시 그린다
+  const legacy = mine ? (
+    /* 카메라 뷰파인더와 **같은 컴포넌트**(ShotStage): 정지 무대 + 캐릭터(발이 78 % 높이) + 동행/마주침/실루엣, 크롭은 % —
+       컷 비율(1/1.08)도 같아 "찍은 그대로"다. 인물 구성을 모르면(cast 없음) 컷의 withFriend로 동행만 */
+    <ShotStage type={placeType} pose={pose} crop={c} friendColor={fColor} metColor={mColor} seenColor={sColor} still className="cm-usr" />
+  ) : (
+    <div className="cm-shot" style={vars}>
+      <Prop beat={p.beat} withFriend={!!p.withFriend} />
+      <Character className={`cm-c ${left ? 'is-left' : ''}`} pose={pose} size={118} />
+      {p.withFriend && <Character className="cm-f" pose="wave" size={100} variant="friend" color={friendColor} />}
+    </div>
+  );
   return (
-    <div className={cls} style={{ background: p.bg, ...vars }}>
-      {!mine && <div className="cm-floor" />}
+    <div ref={ref} className={cls} style={{ background: p.bg }}>
+      {!mine && !p.shotId && <div className="cm-floor" />}
       {/* 컷 번호 대신 그 컷이 찍힌 시각 — 이거 하나로 "삽화 → 기록"이 뒤집힌다 */}
       <span className="cm-k num">{p.t && tz ? hhmmIn(p.t, tz) : i + 1}</span>
       {/* 누가 찍었나 스티커 — 옛 만화(by 없음)에는 붙이지 않는다 (헤더 줄은 전부 에이전트로 센다: util.shotCount) */}
       {p.by && <span className="cm-by">{mine ? '내가 찍음' : `${agentName}가 찍음`}</span>}
-      {mine ? (
-        /* 카메라 뷰파인더와 **같은 컴포넌트**(ShotStage): 정지 무대 + 캐릭터(발이 78 % 높이) + 동행/마주침/실루엣, 크롭은 % —
-           컷 비율(1/1.08)도 같아 "찍은 그대로"다. 인물 구성을 모르면(cast 없음) 컷의 withFriend로 동행만 */
-        <ShotStage type={placeType} pose={pose} crop={c} friendColor={cast ? cast.friendColor : p.withFriend ? friendColor : undefined} metColor={cast?.metColor} seenColor={cast?.seenColor} still className="cm-usr" />
-      ) : (
-        <div className="cm-shot">
-          <Prop beat={p.beat} withFriend={!!p.withFriend} />
-          <Character className={`cm-c ${left ? 'is-left' : ''}`} pose={pose} size={118} />
-          {p.withFriend && <Character className="cm-f" pose="wave" size={100} variant="friend" color={friendColor} />}
-        </div>
-      )}
+      {/* 구운 사진(ADR-0020): 같은 .cm-shot 자리에 <img> — is-dark/is-blur 필터가 그대로 얹힌다. 못 받으면 옛 경로 */}
+      {p.shotId ? <PhotoImg shotId={p.shotId} className="cm-shot" alt={p.caption}>{legacy}</PhotoImg> : legacy}
       <div className="cm-cap">{p.caption}</div>
     </div>
   );

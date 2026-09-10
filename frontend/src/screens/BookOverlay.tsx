@@ -9,6 +9,7 @@ import { PLACES, cityNameKo } from '../sim/places';
 import { companionsOf, encounterOf } from '../sim/timeline';
 import { ComicPanels, ShotsLine } from './ComicScreen';
 import { beatPose, bookIntent, castOf, shotCount } from './util';
+import { PhotoImg } from '../photo/PhotoImg';
 
 type Group = 'day' | 'week';
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
@@ -168,8 +169,12 @@ export function BookOverlay({ onClose, comics }: { onClose: () => void; comics?:
                       <b>{c.title}</b>
                       <span>{c.summary}</span>
                       <div className="book-thumbs" aria-hidden="true">
-                        {/* 사용자 컷은 코랄 테두리 (ADR-0004) */}
-                        {c.panels.map((p, i) => <i key={i} className={p.by === 'user' ? 'is-user' : undefined} style={{ background: p.bg }}><Character pose={beatPose(p.beat)} size={30} /></i>)}
+                        {/* 사용자 컷은 코랄 테두리 (ADR-0004). 구운 컷(shotId)은 사진 그대로, 아니면 옛 30px 캐릭터 (ADR-0020) */}
+                        {c.panels.map((p, i) => (
+                          <i key={i} className={p.by === 'user' ? 'is-user' : undefined} style={{ background: p.bg }}>
+                            {p.shotId ? <PhotoImg shotId={p.shotId}><Character pose={beatPose(p.beat)} size={30} /></PhotoImg> : <Character pose={beatPose(p.beat)} size={30} />}
+                          </i>
+                        ))}
                       </div>
                     </button>
                   ))}

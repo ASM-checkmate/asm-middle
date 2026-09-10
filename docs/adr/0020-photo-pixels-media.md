@@ -38,6 +38,16 @@ SNS(ADR-0021)에서 남의 사진을 내 폰에서 보려면 "다시 그릴 재�
 *   백엔드: 미디어 테이블(id·owner·kind·bytes·createdAt), 파일은 로컬 디스크(H2와 같은 `backend/data/media/`)로 시작, S3 등은 나중.
 *   촬영 경로에 굽기·업로드가 끼므로 오프라인이면 큐에 넣고 올라갈 때까지 로컬 blob으로 보여준다.
 *   `scripts/shot-seq.mjs` 같은 QA 스크립트는 구운 파일을 비교하게 된다.
+*   **폰 저장소·업로드 줄 (2026-09-11, `frontend/src/sim/media.ts`).** 픽셀은 IndexedDB `theworld-media`/`blobs`(id → blob·mime·bytes·kind·at·uploaded),
+    아직 안 올린 id는 localStorage **`theworld.media-queue.v1`** — 사용자가 바뀌면 `sync.clearLocalDocs`가 문서와 함께 이 키와 IDB·blob URL을 비운다(`clearMedia`).
+    올리기는 `PUT /api/media/{id}?kind=`를 하나씩, 201/200이면 uploaded, 400·403·413이면 줄에서 빼고 blob은 둔다, 네트워크·5xx면 2 s → 60 s 백오프(sync.ts와 같다) 후
+    서버가 살아나면(`backend` → ok 구독) 다시. 상한 150 MB는 **올라간 것만** 오래된 순으로 지운다. `isUploaded(id)`가 글에 실을 수 있는 컷의 기준이다.
+*   **dev 시계 예외.** world/book·발행은 dev가 시간을 돌리면 서버에 안 올리지만(ADR-0012) 사진은 올린다 — id가 폰이 정한 고유값이고 PUT이 멱등이며
+    픽셀은 세계의 시각을 옮기지 않는다. 글(posts)도 같다. (CONTRACT §2.5 PUT /api/media)
+*   **옛 컷·에이전트 컷의 지연 굽기.** `shotId` 없는 컷은 화면(ComicScreen Panel)이 다음 열람 때 브라우저에서 한 번 굽고 `store.patchPanelShot`으로 책에 적는다
+    (`?preview=`는 제외, 세션마다 컷당 한 번, 실패하면 옛 경로 유지). 사용자 컷은 카메라와 같은 BakeInput. 에이전트 컷은 **근사**다: 원래는 무대 없이 단색 바닥 + 소품 +
+    118px 캐릭터인데 굽기는 무대 위 캐릭터로 그리고, px 크롭(`--cx/--cy`)은 그때 그려진 컷 크기로 나눠 %로 옮긴다(못 재면 170px). 열화(is-dark/is-blur)는 CSS가
+    `<img class="cm-shot">`에 그대로 얹는다. 카메라는 셔터 순간 id를 정해 샷을 먼저 저장하고 굽기는 뒤에서 — 60 KB를 넘거나 실패하면 `dropShotId`로 id를 떼어 옛 경로로.
 *   **굽기 근사(2026-09-11 스파이크, `frontend/src/photo/bake.tsx`·`geometry.ts`, `?lab=bake`).** 라이브 컷은 HTML+CSS 합성이라 그대로 못 굽는다 —
     같은 그림을 독립 svg 하나로 다시 써서(무대 `<symbol>` 하나를 `<use>` 세 번, 캐릭터는 겉모습을 명시한 nested `<svg>`, 크롭은 `<g transform>`)
     Blob → `<img>` → canvas → WebP. 정확히 같지 않은 것:

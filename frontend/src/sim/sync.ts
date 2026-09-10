@@ -11,8 +11,10 @@
 // 상태(backend/lastError)를 쓴다. 무엇을 묻고 결과를 어디에 얹을지는 스토어가 정한다 (이 모듈은 스토어를 모른다).
 import { ApiError, api, currentUser, hasNet, hasStorage, health, isAuthError, logout } from './api';
 import { clockWhy, loadClock, simNow } from './clock';
-import type { Place, PublishedActivity, RemoteAgent, RemoteHit } from './types';
+import type { Gender, Place, PublishedActivity, RemoteAgent, RemoteHit, Visibility } from './types';
 import { validPublished, validRemoteAgent, type RemoteFetch, type SlotReq } from './remote';
+// media.ts도 이 모듈을 읽는다(syncArmed·syncSnapshot·subscribeSync·remoteOk/remoteFailed) — 순환이지만 둘 다 모듈 평가 때는 서로를 안 부른다
+import { clearMedia } from './media';
 
 export type DocName = 'world' | 'memory' | 'book' | 'places';
 /** 문서 이름 → localStorage 키 (store.ts·places.ts의 키와 같아야 한다). */
@@ -30,7 +32,8 @@ const META_KEY = 'theworld.sync.v1';
  * (store.ts·places.ts·chat의 키와 같아야 한다).
  */
 const LOCAL_KEYS = ['theworld.world.v5', 'theworld.world.v4', 'theworld.days.v3', 'theworld.memory.v2', 'theworld.book.v1', 'theworld.places.v1', 'theworld.seen.v3', 'theworld.chatseen.v1', 'theworld.onboarded.v1', META_KEY,
-  'theworld.auth.v1', 'theworld.device.v1'] as const;   // 마지막 둘은 옛 기기 토큰(2026-09-08 이전) — 이제 안 쓰니 같이 지운다
+  'theworld.auth.v1', 'theworld.device.v1',   // 옛 기기 토큰(2026-09-08 이전) — 이제 안 쓰니 같이 지운다
+  'theworld.media-queue.v1'] as const;          // 아직 안 올린 사진 id들 (media.ts MEDIA_QUEUE_KEY와 같아야 한다) — 다른 아이디의 사진을 올리지 않게
 
 export type BackendStatus = 'unknown' | 'ok' | 'down';
 export interface SyncInfo {
@@ -110,6 +113,8 @@ const saveMeta = () => { try { localStorage.setItem(META_KEY, JSON.stringify(met
 export function clearLocalDocs() {
   cancelAll();
   for (const k of LOCAL_KEYS) { try { localStorage.removeItem(k); } catch { /* ignore */ } }
+  // 폰의 사진 캐시(IndexedDB·blob URL)도 그 아이디의 것이다 — 같이 비운다 (ADR-0020 결정 5). 실패는 삼킨다
+  void clearMedia().catch(() => { /* ignore */ });
   // 비운 기기에서 새 하루가 먼저 저장되면 baseVersion 0의 PUT이 409를 받는다 — 서버 목록을 받기 전까지는 그 409에서 서버본을 채택한다
   meta = { userId: null, versions: {}, lastPushAt: {}, fresh: true };
   unpulled.clear();
@@ -396,18 +401,24 @@ export const syncArmed = (): boolean => armed;
 const REMOTE_TIMEOUT_MS = 10_000;
 const SCHEDULE_TIMEOUT_MS = 15_000;
 
-/** remote 요청이 실패했다: 이유를 남기고, 서버가 안 닿으면 backend down (401·사용자 없음은 down이 아니라 로그인 필요) */
-const remoteFailed = (what: string, e: unknown) => {
+/** remote 요청이 실패했다: 이유를 남기고, 서버가 안 닿으면 backend down (401·사용자 없음은 down이 아니라 로그인 필요). media.ts의 업로드도 같은 문을 쓴다 */
+export const remoteFailed = (what: string, e: unknown) => {
   if (isAuthError(e)) { authLost(); notify(); return; }
   lastError = `${what}: ${errorText(e)}`;
   if (e instanceof ApiError && (e.status === 0 || e.status >= 500)) backend = 'down';
   notify();
 };
 /** remote 요청이 됐다: 서버가 살아 있고, 남겨 둔 이유는 지운다 */
-const remoteOk = () => { if (backend !== 'ok' || lastError !== null) { backend = 'ok'; lastError = null; notify(); } };
+export const remoteOk = () => { if (backend !== 'ok' || lastError !== null) { backend = 'ok'; lastError = null; notify(); } };
 
-/** `PUT /api/me/agent`의 본문 — 내 프로필. 서버가 home을 `home:<userId>`·friend_home·ownerFriendId로 강제한다 */
-export interface AgentPut { name: string; color: string; emoji: string; hairStyle?: string; likes: string[]; traits: string[]; home: Place }
+/**
+ * `PUT /api/me/agent`의 본문 — 내 프로필. 서버가 home을 `home:<userId>`·friend_home·ownerFriendId로 강제한다.
+ * gender·visibility·repShotId(CONTRACT §2.5 개정)는 **키를 빼면 이전 값을 지킨다** — 메모리에 있을 때만 싣는다 (null로만 지운다; 지우기는 아직 안 쓴다)
+ */
+export interface AgentPut {
+  name: string; color: string; emoji: string; hairStyle?: string; likes: string[]; traits: string[]; home: Place;
+  gender?: Gender; visibility?: Visibility; repShotId?: string;
+}
 
 /** 내 프로필을 올린다 (부팅·updateMemory 뒤). 돌아온 RemoteAgent, 실패면 null. */
 export async function publishAgent(body: AgentPut): Promise<RemoteAgent | null> {

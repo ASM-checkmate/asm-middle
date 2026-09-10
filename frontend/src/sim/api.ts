@@ -76,7 +76,7 @@ const signalOf = (timeoutMs: number, outer?: AbortSignal): AbortSignal | undefin
 const jsonOf = async (res: Response): Promise<unknown> => { try { return await res.json(); } catch { return null; } };
 
 export interface ApiOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   /** JSON으로 직렬화해 보낸다 (content-type: application/json) */
   body?: unknown;
   timeoutMs?: number;

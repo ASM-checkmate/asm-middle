@@ -44,7 +44,13 @@ export function validRemotePlace(raw: unknown, force?: { id?: string; type?: Pla
   return place;
 }
 
-/** 서버 에이전트 → RemoteAgent. 집이 없거나 틀리면 통째로 버린다 (placeById가 throw하지 않아야 한다). */
+/** 미디어 id 모양 (§2.5 — 클라이언트가 만드는 32자 hex) */
+const MEDIA_ID_RE = /^[0-9a-f]{32}$/;
+
+/**
+ * 서버 에이전트 → RemoteAgent. 집이 없거나 틀리면 통째로 버린다 (placeById가 throw하지 않아야 한다).
+ * SNS 세 칸(gender·visibility·repShotId)은 값이 허용 밖이면 **그 칸만** 뺀다 — 에이전트는 남긴다.
+ */
 export function validRemoteAgent(raw: unknown): RemoteAgent | null {
   if (!raw || typeof raw !== 'object') return null;
   const a = raw as Partial<RemoteAgent>;
@@ -56,6 +62,9 @@ export function validRemoteAgent(raw: unknown): RemoteAgent | null {
     likes: strings(a.likes, 12, 30), traits: strings(a.traits, 12, 30), home,
   };
   if (str(a.hairStyle, 24)) out.hairStyle = a.hairStyle;
+  if (a.gender === 'female' || a.gender === 'male') out.gender = a.gender;
+  if (a.visibility === 'public' || a.visibility === 'private') out.visibility = a.visibility;
+  if (typeof a.repShotId === 'string' && MEDIA_ID_RE.test(a.repShotId)) out.repShotId = a.repShotId;
   return out;
 }
 

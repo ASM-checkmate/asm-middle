@@ -5,9 +5,12 @@ import type { Friend, PhaseEncounter, PlaceType, ScheduledActivity, ShotWin, Use
 import { WIN_LABEL, shotsFor, winAt, winState } from '../sim/shots';
 import { hhmmIn } from '../sim/tz';
 import { Character, type Pose } from '../character';
-import { Scene } from '../scenes';
+import { Scene, sceneTypeFor } from '../scenes';
 import { Button } from '../ui';
 import { GHOST, poseFor } from './util';
+import { DEFAULT_LOOK } from '../sim/types';
+import { bakeShot, newShotId, type BakeInput } from '../photo/bake';
+import { putLocal } from '../sim/media';
 import './camera.css';
 
 type Crop = UserShot['crop'];
@@ -94,7 +97,7 @@ export interface CameraOverlayProps {
   nowMs: number;
   companions: Friend[];
   encounter?: PhaseEncounter;
-  /** `?preview=active:…&camera=1` — 스토어를 건드리지 않는다 (dev/preview.ts 계약): 샷은 로컬 state에만 */
+  /** `?preview=active:…&camera=1` — 스토어를 건드리지 않는다 (dev/preview.ts 계약): 샷은 로컬 state에만, 굽지도 올리지도 않는다 (id 없음) */
   preview?: boolean;
   onClose: () => void;
 }
@@ -106,8 +109,10 @@ export interface CameraOverlayProps {
  */
 export function CameraOverlay({ act, progress, nowMs, companions, encounter, preview, onClose }: CameraOverlayProps) {
   const addShot = useWorld(s => s.addShot);
+  const dropShotId = useWorld(s => s.dropShotId);
   const stored = useWorld(s => s.shots);
   const name = useWorld(s => s.memory.name);
+  const look = useWorld(s => s.memory.look);
   const [local, setLocal] = useState<UserShot[]>([]);
   const taken = shotsFor(preview ? local : stored, act.key);
   const now = winAt(progress);
@@ -175,11 +180,27 @@ export function CameraOverlay({ act, progress, nowMs, companions, encounter, pre
 
   // ── 셔터: 지금 창에만. 같은 창을 다시 찍으면 뒤가 이긴다 ──
   const shoot = () => {
-    const shot: UserShot = { actKey: act.key, win: now, at: nowMs, crop: { ...crop } };
-    if (preview) setLocal(ss => [...ss.filter(s => s.win !== now), shot]);
-    else addShot(shot);
+    // 찍는 순간 id를 정하고(폰이 정한다 — CONTRACT §2.5) 샷은 바로 저장한다. 굽기는 뒤에서 — 저장을 기다리게 하지 않는다 (ADR-0020 결정 1).
+    // ?preview는 id 없이 로컬 state에만 — 굽지도(IDB·업로드 줄·서버에 남는다) 않는다. ComicScreen의 지연 굽기가 PREVIEW를 건너뛰는 것과 같다
+    if (preview) {
+      setLocal(ss => [...ss.filter(s => s.win !== now), { actKey: act.key, win: now, at: nowMs, crop: { ...crop } }]);
+      setFlash(n => n + 1);
+      return;
+    }
+    const id = newShotId();
+    addShot({ actKey: act.key, win: now, at: nowMs, crop: { ...crop }, shotId: id });
     setFlash(n => n + 1);
     try { navigator.vibrate?.(24); } catch { /* 진동 없는 브라우저 */ }
+    // 무대(ShotStage)에 보이던 그대로: 장면·자세·크롭·내 겉모습·동행·말 튼 상대·실루엣. 60 KB를 넘거나(BakeOversizeError) 어떤 이유로든 못 구우면
+    // id를 떼어 옛 경로(crop 재렌더)로 둔다 — 그 사이 다시 찍었으면 다른 id라 건드리지 않는다
+    const input: BakeInput = {
+      type: sceneTypeFor(act.place.type), pose, crop: { ...crop }, look: look ?? DEFAULT_LOOK,
+      friend: friend ? { color: friend.color } : undefined, met: met ? { color: met.color } : undefined, ghost: !!seen,
+    };
+    void bakeShot(input).then(b => putLocal(id, b.blob, 'shot')).catch((e: unknown) => {
+      console.warn(`camera: 굽기 실패 — 옛 경로로 (${id})`, e);
+      dropShotId(id);
+    });
   };
   const retake = !!taken[now];
 

@@ -199,6 +199,8 @@ interface Likes { likes: number; likedByMe: boolean }          // POST/DELETE /a
 본문 `image/webp`(Safari 폴백 `image/png`) 그대로, ≤ 60 KB, 긴 변 ≤ 300px. 쿼리 `?kind=shot|sketch|npc` → 응답 (201) `Media`.
 **멱등**: 같은 소유자가 같은 id를 다시 올리면 바이트를 버리고 (200) 기존 `Media`(kind·mime도 처음 것). 다른 소유자의 id면 `403 'not yours'`. `kind=npc`는 내 폰의 가상 친구 글(ADR-0021 결정 6)이며 내 용량으로 센다. 파일은 `backend/data/media/<id>`(`theworld.media.dir`).
 *   `400`: `id must be 32 hex chars` · `kind required` / `kind must be shot|sketch|npc` · `unsupported image type`(415가 아니다 — 본문이 JSON이 아닌 경로라서) · `body required`. 60 KB(61440 바이트)를 넘으면 `413 'body too large'`.
+*   **dev 시계 예외 (프론트).** world/book 문서·일정 발행은 dev가 시간을 돌리는 중(`clockWhy`≠null)이면 올리지 않지만(§3.3), 미디어와 글은 **올린다** —
+    id는 폰이 정한 고유값이고 PUT은 멱등이며 픽셀은 세계의 시각을 옮기지 않는다. 가드는 부트스트랩 여부·사용자·`backend≠down`뿐 (`sim/media.ts`).
 
 ### GET /api/media/{id}
 

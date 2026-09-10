@@ -50,7 +50,8 @@ storage.set('theworld.world.v5', JSON.stringify({
   v: 5,
   days: { [TODAY]: { am: { blockId: 'am', category: 'play', options: [], chosenId: null, chosenBy: null, status: 'sketched', sketch: 'javascript:alert(1)' } } },
   shots: [
-    { actKey: 'old', win: 1, at: T0, crop: crop(1.2, 3, -4, 5) },
+    { actKey: 'old', win: 1, at: T0, crop: crop(1.2, 3, -4, 5), shotId: 'a1'.repeat(16) },   // 구운 컷 (ADR-0020) — 32자 hex
+    { actKey: 'old2', win: 2, at: T0, crop: crop(1.1), shotId: 'not-a-media-id' },          // id 모양이 틀리면 id만 뗀다
     { actKey: 'bad', win: 9, at: T0, crop: crop(1) },
     { actKey: 'bad2', win: 0, at: T0, crop: { scale: 'x' } },
     null, 'junk',
@@ -61,7 +62,8 @@ const { useWorld } = await import('../src/sim/store.ts');
 const { makeComic } = await import('../src/sim/comic.ts');
 const { placeById } = await import('../src/sim/places.ts');
 const S = () => useWorld.getState();
-check('모양이 어긋난 샷은 버린다', S().shots.length === 1 && S().shots[0].actKey === 'old', JSON.stringify(S().shots));
+check('모양이 어긋난 샷은 버린다', S().shots.length === 2 && S().shots[0].actKey === 'old' && S().shots[1].actKey === 'old2', JSON.stringify(S().shots));
+check('shotId: 32자 hex는 남고, 틀린 모양은 키째 떼고 샷은 산다', S().shots[0].shotId === 'a1'.repeat(16) && !('shotId' in S().shots[1]), JSON.stringify(S().shots));
 check('dataURL이 아닌 그림은 지우고 카드 상태로 되돌린다', S().plans.am.sketch === undefined && S().plans.am.status === 'empty', JSON.stringify([S().plans.am.sketch, S().plans.am.status]));
 useWorld.setState({ shots: [] });
 
@@ -88,13 +90,23 @@ if (act) {
   check('한 장 저장된다', S().shots.length === 1 && S().shots[0].win === 1 && sameCrop(S().shots[0].crop, c1), JSON.stringify(S().shots));
   check('저장본에 실린다', JSON.parse(storage.get('theworld.world.v5')).shots?.length === 1, storage.get('theworld.world.v5')?.slice(0, 40));
   const c1b = crop(1.9, 4, -3, 11);
-  S().addShot(shot(1, S().now + 2 * MIN, c1b));
+  const ID1 = 'b2'.repeat(16), ID2 = 'c3'.repeat(16), IDX = 'd4'.repeat(16);
+  S().addShot({ ...shot(1, S().now + 2 * MIN, c1b), shotId: ID1 });
   check('같은 창을 다시 찍으면 교체된다 (뒤가 이김)', S().shots.length === 1 && sameCrop(S().shots[0].crop, c1b), JSON.stringify(S().shots));
+  check('addShot: shotId가 남고 저장본에도 실린다 (ADR-0020)', S().shots[0].shotId === ID1 && JSON.parse(storage.get('theworld.world.v5')).shots[0].shotId === ID1, JSON.stringify(S().shots));
   S().jumpTo(act.arriveAt + span * 0.6);
   check('창 2로 넘어갔다', winAt(S().phase.progress) === 2, String(S().phase.progress));
   const c2 = { ...crop(1.0, 0, 0, 0), pitch: 10, light: 0.7, dof: 0.5, focus: 'far' };   // 각도·조도·심도·초점 (선택 필드)
-  S().addShot(shot(2, S().now, c2));
-  check('다른 창은 추가된다', S().shots.length === 2, String(S().shots.length));
+  // 굽기가 실패한 컷: id를 떼면 옛 경로(crop 재렌더) — 샷 자체는 남는다
+  S().addShot({ ...shot(2, S().now, c2), shotId: IDX });
+  S().dropShotId(IDX);
+  check('dropShotId: 샷은 남고 id만 떼며 저장한다', S().shots.length === 2 && S().shots.find(x => x.win === 2) && !('shotId' in S().shots.find(x => x.win === 2)) && !JSON.stringify(JSON.parse(storage.get('theworld.world.v5')).shots).includes(IDX), JSON.stringify(S().shots));
+  S().dropShotId('e5'.repeat(16));
+  check('dropShotId: 모르는 id는 아무것도 안 한다', S().shots.length === 2, '');
+  S().addShot({ ...shot(2, S().now, c2), shotId: 'bad id' });
+  check('addShot: 모양이 틀린 shotId는 떼고 받는다', S().shots.length === 2 && !('shotId' in S().shots.find(x => x.win === 2)), JSON.stringify(S().shots));
+  S().addShot({ ...shot(2, S().now, c2), shotId: ID2 });
+  check('다른 창은 추가된다', S().shots.length === 2 && S().shots.find(x => x.win === 2)?.shotId === ID2, String(S().shots.length));
   check('각도·조도·심도가 저장된다', S().shots.find(x => x.win === 2)?.crop.pitch === 10 && JSON.parse(storage.get('theworld.world.v5')).shots.find(x => x.win === 2)?.crop.dof === 0.5, JSON.stringify(S().shots));
   check('창 밖 번호는 무시된다', (S().addShot(shot(5, S().now, c2)), S().shots.length === 2), String(S().shots.length));
   check('모르는 활동은 무시된다', (S().addShot({ ...shot(0, S().now, c2), actKey: 'nope' }), S().shots.length === 2), String(S().shots.length));
@@ -117,6 +129,36 @@ if (act) {
     check('샷이 있어도 캡션은 같다 (기존 시드 순서 불변)', again.panels.every((p, i) => p.caption === comic.panels[i].caption), JSON.stringify([again.panels.map(p => p.caption), comic.panels.map(p => p.caption)]));
     check('샷 없이 만들면 전부 에이전트 컷', again.shots?.user === 0 && again.panels.every(p => p.by === 'agent'), JSON.stringify(again.shots));
     check('에이전트 컷의 열화는 샷 유무와 무관하게 같다', again.panels[0].flaws?.join() === p0.flaws?.join() && again.panels[3].flaws?.join() === p3.flaws?.join(), JSON.stringify([again.panels[0].flaws, p0.flaws]));
+    // ── 구운 컷 id (ADR-0020): 사용자 컷은 샷의 shotId를 그대로, 에이전트 컷·id 없는 샷은 없음. 굴림은 안 건드린다 ──
+    check('makeComic: 창의 shotId가 그 컷에 실린다', p1.shotId === ID1 && p2.shotId === ID2, JSON.stringify([p1.shotId, p2.shotId]));
+    check('makeComic: 에이전트 컷엔 shotId가 없다', p0.shotId === undefined && p3.shotId === undefined, JSON.stringify([p0.shotId, p3.shotId]));
+    const noId = makeComic(act, S().memory, { 1: { ...S().shots[0], shotId: undefined } });
+    check('makeComic: id 없는 샷의 컷엔 shotId가 없고 나머지는 그대로다', noId.panels[1].by === 'user' && noId.panels[1].shotId === undefined && noId.panels.every((p, i) => p.caption === comic.panels[i].caption && p.crop.rot === (i === 2 ? noId.panels[2].crop.rot : comic.panels[i].crop.rot)), JSON.stringify(noId.panels.map(p => p.shotId)));
+    const twice = makeComic(act, S().memory, { 1: S().shots[0], 2: S().shots[1] });
+    check('makeComic: 같은 입력이면 같은 결과 (shotId 포함)', JSON.stringify(twice) === JSON.stringify(comic), '');
+
+    // ── patchPanelShot: 옛 컷·에이전트 컷을 화면이 구운 뒤 책에 적는다 ──
+    const ID3 = 'f6'.repeat(16);
+    const bookBefore = S().book;
+    S().patchPanelShot(comic.id, 0, ID3);
+    const patched = S().book.find(c => c.id === comic.id);
+    check('patchPanelShot: 그 컷에만 id가 붙고 책 항목은 새 객체다', patched.panels[0].shotId === ID3 && patched.panels[3].shotId === undefined && patched !== comic && S().book !== bookBefore, JSON.stringify(patched.panels.map(p => p.shotId)));
+    check('patchPanelShot: book 문서에 저장된다', JSON.parse(storage.get('theworld.book.v1')).find(c => c.id === comic.id)?.panels[0].shotId === ID3, storage.get('theworld.book.v1')?.slice(0, 60));
+    S().patchPanelShot(comic.id, 0, 'a7'.repeat(16));
+    check('patchPanelShot: 이미 id가 있으면 덮지 않는다', S().book.find(c => c.id === comic.id).panels[0].shotId === ID3, '');
+    const bookNow = S().book;
+    S().patchPanelShot(comic.id, 9, ID3); S().patchPanelShot('c:nope', 0, ID3); S().patchPanelShot(comic.id, 3, 'bad');
+    check('patchPanelShot: 없는 컷·모르는 만화·틀린 id는 아무것도 안 한다', S().book === bookNow, '');
+    S().jumpTo(S().now + 1000);
+    check('patchPanelShot: 화면의 만화(phase.comic)에도 다음 tick에 보인다', S().phase.kind === 'comic' && S().phase.comic.panels[0].shotId === ID3, S().phase.kind);
+
+    // ── dropShotId가 endAt 뒤에 오면(굽기가 늦게 실패) 책의 컷에서도 뗀다 — 픽셀 없는 id가 남으면 그 컷은 영영 옛 경로다 ──
+    S().dropShotId(ID2);
+    const dropped = S().book.find(c => c.id === comic.id);
+    check('dropShotId: 샷·책의 컷에서 같이 뗀다 (다른 컷은 그대로)', !S().shots.some(x => x.shotId === ID2) && dropped.panels[2].shotId === undefined && dropped.panels[1].shotId === ID1 && dropped.panels[0].shotId === ID3, JSON.stringify(dropped.panels.map(p => p.shotId)));
+    check('dropShotId: book 문서에도 없다', !JSON.stringify(JSON.parse(storage.get('theworld.book.v1'))).includes(ID2), '');
+    S().jumpTo(S().now + 1000);
+    check('dropShotId: 화면의 만화(phase.comic)에도 다음 tick에 반영된다', S().phase.kind === 'comic' && S().phase.comic.panels[2].shotId === undefined && S().phase.comic.panels[1].shotId === ID1, S().phase.kind);
   }
 }
 

@@ -12,7 +12,7 @@ import org.springframework.web.filter.CorsFilter;
 
 /**
  * CORS (BACKEND-CONTRACT §0): origin은 {@code theworld.cors.origins}(쉼표 구분), 헤더 content-type·x-user-id,
- * 메서드 GET/POST/PUT/DELETE/OPTIONS. 필터 맨 앞에 두어 preflight가 인증 필터에 걸리지 않게 한다.
+ * 메서드 GET/POST/PUT/PATCH/DELETE/OPTIONS (PATCH는 §2.5 글 고치기). 필터 맨 앞에 두어 preflight가 인증 필터에 걸리지 않게 한다.
  */
 @Configuration
 public class CorsConfig {
@@ -24,7 +24,7 @@ public class CorsConfig {
       if (o.contains("*")) c.addAllowedOriginPattern(o); else c.addAllowedOrigin(o);
     }
     c.setAllowedHeaders(List.of("content-type", "x-user-id"));
-    c.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+    c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
     c.setMaxAge(3600L);
     UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
     src.registerCorsConfiguration("/api/**", c);

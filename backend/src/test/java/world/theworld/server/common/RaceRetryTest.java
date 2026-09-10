@@ -40,7 +40,7 @@ class RaceRetryTest {
 
   @Test
   void friendAddRaceIsIdempotent() {
-    SocialService svc = new SocialService(null, null, null, null, null) {
+    SocialService svc = new SocialService(null, null, null, null, null, null) {
       @Override public boolean addFriend(String me, FriendAdd req) { throw DUP; }
     };
     OkCreated r = new FriendsController(svc).add(ME, new FriendAdd("other", null, null));

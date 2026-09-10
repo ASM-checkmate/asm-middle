@@ -50,6 +50,86 @@ class ScheduleApiTest extends ApiTest {
     assertThat(json(call(HttpMethod.PUT, "/api/me/agent", s, noHome).andReturn()).get("error").asText()).isEqualTo("home required");
   }
 
+  /**
+   * §2.5 개정 — gender·visibility·repShotId. 성별은 검증만, 세 칸 모두 빠지면 이전 값(이 칸을 모르는 publishProfile이 되돌리지 않게),
+   * gender·repShotId는 명시적 null로만 지운다. 대표컷은 내 미디어만이고, 핀돼 있는 동안은 누구나 받는다(RepShotMediaAccess).
+   */
+  @Test
+  void agentProfileSnsFields() throws Exception {
+    Session s = newUser();
+    Session other = newUser();
+    Session stranger = newUser();
+    Map<String, Object> base = Map.of("name", "모모", "color", "#fff", "emoji", "🐰", "likes", List.of(), "traits", List.of(), "home", home(1, 2));
+
+    // 아무것도 안 보내면 visibility는 private, gender·repShotId 키는 빠진다
+    JsonNode first = json(call(HttpMethod.PUT, "/api/me/agent", s, base).andReturn());
+    assertThat(first.get("visibility").asText()).isEqualTo("private");
+    assertThat(first.has("gender")).isFalse();
+    assertThat(first.has("repShotId")).isFalse();
+
+    Map<String, Object> pub = new java.util.HashMap<>(base); pub.put("gender", "female"); pub.put("visibility", "public");
+    JsonNode second = json(call(HttpMethod.PUT, "/api/me/agent", s, pub).andReturn());
+    assertThat(second.get("gender").asText()).isEqualTo("female");
+    assertThat(second.get("visibility").asText()).isEqualTo("public");
+
+    // 두 칸을 빼고 다시 올려도 유지된다 — 빠진 칸이 비공개로 되돌리거나 성별을 지우지 않는다
+    JsonNode third = json(call(HttpMethod.PUT, "/api/me/agent", s, base).andReturn());
+    assertThat(third.get("visibility").asText()).isEqualTo("public");
+    assertThat(third.get("gender").asText()).isEqualTo("female");
+    // 명시적 null이 지운다 (visibility는 null이어도 그대로)
+    Map<String, Object> clear = new java.util.HashMap<>(base); clear.put("gender", null); clear.put("visibility", null);
+    JsonNode cleared = json(call(HttpMethod.PUT, "/api/me/agent", s, clear).andReturn());
+    assertThat(cleared.has("gender")).isFalse();
+    assertThat(cleared.get("visibility").asText()).isEqualTo("public");
+
+    // 검증
+    Map<String, Object> badGender = new java.util.HashMap<>(base); badGender.put("gender", "other");
+    MvcResult g = call(HttpMethod.PUT, "/api/me/agent", s, badGender).andReturn();
+    assertThat(g.getResponse().getStatus()).isEqualTo(400);
+    assertThat(json(g).get("error").asText()).isEqualTo("gender must be female|male");
+    Map<String, Object> badVis = new java.util.HashMap<>(base); badVis.put("visibility", "friends");
+    MvcResult v = call(HttpMethod.PUT, "/api/me/agent", s, badVis).andReturn();
+    assertThat(v.getResponse().getStatus()).isEqualTo(400);
+    assertThat(json(v).get("error").asText()).isEqualTo("visibility must be public|private");
+
+    // repShotId — 내 미디어만. 남의 것·모르는 것·모양이 틀린 것은 400
+    String mine = MediaApiTest.newId();
+    String theirs = MediaApiTest.newId();
+    mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/media/" + mine + "?kind=shot")
+      .header(world.theworld.server.auth.UserIdAuthFilter.HEADER, s.userId()).contentType("image/webp").content(MediaApiTest.webp(20))).andReturn();
+    mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/media/" + theirs + "?kind=shot")
+      .header(world.theworld.server.auth.UserIdAuthFilter.HEADER, other.userId()).contentType("image/webp").content(MediaApiTest.webp(20))).andReturn();
+    for (String bad : List.of(theirs, MediaApiTest.newId(), "nope")) {
+      Map<String, Object> req = new java.util.HashMap<>(base); req.put("repShotId", bad);
+      MvcResult r = call(HttpMethod.PUT, "/api/me/agent", s, req).andReturn();
+      assertThat(r.getResponse().getStatus()).as(bad).isEqualTo(400);
+      assertThat(json(r).get("error").asText()).isEqualTo("repShotId not yours");
+    }
+    // 핀 전엔 남이 못 받는다(글에도 안 실린 컷)
+    assertThat(media(stranger, mine).getResponse().getStatus()).isEqualTo(403);
+    Map<String, Object> pin = new java.util.HashMap<>(base); pin.put("repShotId", mine);
+    assertThat(json(call(HttpMethod.PUT, "/api/me/agent", s, pin).andReturn()).get("repShotId").asText()).isEqualTo(mine);
+    // 친구 목록에도 세 칸이 실린다
+    call(HttpMethod.POST, "/api/friends", other, Map.of("otherId", s.userId())).andReturn();
+    JsonNode entry = json(call(HttpMethod.GET, "/api/friends", other, null).andReturn()).get("friends").get(0).get("agent");
+    assertThat(entry.get("visibility").asText()).isEqualTo("public");
+    assertThat(entry.get("repShotId").asText()).isEqualTo(mine);
+    // 대표컷은 누구나 받는다 — 비공개로 돌려도(프로필의 이름·대표컷은 보인다, SNS_SPEC §10)
+    assertThat(media(stranger, mine).getResponse().getStatus()).isEqualTo(200);
+    Map<String, Object> priv = new java.util.HashMap<>(base); priv.put("visibility", "private");
+    assertThat(json(call(HttpMethod.PUT, "/api/me/agent", s, priv).andReturn()).get("repShotId").asText()).isEqualTo(mine);   // 빼도 핀은 남는다
+    assertThat(media(stranger, mine).getResponse().getStatus()).isEqualTo(200);
+    // 명시적 null이 핀을 풀고, 그러면 다시 막힌다
+    Map<String, Object> unpin = new java.util.HashMap<>(base); unpin.put("repShotId", null);
+    assertThat(json(call(HttpMethod.PUT, "/api/me/agent", s, unpin).andReturn()).has("repShotId")).isFalse();
+    assertThat(media(stranger, mine).getResponse().getStatus()).isEqualTo(403);
+  }
+
+  MvcResult media(Session s, String id) throws Exception {
+    return mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/media/" + id)
+      .header(world.theworld.server.auth.UserIdAuthFilter.HEADER, s.userId())).andReturn();
+  }
+
   @Test
   void scheduleReplacesWindow() throws Exception {
     Session me = newUser();

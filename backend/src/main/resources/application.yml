@@ -51,6 +51,8 @@ theworld:
     min-gap-ms: ${NOMINATIM_MIN_GAP_MS:1100}
   docs:
     max-bytes: 4194304
+  media:
+    dir: ${MEDIA_DIR:./data/media}   # 구운 컷·낙서 파일 (ADR-0020). H2 파일과 같은 data/ 아래
 
 ---
 # prod: PostgreSQL. `SPRING_PROFILES_ACTIVE=prod DATABASE_URL=jdbc:postgresql://host/db DB_USER=… DB_PASSWORD=…`

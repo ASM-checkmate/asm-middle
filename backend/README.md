@@ -11,7 +11,7 @@ HTTP 계약은 `docs/CONTRACT.md`, 설계 근거는 `docs/adr/0012-spring-backen
 cd backend
 export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home   # Java 21
 ./gradlew bootRun          # http://localhost:8080
-./gradlew test             # JUnit5 + MockMvc, H2 인메모리(test 프로필) — 155개, Ollama·검색·Nominatim은 부르지 않는다
+./gradlew test             # JUnit5 + MockMvc, H2 인메모리(test 프로필) — 246개, Ollama·검색·Nominatim은 부르지 않는다
 ```
 
 JDK가 없으면 Gradle 툴체인이 내려받는다(settings.gradle.kts의 foojay). 프런트 개발 서버(Vite)는 `/api`를 `BACKEND_URL`(기본 `http://localhost:8080`)로 프록시하므로 둘을 같이 띄우면 된다 — `.claude/launch.json`의 `theworld-backend`(8080)·`theworld-dev`(5173).
@@ -43,11 +43,11 @@ curl -X PUT -H 'X-User-Id: yoongwan' -H 'content-type: application/json' \
 | `test` | H2 인메모리 `jdbc:h2:mem:test` | `./gradlew test` (src/test/resources/application-test.yml) |
 | `prod` | PostgreSQL (`DATABASE_URL`, `DB_USER`, `DB_PASSWORD`) | `SPRING_PROFILES_ACTIVE=prod` |
 
-스키마는 Flyway(`src/main/resources/db/migration/V1__init.sql`, 사용자 시드 `V2__seed_users.sql`)가 만들고 JPA는 `ddl-auto: validate`로 검사만 한다.
+스키마는 Flyway(`src/main/resources/db/migration/V1__init.sql`, 사용자 시드 `V2__seed_users.sql`, 미디어·프로필 SNS 칸 `V3__media.sql`, 글·좋아요 `V4__posts.sql`)가 만들고 JPA는 `ddl-auto: validate`로 검사만 한다.
 2026-09-08 인증 개정으로 `V1`의 `app_user`가 바뀌었다 — 그 전에 만든 `data/`가 있으면 지우고 다시 띄운다(체크섬 불일치).
 H2와 PostgreSQL 둘 다 도는 SQL(text · bigint · varchar)만 쓴다 — H2에서 `text`가 CLOB으로 보고돼 검증이 어긋나는 문제는 `common/TheworldH2Dialect`가 흡수한다(prod는 표준 PostgreSQLDialect).
 
-표: `app_user`(고정 아이디 5명, 시드) · `user_doc`(문서 4종, 버전) · `agent_profile` · `published_activity`(창 교체) · `friendship`(정렬된 쌍) · `trip_pack` / `trip_search`(여행 캐시, 모든 사용자 공유).
+표: `app_user`(고정 아이디 5명, 시드) · `user_doc`(문서 4종, 버전) · `agent_profile` · `published_activity`(창 교체) · `friendship`(정렬된 쌍) · `trip_pack` / `trip_search`(여행 캐시, 모든 사용자 공유) · `media`(구운 컷의 행 — 바이트는 `data/media/<id>` 파일, ADR-0020) · `post` / `post_like`(SNS 글과 좋아요, 추천은 `post/FeedService`가 메모리에서 점수 매김, ADR-0021).
 
 ## 환경변수 (`application.yml` `theworld.*`)
 

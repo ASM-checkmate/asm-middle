@@ -1,12 +1,14 @@
 package world.theworld.server.social;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
 import java.util.Map;
 
 /**
  * §2.3 JSON 모양 — 필드명은 계약 타입(RemotePlace·RemoteAgent·PublishedActivity)과 글자 그대로.
- * TS의 `?` 필드(hairStyle·place·reachBy·ownerFriendId)는 없을 때 키 자체를 빼고(NON_NULL), `number|null`로 적힌 것(metAt·metPlaceId·now)은 null을 그대로 낸다.
+ * TS의 `?` 필드(hairStyle·place·reachBy·ownerFriendId·gender·repShotId)는 없을 때 키 자체를 빼고(NON_NULL), `number|null`로 적힌 것(metAt·metPlaceId·now)은 null을 그대로 낸다.
+ * §2.5 개정으로 RemoteAgent에 gender('female'|'male')·visibility('public'|'private', 항상 실림)·repShotId(내 media id)가 붙었다.
  */
 public final class SocialDtos {
   private SocialDtos() {}
@@ -17,7 +19,7 @@ public final class SocialDtos {
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public record RemoteAgent(String id, String name, String homePlaceId, String color, String emoji, List<String> likes, List<String> traits,
-                            String hairStyle, RemotePlace home) {}
+                            String hairStyle, RemotePlace home, String gender, String visibility, String repShotId) {}
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public record PublishedActivityDto(String key, String agentId, String dayKey, String blockId, String placeId, RemotePlace place, String category,
@@ -26,7 +28,12 @@ public final class SocialDtos {
   // ── 요청 (관대하게 받기 위해 boxed 타입 — 빠진 필드를 400 한 줄로 알린다) ──
   public record PlaceIn(String id, String name, String type, Double lng, Double lat, String area, String city, String country, String emoji,
                         String reachBy, String ownerFriendId) {}
-  public record AgentPut(String name, String color, String emoji, String hairStyle, List<String> likes, List<String> traits, PlaceIn home) {}
+  /**
+   * SNS 세 칸(§2.5)은 빠지면 이전 값(처음이면 visibility private, 나머지 없음). gender·repShotId는 "키가 없음"(지킨다)과 "명시적 null"(지운다)을
+   * 갈라야 해서 JsonNode로 받는다 — 없으면 null, null이면 NullNode (Jackson은 빠진 Optional도 empty로 채워 못 가른다). visibility는 지울 수 없어 String.
+   */
+  public record AgentPut(String name, String color, String emoji, String hairStyle, List<String> likes, List<String> traits, PlaceIn home,
+                         JsonNode gender, String visibility, JsonNode repShotId) {}
   public record ActivityIn(String key, String agentId, String dayKey, String blockId, String placeId, PlaceIn place, String category, String title,
                            String emoji, Long arriveAt, Long endAt, String tz, List<String> companions) {}
   public record SchedulePut(Long from, Long to, List<ActivityIn> activities) {}

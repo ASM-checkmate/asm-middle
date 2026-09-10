@@ -17,13 +17,22 @@ if (import.meta.env.DEV) {
 
 // `?lab=character` → src/dev/CharacterLab.tsx (built concurrently). Loaded through a glob so a missing file
 // neither breaks the import graph nor the app; a broken one is caught by the boundary below.
-const labModules = import.meta.glob('./dev/CharacterLab.tsx');
+const labModules = import.meta.glob(['./dev/CharacterLab.tsx', './dev/BakeLab.tsx']);
 const CharacterLab = lazy(async () => {
   const load = labModules['./dev/CharacterLab.tsx'];
   if (!load) throw new Error('CharacterLab not found');
   const m = (await load()) as { default?: ComponentType; CharacterLab?: ComponentType };
   const C = m.CharacterLab ?? m.default;
   if (!C) throw new Error('CharacterLab has no component export');
+  return { default: C };
+});
+// `?lab=bake` → src/dev/BakeLab.tsx (ADR-0020 굽기 스파이크): 라이브 무대와 구운 픽셀을 나란히
+const BakeLab = lazy(async () => {
+  const load = labModules['./dev/BakeLab.tsx'];
+  if (!load) throw new Error('BakeLab not found');
+  const m = (await load()) as { default?: ComponentType; BakeLab?: ComponentType };
+  const C = m.BakeLab ?? m.default;
+  if (!C) throw new Error('BakeLab has no component export');
   return { default: C };
 });
 
@@ -56,6 +65,16 @@ export default function App() {
           </Suspense>
         </Boundary>
       </OwnerLookContext.Provider>
+    );
+  }
+
+  if (LAB === 'bake') {
+    return (
+      <Boundary fallback={<div className="lab-note">굽기 랩을 열 수 없어요 — src/dev/BakeLab.tsx 를 확인해 주세요.</div>}>
+        <Suspense fallback={<div className="lab-note">굽기 랩 여는 중…</div>}>
+          <BakeLab />
+        </Suspense>
+      </Boundary>
     );
   }
 

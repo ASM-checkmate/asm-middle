@@ -715,6 +715,7 @@ function Home() {
   );
 }
 
-const SCENES: Record<SceneType, () => ReactNode> = {
+/** 무대 본체(스타일 없는 svg 자식들) — photo/bake.tsx가 정지 무대를 문자열로 구울 때 쓴다. Scene 자체의 동작은 그대로 */
+export const SCENES: Record<SceneType, () => ReactNode> = {
   cafe: Cafe, restaurant: Restaurant, park: Park, river: River, beach: Beach, gym: Gym, library: Library, mall: Mall, museum: Museum, home: Home,
 };

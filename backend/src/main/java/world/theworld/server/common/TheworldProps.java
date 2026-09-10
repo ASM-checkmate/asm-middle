@@ -16,7 +16,8 @@ public record TheworldProps(
   @DefaultValue Plan plan,
   @DefaultValue Search search,
   @DefaultValue Nominatim nominatim,
-  @DefaultValue Docs docs
+  @DefaultValue Docs docs,
+  @DefaultValue Media media
 ) {
   /** 허용 origin — 쉼표로 여러 개. 개발은 Vite 프록시라 same-origin이고 이건 직접 붙을 때용. */
   public record Cors(@DefaultValue("http://localhost:5173") String origins) {}
@@ -34,4 +35,6 @@ public record TheworldProps(
   public record Nominatim(@DefaultValue("https://nominatim.openstreetmap.org") String url, @DefaultValue("") String contact, @DefaultValue("1100") long minGapMs) {}
   /** 문서 본문 상한(바이트) — /api/me/docs/* 4 MB (BACKEND-CONTRACT §2.2). */
   public record Docs(@DefaultValue("4194304") long maxBytes) {}
+  /** 미디어 파일이 놓이는 디렉터리 — H2 파일과 같은 backend/data/ 아래 (ADR-0020 §영향). 없으면 첫 업로드 때 만든다. */
+  public record Media(@DefaultValue("./data/media") String dir) {}
 }

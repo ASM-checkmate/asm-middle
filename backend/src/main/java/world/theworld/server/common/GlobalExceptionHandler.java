@@ -78,7 +78,8 @@ public class GlobalExceptionHandler {
 
   @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
   public ResponseEntity<Map<String, Object>> mediaType(HttpMediaTypeNotSupportedException e) {
-    return error(415, "content-type must be application/json");
+    // JSON 경로만이 아니다 — /api/media/*는 image/webp·image/png를 받으므로 메시지는 경로를 안 가린다
+    return error(415, "unsupported content-type");
   }
 
   @ExceptionHandler(ResponseStatusException.class)

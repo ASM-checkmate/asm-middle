@@ -38,3 +38,24 @@ SNS(ADR-0021)에서 남의 사진을 내 폰에서 보려면 "다시 그릴 재�
 *   백엔드: 미디어 테이블(id·owner·kind·bytes·createdAt), 파일은 로컬 디스크(H2와 같은 `backend/data/media/`)로 시작, S3 등은 나중.
 *   촬영 경로에 굽기·업로드가 끼므로 오프라인이면 큐에 넣고 올라갈 때까지 로컬 blob으로 보여준다.
 *   `scripts/shot-seq.mjs` 같은 QA 스크립트는 구운 파일을 비교하게 된다.
+*   **굽기 근사(2026-09-11 스파이크, `frontend/src/photo/bake.tsx`·`geometry.ts`, `?lab=bake`).** 라이브 컷은 HTML+CSS 합성이라 그대로 못 굽는다 —
+    같은 그림을 독립 svg 하나로 다시 써서(무대 `<symbol>` 하나를 `<use>` 세 번, 캐릭터는 겉모습을 명시한 nested `<svg>`, 크롭은 `<g transform>`)
+    Blob → `<img>` → canvas → WebP. 정확히 같지 않은 것:
+    *   **각도(pitch).** `perspective(560px) rotateX()`는 svg에 없다. 평균 효과인 `scaleY(cos pitch)`와 무대 패럴랙스(−0.55 %/°)만 남기고
+        사다리꼴(위아래 크기 차, 뷰파인더에서 최대 ±13 %)은 버렸다.
+    *   **조도 톤.** `brightness()` + 어두운 덮개(보통 합성) + 노란 덮개(multiply)를 채널별 1차식 하나(`feComponentTransfer linear`, sRGB)로
+        접었다 — 수학적으로 같고 헤드리스 Chrome에서 라이브와 픽셀 평균 ±2 안. 다만 프레임 밖(무대가 안 덮는 곳)은 종이색 바탕이 같이 물든다.
+    *   **심도 반지름.** 라이브는 CSS px(뷰파인더 6·5px, 썸네일 2.4·2px)라 크기에 안 비례한다. 굽기는 뷰파인더 비율을 긴 변 300에 옮긴
+        5·4px(실루엣 0.5px)로 고정하고 세로에 비례시킨다 — 작은 칸에서 보면 라이브 썸네일보다 덜 흐리다. 흐림·조도 필터는 전부
+        `color-interpolation-filters="sRGB"` — svg 기본(linearRGB)으로 두면 흐린 자리가 CSS `blur()`보다 눈에 띄게 밝아진다(채널 평균 10, 최대 46).
+    *   **정지 자세.** 라이브 썸네일(`.ch.is-paused`)은 루프를 0 ms에서 멈춘 것이라 음수 delay까지 합친 **0 % 키프레임 상태**를 보여 준다
+        (기쁨의 반짝이는 오른쪽 위 하나만 45°로, 손 흔드는 팔은 −16°, 걷는 오른발은 들려 있고, 먹을 땐 다문 입만). character.css를 통째로
+        넣지 않고 그 상태만 정적 규칙(`geometry.ts STILL_CSS`)으로 옮겨 적었다 — 루프가 바뀌면 같이 고친다.
+    *   **글꼴.** 무대 라벨 다섯(MENU·OPEN·GYM·상점·특별전)의 Jua는 `<img>` 안에서 못 받는다 → `Jua, sans-serif`(기기에 없으면 일반 글꼴).
+        캐릭터의 `var(--mono)`도 `monospace`.
+    *   **색.** scenes.css의 `color-mix`는 sRGB 선형 보간으로 미리 계산(±1), CSS 변수(`--ch-*`·`--friend`·`--ink-3`)는 리터럴로 치환.
+        getComputedStyle 샘플링은 안 쓴다.
+    *   **WebP 폴백.** `canvas.toBlob('image/webp')`가 다른 타입을 주면(Safari) PNG로 올리고 `mime`에 적는다. 60 KB를 넘으면 품질 0.82 → 0.62,
+        그래도 넘으면 긴 변 260. 헤드리스 Chrome에서 프리셋 10개는 전부 WebP 3~12 KB. PNG엔 품질 눈금이 없어(흐린 인물 컷이 300px에서
+        ≈100 KB, 260에서 ≈80 KB) 긴 변만 260 → 220 → 180으로 내린다(`pngAttempts`). 마지막 시도도 60 KB를 넘으면 `BakeOversizeError`(마지막
+        컷을 실어서) — 서버가 413을 줄 몸을 돌려주지 않으니 찍는 쪽이 큐에 넣거나 건너뛴다.

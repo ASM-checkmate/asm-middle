@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.util.Optional;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -49,6 +50,23 @@ public class AgentProfile {
   @Column(name = "updated_at", nullable = false)
   private long updatedAt;
 
+  // ── §2.5 SNS 칸 (V3) ──
+
+  /** female | male | null — 서버는 검증만 하고 추정하지 않는다 (ADR-0023). */
+  @Column(name = "gender", length = 8)
+  private String gender;
+
+  /** public | private. 기본 private (ADR-0021 결정 7). */
+  @Column(name = "visibility", length = 8, nullable = false)
+  private String visibility = VISIBILITY_PRIVATE;
+
+  /** 대표컷 핀 — 내 media.id, 없으면 null. */
+  @Column(name = "rep_shot_id", length = 32)
+  private String repShotId;
+
+  public static final String VISIBILITY_PRIVATE = "private";
+  public static final String VISIBILITY_PUBLIC = "public";
+
   protected AgentProfile() {}
 
   public AgentProfile(String userId) { this.userId = userId; }
@@ -63,8 +81,16 @@ public class AgentProfile {
   public String getHomeJson() { return homeJson; }
   public String getHomePlaceId() { return homePlaceId; }
   public long getUpdatedAt() { return updatedAt; }
+  public String getGender() { return gender; }
+  public String getVisibility() { return visibility; }
+  public String getRepShotId() { return repShotId; }
 
-  public void update(String name, String color, String emoji, String hairStyle, String likesJson, String traitsJson, String homeJson, String homePlaceId, long now) {
+  /**
+   * SNS 세 칸은 요청에서 빠지면(null) 이전 값을 지킨다 — 이 칸을 모르는 클라이언트(부팅·메모리 갱신마다 올리는 publishProfile)가 공개 여부·성별·핀을
+   * 되돌리지 않게. gender·repShotId는 명시적 null(Optional.empty)로만 지운다; visibility는 지울 수 없다.
+   */
+  public void update(String name, String color, String emoji, String hairStyle, String likesJson, String traitsJson, String homeJson, String homePlaceId,
+                     Optional<String> gender, String visibility, Optional<String> repShotId, long now) {
     this.name = name;
     this.color = color;
     this.emoji = emoji;
@@ -73,6 +99,9 @@ public class AgentProfile {
     this.traitsJson = traitsJson;
     this.homeJson = homeJson;
     this.homePlaceId = homePlaceId;
+    if (gender != null) this.gender = gender.orElse(null);
+    if (visibility != null) this.visibility = visibility;
+    if (repShotId != null) this.repShotId = repShotId.orElse(null);
     this.updatedAt = now;
   }
 }

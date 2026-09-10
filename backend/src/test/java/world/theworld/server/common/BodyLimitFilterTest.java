@@ -24,7 +24,7 @@ class BodyLimitFilterTest {
   private static final TheworldProps PROPS = new TheworldProps(
     new TheworldProps.Cors("http://localhost:5173"), new TheworldProps.Ollama("http://127.0.0.1:9", 25_000), new TheworldProps.Models("s", "g"),
     new TheworldProps.Trip("", 90_000, 100_000, 22_000), new TheworldProps.Plan(20_000, 120_000), new TheworldProps.Search(""), new TheworldProps.Nominatim("http://127.0.0.1:9", "", 0),
-    new TheworldProps.Docs(4_194_304));
+    new TheworldProps.Docs(4_194_304), new TheworldProps.Media("build/test-media"));
 
   /** Content-Length를 알리지 않는 요청 (Transfer-Encoding: chunked) — MockHttpServletRequest는 본문이 있으면 길이를 알려 주므로 덮는다. */
   private static MockHttpServletRequest chunked(String uri, byte[] body) {
@@ -74,6 +74,8 @@ class BodyLimitFilterTest {
     assertThat(f.limitFor("/api/sketch/read")).isEqualTo(BodyLimitFilter.SKETCH_MAX);
     assertThat(f.limitFor("/api/character/look")).isEqualTo(BodyLimitFilter.LOOK_MAX);
     assertThat(f.limitFor("/api/me/docs/world")).isEqualTo(4_194_304);
+    assertThat(f.limitFor("/api/media/" + "a".repeat(32))).isEqualTo(BodyLimitFilter.MEDIA_MAX);
+    assertThat(BodyLimitFilter.MEDIA_MAX).isEqualTo(61_440);
     assertThat(f.limitFor("/api/chat/reply")).isEqualTo(BodyLimitFilter.DEFAULT_MAX);
     // 문서 경로의 chunked 본문은 4 MB까지 읽힌다
     byte[] medium = new byte[600 * 1024];

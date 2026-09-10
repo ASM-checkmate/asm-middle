@@ -1,5 +1,6 @@
 package world.theworld.server.social;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -8,12 +9,15 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import world.theworld.server.auth.AuthService;
 import world.theworld.server.common.ApiException;
 import world.theworld.server.common.Json;
+import world.theworld.server.media.MediaRepository;
+import world.theworld.server.media.MediaService;
 import world.theworld.server.social.SocialDtos.ActivityIn;
 import world.theworld.server.social.SocialDtos.AgentPut;
 import world.theworld.server.social.SocialDtos.AgentsAtRequest;
@@ -40,42 +44,47 @@ public class SocialService {
   public static final int MAX_HITS_PER_SLOT = 8;
   public static final long MAX_DAY_WINDOW_MS = 7 * 24 * 3_600_000L;
   static final Set<String> REACH_BY = Set.of("boat", "plane", "train");
+  static final Set<String> GENDERS = Set.of("female", "male");
+  static final Set<String> VISIBILITIES = Set.of(AgentProfile.VISIBILITY_PUBLIC, AgentProfile.VISIBILITY_PRIVATE);
 
   private final AgentProfileRepository profiles;
   private final PublishedActivityRepository activities;
   private final FriendshipRepository friendships;
+  private final MediaRepository media;
   private final AuthService auth;
   private final Json json;
 
-  public SocialService(AgentProfileRepository profiles, PublishedActivityRepository activities, FriendshipRepository friendships, AuthService auth, Json json) {
+  public SocialService(AgentProfileRepository profiles, PublishedActivityRepository activities, FriendshipRepository friendships, MediaRepository media,
+                       AuthService auth, Json json) {
     this.profiles = profiles;
     this.activities = activities;
     this.friendships = friendships;
+    this.media = media;
     this.auth = auth;
     this.json = json;
   }
 
-  // ── 검증 도우미: 틀린 곳을 한 줄로 (Node 백엔드 validate 관례) ──
+  // ── 검증 도우미: 틀린 곳을 한 줄로 (Node 백엔드 validate 관례). post 패키지도 같은 것을 쓴다 ──
 
   static String nfc(String s) { return Normalizer.normalize(s, Normalizer.Form.NFC); }
 
-  static String str(String s, int max, String what) {
+  public static String str(String s, int max, String what) {
     if (s == null || s.isEmpty() || s.length() > max) throw ApiException.badRequest(what + " must be 1-" + max + " chars");
     return nfc(s);
   }
 
-  static String optStr(String s, int max, String what) {
+  public static String optStr(String s, int max, String what) {
     if (s == null) return null;
     if (s.length() > max) throw ApiException.badRequest(what + " must be ≤ " + max + " chars");
     return nfc(s);
   }
 
-  static String strOrEmpty(String s, int max, String what) {
+  public static String strOrEmpty(String s, int max, String what) {
     String v = optStr(s, max, what);
     return v == null ? "" : v;
   }
 
-  static List<String> strings(List<String> v, int maxItems, int maxLen, String what) {
+  public static List<String> strings(List<String> v, int maxItems, int maxLen, String what) {
     if (v == null) return List.of();
     if (v.size() > maxItems || v.stream().anyMatch(x -> x == null || x.length() > maxLen)) {
       throw ApiException.badRequest(what + " must be ≤ " + maxItems + " strings of ≤ " + maxLen + " chars");
@@ -86,6 +95,14 @@ public class SocialService {
   static long num(Long v, String what) {
     if (v == null) throw ApiException.badRequest(what + " required");
     return v;
+  }
+
+  /** 세 갈래 칸 — 키 없음(null: 이전 값), 명시적 null(empty: 지움), 문자열(값). 문자열이 아니면 그 칸의 400 메시지. */
+  static Optional<String> tri(JsonNode n, String error) {
+    if (n == null || n.isMissingNode()) return null;
+    if (n.isNull()) return Optional.empty();
+    if (!n.isTextual()) throw ApiException.badRequest(error);
+    return Optional.of(n.textValue());
   }
 
   static double finite(Double v, String what) {
@@ -111,7 +128,7 @@ public class SocialService {
 
   RemoteAgent toAgent(AgentProfile p) {
     return new RemoteAgent(p.getUserId(), p.getName(), p.getHomePlaceId(), p.getColor(), p.getEmoji(), json.readStrings(p.getLikesJson()),
-      json.readStrings(p.getTraitsJson()), p.getHairStyle(), json.read(p.getHomeJson(), RemotePlace.class));
+      json.readStrings(p.getTraitsJson()), p.getHairStyle(), json.read(p.getHomeJson(), RemotePlace.class), p.getGender(), p.getVisibility(), p.getRepShotId());
   }
 
   PublishedActivityDto toDto(PublishedActivity a) {
@@ -120,7 +137,7 @@ public class SocialService {
       a.getEmoji(), a.getArriveAt(), a.getEndAt(), a.getTz(), json.readStrings(a.getCompanionsJson()));
   }
 
-  Map<String, RemoteAgent> agentsById(Set<String> userIds) {
+  public Map<String, RemoteAgent> agentsById(Set<String> userIds) {
     Map<String, RemoteAgent> out = new HashMap<>();
     if (userIds.isEmpty()) return out;
     for (AgentProfile p : profiles.findAllById(userIds)) out.put(p.getUserId(), toAgent(p));
@@ -139,8 +156,18 @@ public class SocialService {
     List<String> likes = strings(req.likes(), 12, 30, "likes");
     List<String> traits = strings(req.traits(), 12, 30, "traits");
     RemotePlace home = place(req.home(), "home", "home:" + userId, "friend_home", userId);
+    // §2.5: 세 칸 모두 빠지면 이전 값. 성별은 검증만(추정 안 함), 대표컷은 내 미디어여야 한다. gender·repShotId는 명시적 null로 지운다
+    Optional<String> gender = tri(req.gender(), "gender must be female|male");
+    if (gender != null && gender.isPresent() && !GENDERS.contains(gender.get())) throw ApiException.badRequest("gender must be female|male");
+    String visibility = req.visibility();
+    if (visibility != null && !VISIBILITIES.contains(visibility)) throw ApiException.badRequest("visibility must be public|private");
+    Optional<String> repShotId = tri(req.repShotId(), "repShotId not yours");
+    if (repShotId != null && repShotId.isPresent()
+        && (!MediaService.ID.matcher(repShotId.get()).matches() || !media.existsByIdAndOwnerId(repShotId.get(), userId))) {
+      throw ApiException.badRequest("repShotId not yours");
+    }
     AgentProfile p = profiles.findById(userId).orElseGet(() -> new AgentProfile(userId));
-    p.update(name, color, emoji, hair, json.write(likes), json.write(traits), json.write(home), home.id(), System.currentTimeMillis());
+    p.update(name, color, emoji, hair, json.write(likes), json.write(traits), json.write(home), home.id(), gender, visibility, repShotId, System.currentTimeMillis());
     return toAgent(profiles.save(p));
   }
 

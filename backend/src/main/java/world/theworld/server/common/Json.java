@@ -30,6 +30,11 @@ public class Json {
     catch (JsonProcessingException e) { throw new IllegalStateException("json read", e); }
   }
 
+  public <T> T readList(String json, TypeReference<T> type) {
+    try { return om.readValue(json, type); }
+    catch (JsonProcessingException e) { throw new IllegalStateException("json read", e); }
+  }
+
   public List<String> readStrings(String json) {
     try { return om.readValue(json, STRINGS); }
     catch (JsonProcessingException e) { throw new IllegalStateException("json read", e); }

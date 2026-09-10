@@ -176,47 +176,55 @@ interface PublishedActivity { key: string /* `${dayKey}:${blockId}` */; agentId:
 
 ## 2.5 SNS — 미디어 · 글 · 좋아요 · 피드 (초안, ADR-0020·0021. 2026-09-11)
 
-> 구현 전 초안. 서버 DTO·프론트 타입이 생기면 이 절이 진실이 된다. 사진은 픽셀(ADR-0020)이고 글은 opaque 문서가 아니라 서버 리소스다(ADR-0021).
+> 서버 구현 기준(media·post 패키지, 2026-09-11). 사진은 픽셀(ADR-0020)이고 글은 opaque 문서가 아니라 서버 리소스다(ADR-0021). 프론트 타입은 이 절을 따른다.
 
 타입
 
 ```ts
-interface Media { id: string; ownerId: string; kind: 'shot' | 'sketch' | 'npc'; bytes: number; createdAt: number }
+interface Media { id: string; ownerId: string; kind: 'shot' | 'sketch' | 'npc'; mime: 'image/webp' | 'image/png'; bytes: number; createdAt: number }
 interface PostCut { shotId: string; actKey: string; win: 0 | 1 | 2 | 3; by: 'user' | 'agent' }
 interface Post { id: string; authorId: string; createdAt: number; cuts: PostCut[]; caption: string;
                  place: string; area: string; city: string; category?: string; dateKey: string;
                  companions: string[]; editedByOwner: boolean; likes: number; likedByMe: boolean }
-interface FeedItem { post: Post; author: RemoteAgent & { visibility: 'public' | 'private'; repShotId?: string };
+interface FeedItem { post: Post; author: RemoteAgent /* visibility는 항상, repShotId는 있을 때만 (§2.5 PUT /api/me/agent 개정) */;
                      why?: string /* 추천 구간의 이유 칩. 친구 글엔 없음 */ }
+interface Feed { items: FeedItem[]; next: string | null }      // GET /api/feed
+interface Posts { items: Post[]; next: string | null }         // GET /api/users/{id}/posts · GET /api/me/posts
+interface Likes { likes: number; likedByMe: boolean }          // POST/DELETE /api/posts/{id}/like
 ```
 
 ### PUT /api/media/{id}
 
 **id는 클라이언트가 만든다** — 32자 hex(`^[0-9a-f]{32}$`). 찍는 순간 폰이 id를 정하고 책·글은 업로드 전에도 그 id로 가리킨다(오프라인·dev 시계에서도 책이 먼저 산다).
 본문 `image/webp`(Safari 폴백 `image/png`) 그대로, ≤ 60 KB, 긴 변 ≤ 300px. 쿼리 `?kind=shot|sketch|npc` → 응답 (201) `Media`.
-**멱등**: 같은 소유자가 같은 id를 다시 올리면 바이트를 버리고 (200) 기존 `Media`. 다른 소유자의 id면 `403`. `kind=npc`는 내 폰의 가상 친구 글(ADR-0021 결정 6)이며 내 용량으로 센다. 파일은 `backend/data/media/<id>`.
+**멱등**: 같은 소유자가 같은 id를 다시 올리면 바이트를 버리고 (200) 기존 `Media`(kind·mime도 처음 것). 다른 소유자의 id면 `403 'not yours'`. `kind=npc`는 내 폰의 가상 친구 글(ADR-0021 결정 6)이며 내 용량으로 센다. 파일은 `backend/data/media/<id>`(`theworld.media.dir`).
+*   `400`: `id must be 32 hex chars` · `kind required` / `kind must be shot|sketch|npc` · `unsupported image type`(415가 아니다 — 본문이 JSON이 아닌 경로라서) · `body required`. 60 KB(61440 바이트)를 넘으면 `413 'body too large'`.
 
 ### GET /api/media/{id}
 
-저장된 타입(`image/webp`·`image/png`) 그대로. 권한: 소유자, 소유자의 친구, 또는 그 id를 참조하는 공개 글이 있을 때. 아니면 `403`(없으면 `404`). `Cache-Control: private, max-age=31536000`.
+저장된 타입(`image/webp`·`image/png`) 그대로. 권한: 소유자, 소유자의 친구, 그 id를 참조하는 **공개 계정의 글**이 있을 때(`visibility: 'public'`인 작성자의 `Post.cuts[].shotId` — 비공개로 돌리면 다시 막힌다), 또는 **누군가의 대표컷**(`RemoteAgent.repShotId`)일 때 — 핀은 본인이 얼굴로 내건 것이라 공개 여부와 무관하게 누구나 받고(SNS_SPEC §10 "비공개도 이름·대표컷"), 핀을 풀면 다시 막힌다. 아니면 `403 'not allowed'`(없으면 `404`; 행은 있는데 파일이 지워졌어도 `404`). `Cache-Control: private, max-age=31536000`.
 헤더 인증이라 `<img src>`로는 못 받는다 — 프론트는 `X-User-Id`를 붙여 fetch하고 blob URL로 그린다(폰 캐시는 IndexedDB LRU, ADR-0020 §5).
 
 ### POST /api/posts
 
-요청 `{ "cuts": PostCut[] (1~10), "caption" (≤ 300자), "place", "area", "city", "category"?, "dateKey", "companions": string[], "editedByOwner" }`
-→ 응답 (201) `Post`. `cuts[].shotId`는 전부 내 미디어여야 한다(`400`). `companions`는 서버가 내 친구 목록과 교집합만 남긴다.
+요청 `{ "cuts": PostCut[] (1~10), "caption" (≤ 300자, 빈 문자열 허용), "place", "area", "city" (각 1~120자), "category"?, "dateKey" (1~120자), "companions": string[], "editedByOwner": boolean }`
+→ 응답 (201) `Post`. **id는 서버가 만든다**(32자 hex). `authorId`는 헤더의 나 — 본문에 있어도 무시.
+*   `cuts[].shotId`는 전부 내 미디어(`PUT /api/media/{id}`로 올린 것)여야 한다 — 남의 것·모르는 것·모양 오류 모두 `400 'cut not yours'`. `win` 0~3(`cut.win must be 0-3`), `by` user|agent(`cut.by must be user|agent`), `actKey` 1~120자. 개수 밖이면 `cuts must have 1-10 items`.
+*   `companions`는 서버가 **내 친구 목록과 교집합만** 남긴다 — 남·모르는 id는 400이 아니라 조용히 빠진다. 문자열은 전부 NFC.
+*   `category`는 검증하지 않는다(≤ 12자, 빈 문자열은 없음으로). 추천의 이유 칩은 아는 값(`sleep·meal·play·exercise·study·work·rest·travel`)만 한글로 옮긴다.
 
 ### PATCH /api/posts/{id}
 
-`{ "cuts"?, "caption"? }` → `Post`. 작성자만. 고치면 `editedByOwner: true`.
+`{ "cuts"?, "caption"? }` → (200) `Post`. 작성자만(`403 'not yours'`, 없으면 `404`). 온 칸만 바꾸고(컷 검증은 POST와 같다) 고치면 **무조건** `editedByOwner: true`.
 
 ### DELETE /api/posts/{id}
 
-`204`. 글이 참조하던 미디어 중 책이 참조하지 않는 것은 함께 지운다.
+`204`. 작성자만(`403 'not yours'`, 없으면 `404`). 좋아요 행도 같이 지운다. **미디어는 남긴다** — "책이 참조하지 않는 것만 지운다"는 책 문서(opaque)를 열어 봐야 알 수 있어 이 단계 밖(ADR-0020 결정 4의 정리 정책과 함께 나중에).
 
 ### POST /api/posts/{id}/like · DELETE /api/posts/{id}/like
 
-`{ "likes": n, "likedByMe": boolean }`. 멱등. 비공개 계정의 글은 친구만(`403`).
+`{ "likes": n, "likedByMe": boolean }`. 멱등(두 번 눌러도 한 번, 두 번 취소해도 0 아래로 안 간다 — 동시에 눌러도·취소해도 마찬가지). 비공개 계정의 글은 친구만(`403 'not allowed'`), 없으면 `404`.
+`likes`는 `post` 행의 비정규화 카운터 — 좋아요 행과 같은 트랜잭션에서, 실제로 넣은·지운 행 수만큼만 맞춘다. **프로필을 안 올린 사용자는 비공개로 친다**(기본값과 같다).
 
 ### GET /api/feed?cursor=<opaque>&limit=20
 
@@ -224,19 +232,33 @@ interface FeedItem { post: Post; author: RemoteAgent & { visibility: 'public' | 
 { "items": FeedItem[], "next": "<cursor>" | null }
 ```
 
-*   앞부분은 **친구 글**(시간 역순), 다 나오면 `items[].why`가 붙는 **추천 글**이 이어진다. 경계는 클라이언트가 `why` 유무로 안다.
-*   추천 점수는 서버만 안다: `0.5 취향유사도 + 0.3 인기도 + 0.2 신선도`, 인기도 `log(1+likes)`에 시간 감쇠, 탐색 몫 10~15%,
-    같은 작성자 연속 제한, 본 글·비공개·친구·자기 자신 제외. 취향은 발행 일정(§2.3)과 좋아요에서 계산한다.
-*   가상 친구 글은 여기 없다 — 프론트가 로컬에서 친구 구간에 끼운다.
+*   `limit` 1~50(기본 20, 밖이면 `400 'limit must be 1-50'`). `cursor`는 서버가 준 것을 그대로 — 열어 보지 않는다(모양이 틀리거나 offset이 2³¹−1을 넘으면 `400 'cursor invalid'`). 속은 `<구간>:<offset>`의 base64url: 구간 `f`(친구 글)·`r`(추천). 처음엔 커서 없이.
+*   앞부분은 **친구 글**(친구 관계가 있고 프로필을 올린 사람의 글, `createdAt` 내림차순 → `id` 내림차순). 다 나오면 **같은 응답 안에서** `items[].why`가 붙는 **추천 글**이 이어진다 — 경계는 클라이언트가 `why` 유무로 안다. `next`가 null이면 끝.
+*   추천 후보: `visibility: 'public'`인 사람의 글 중 **나·내 친구가 쓴 것과 내가 좋아요한 글을 뺀** 최신 500편. "본 글 제외"는 지금 **좋아요한 글만** 뜻한다 — 서버는 무엇을 봤는지 모른다(열람 기록을 보내는 경로가 없다).
+*   추천 점수는 서버만 안다: `0.5 취향유사도 + 0.3 인기도 + 0.2 신선도`. 취향 = 내 히스토그램(최근 14일 발행 일정의 범주·동네·도시 가중 1.0, 좋아요한 글의 면 가중 1.5)과 글의 one-hot 면 `{category, area, city}`의 코사인. 인기도 = `log1p(likes)·e^(-나이일/7)`를 후보 최댓값으로 [0,1]. 신선도 = `e^(-나이일/3)`.
+    점수 내림차순, 동률은 `createdAt` 내림차순 → `id` 내림차순 — **데이터가 같으면 순서도 같다**. 후처리: 같은 작성자 연속 최대 2편(다음 다른 작성자를 앞으로 당김), 매 7번째 자리는 남은 후보 중 취향유사도가 가장 낮은 글(탐색 몫 ≈ 14%).
+    가중치·상수는 `FeedService` 한자리에 있고 서버에서만 바꾼다. 전체 순위를 요청마다 다시 매기고 offset으로 자르므로 **사이에 좋아요를 누르면 다음 장의 경계가 조금 움직일 수 있다**(그 글이 빠지고 취향이 바뀐다).
+*   `why`(이유 칩)는 맞은 면 중 가장 구체적인 것: 범주 → `'<범주 한글> 글을 좋아하셔서'`(식사·놀기·운동·공부·일·쉬기·여행·잠), 동네 → `'<area> 이웃'`, 도시만 → `'같은 도시'`, 아무것도 안 맞으면 `'요즘 인기'`.
+*   `author`는 `RemoteAgent` 그대로(`visibility` 항상, `repShotId` 있을 때만). 가상 친구 글은 여기 없다 — 프론트가 로컬에서 친구 구간에 끼운다.
 
 ### GET /api/users/{id}/posts?cursor=&limit=
 
-그 사람의 글 격자. 비공개 + 친구 아님 `403`. `GET /api/me/posts`는 내 것.
+```json
+{ "items": Post[], "next": "<cursor>" | null }
+```
+
+그 사람의 글 격자(`createdAt` 내림차순). 비공개 + 친구 아님 `403 'not allowed'`(나 자신은 늘 됨). `limit`·`cursor` 규칙은 피드와 같되 구간은 `u` 하나 — 피드 커서를 여기 쓰면 `400 'cursor invalid'`. `GET /api/me/posts`는 내 것.
 
 ### PUT /api/me/agent (개정)
 
-요청에 `"gender": "female" | "male"`(ADR-0023), `"visibility": "public" | "private"`(기본 `private`), `"repShotId"?`(대표컷 핀)이 추가된다.
-`RemoteAgent`에 같은 세 칸이 실린다. 성별은 서버가 검증만 하고 추정하지 않는다.
+요청에 `"gender"?: "female" | "male"`(ADR-0023), `"visibility"?: "public" | "private"`, `"repShotId"?: string`(대표컷 핀)이 추가된다.
+`RemoteAgent`에 같은 세 칸이 실린다 — `visibility`는 항상, `gender`·`repShotId`는 있을 때만(키 생략). 성별은 서버가 검증만 하고 추정하지 않는다.
+
+*   세 칸 모두 **키를 빼면 이전 값을 지킨다**(처음 올리는 프로필은 `visibility: 'private'`, 나머지 없음) — 이 칸을 모르는 클라이언트(부팅·메모리 갱신마다 올리는 `publishProfile`)가 다시 올려도 공개 여부·성별·핀이 되돌아가지 않는다.
+    `gender`·`repShotId`는 **명시적 `null`** 로만 지운다(`"repShotId": null` = 핀 풀기); `visibility`는 지울 수 없다(`null`도 이전 값).
+*   `repShotId`는 내 미디어(`PUT /api/media/{id}`로 올린 것)여야 한다 — 남의 것·모르는 것·모양 오류는 `400 'repShotId not yours'`. 핀돼 있는 동안 그 컷은 누구나 받는다(GET /api/media).
+*   `400`: `gender must be female|male` · `visibility must be public|private`.
+*   프론트 숙제: `types.ts`의 `RemoteAgent`·`remote.ts`의 `validRemoteAgent`가 아직 세 칸을 버린다 — SNS UI 단계에서 실어야 한다(서버는 이미 낸다).
 
 ## 2.4 LLM 관문
 

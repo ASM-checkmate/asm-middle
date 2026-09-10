@@ -17,7 +17,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * 본문 상한 (BACKEND-CONTRACT §0): /api/sketch/read 512 KB, /api/character/look 1.5 MB, /api/me/docs/* 4 MB(theworld.docs.max-bytes), 그 외 /api/** 256 KB.
+ * 본문 상한 (BACKEND-CONTRACT §0): /api/sketch/read 512 KB, /api/character/look 1.5 MB, /api/me/docs/* 4 MB(theworld.docs.max-bytes),
+ * /api/media/* 60 KB(§2.5 구운 컷 하나), 그 외 /api/** 256 KB.
  * Content-Length가 한도를 넘으면 읽지 않고 413 {error:'body too large'}. 길이를 안 알리는(chunked) 요청은 Content-Length가 -1이라
  * 그 검사를 지나치므로, 요청을 바이트를 세는 래퍼로 감싸 한도를 넘는 순간 {@link BodyTooLargeException}을 던진다 — Jackson이 본문을
  * 다 메모리에 올리기 전에 끊기고, {@link GlobalExceptionHandler#unreadable}이 그 예외를 같은 413으로 바꾼다. 아이디 없이 닿는
@@ -29,6 +30,8 @@ public class BodyLimitFilter extends OncePerRequestFilter {
   public static final long SKETCH_MAX = 512L * 1024;
   /** 사진 dataURL — 프런트가 512px JPEG로 줄여 보내지만 여유를 둔다. */
   public static final long LOOK_MAX = 1536L * 1024;
+  /** 구운 컷 하나 — 300px WebP ≤ 60 KB (ADR-0020, CONTRACT §2.5). 서비스도 같은 수로 한 번 더 잰다. */
+  public static final long MEDIA_MAX = 60L * 1024;
   public static final long DEFAULT_MAX = 256L * 1024;
 
   private final TheworldProps props;
@@ -44,6 +47,7 @@ public class BodyLimitFilter extends OncePerRequestFilter {
     if (path.equals("/api/sketch/read")) return SKETCH_MAX;
     if (path.equals("/api/character/look")) return LOOK_MAX;
     if (path.startsWith("/api/me/docs/")) return props.docs().maxBytes();
+    if (path.startsWith("/api/media/")) return MEDIA_MAX;
     return DEFAULT_MAX;
   }
 

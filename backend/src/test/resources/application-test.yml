@@ -18,3 +18,5 @@ theworld:
   nominatim:
     url: http://127.0.0.1:9
     min-gap-ms: 0
+  media:
+    dir: build/test-media   # 테스트 미디어는 build/ 아래 — clean이 지운다

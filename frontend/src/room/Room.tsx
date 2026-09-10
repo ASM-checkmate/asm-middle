@@ -41,7 +41,7 @@ export interface RoomSpec {
   seatItem: { x: number; y: number; base: number };
 }
 
-/** 자세별로 테이블 위에 놓이는 물건: 그림 → 스케치북·연필, 읽기 → 책, 먹기 → 접시, 나머지는 없음 */
+/** 자세별로 테이블 위에 놓이는 물건: 그림 → 스케치북·연필, 읽기 → 책, 먹기 → 빈 접시(주먹밥은 손에 들려 보이므로 접시엔 안 올린다), 나머지는 없음 */
 export function SeatItem({ pose }: { pose: string }) {
   const ink = { stroke: 'var(--ink)', strokeWidth: 2.5, strokeLinejoin: 'round', strokeLinecap: 'round' } as const;
   if (pose === 'draw') return (
@@ -61,8 +61,6 @@ export function SeatItem({ pose }: { pose: string }) {
   if (pose === 'eat') return (
     <svg viewBox="0 0 64 40" width="64" height="40">
       <ellipse cx="32" cy="22" rx="24" ry="11" fill="var(--card)" {...ink} />
-      <path d="M32 8 C38 8 43 17 44 21 Q44 25 40 25 H24 Q20 25 20 21 C21 17 26 8 32 8 Z" fill="var(--paper)" {...ink} />
-      <rect x="27" y="20" width="10" height="5" fill="var(--night)" />
     </svg>
   );
   return null;

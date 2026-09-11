@@ -59,8 +59,11 @@
 }
 .sns-strip-scroll::-webkit-scrollbar { display: none; }
 .sns-cut { flex: 0 0 100%; width: 100%; aspect-ratio: 278 / 300; scroll-snap-align: start; scroll-snap-stop: always; position: relative; }
-.sns-cut-btn { display: block; width: 100%; height: 100%; padding: 0; }
 .sns-cut .photo { width: 100%; height: 100%; }
+/* 끌어서 넘기기(마우스·펜): 그림이 따라 끌리지 않게, 끄는 동안은 쥔 손 모양 */
+.sns-strip-scroll { cursor: grab; user-select: none; }
+.sns-strip-scroll.is-drag { cursor: grabbing; }
+.sns-strip-scroll img { -webkit-user-drag: none; pointer-events: none; }
 .sns-cut-empty { display: grid; place-items: center; width: 100%; height: 100%; background: var(--paper-2); font-size: 40px; color: var(--ink-3); }
 .sns-strip-n {
   position: absolute; top: 8px; right: 8px; padding: 2px 8px; border-radius: 999px; background: rgba(42, 33, 24, .72); color: var(--paper);
@@ -69,17 +72,6 @@
 .sns-dots { display: flex; justify-content: center; gap: 5px; }
 .sns-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
 .sns-dots i.is-on { background: var(--ink); }
-/* 크게 보기 — 잉크 바닥 */
-.sns-viewer { position: absolute; inset: 0; z-index: 3; background: var(--ink); display: flex; flex-direction: column; justify-content: center; animation: sns-fade .2s ease both; }
-.sns-viewer-hd { position: absolute; top: calc(14px + var(--safe-top)); right: 16px; }
-.sns-viewer .sns-strip.is-big .sns-strip-scroll { border: 0; border-radius: 0; background: var(--ink); }
-.sns-viewer .sns-strip.is-big .sns-cut { aspect-ratio: 278 / 300; }
-.sns-viewer .sns-strip.is-big .sns-cut .photo { object-fit: contain; background: var(--ink); }
-.sns-viewer .sns-dots i { background: var(--ink-2); }
-.sns-viewer .sns-dots i.is-on { background: var(--paper); }
-.sns-viewer-ft { position: absolute; left: 0; right: 0; bottom: calc(24px + var(--safe-bottom)); display: flex; justify-content: center; }
-.sns-viewer-ft .btn { width: auto; }
-@keyframes sns-fade { from { opacity: 0; } to { opacity: 1; } }
 
 /* ── 친구 탭 ── */
 .sns-friends { display: grid; gap: 14px; padding-top: 2px; }
@@ -209,5 +201,5 @@
 .book-thumbs--pick .ch-fx { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .sns, .sns-sheet, .sns-viewer, .sns-learned-t i, .sns-like, .book-pick { animation: none !important; transition: none !important; }
+  .sns, .sns-sheet, .sns-learned-t i, .sns-like, .book-pick { animation: none !important; transition: none !important; }
 }

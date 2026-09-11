@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef } from 'react';
 import { useSns } from '../../sim/sns';
-import type { FeedItem } from '../../sim/posts';
 import { Character } from '../../character';
 import { FeedCard } from './FeedCard';
 import { mergeFeed } from './util';
@@ -9,12 +8,11 @@ import { mergeFeed } from './util';
  * 피드 탭 (SNS_SPEC §4): 친구 글(서버 + 내 폰의 가상 친구 글, 시간순) → 구분선 "새로운 사람들" → 추천(서버 순서). 끝에 닿으면 다음 장.
  * 좋아요: 서버 글은 likeToggle(낙관), 가상 친구 글은 likeLocalToggle(폰에서만).
  */
-export function FeedTab({ now, tz, nameOf, onAuthor, onCut }: {
+export function FeedTab({ now, tz, nameOf, onAuthor }: {
   now: number;
   tz: string;
   nameOf: (id: string) => string | null;
   onAuthor: (userId: string) => void;
-  onCut: (item: FeedItem, i: number) => void;
 }) {
   const feed = useSns(s => s.feed);
   const localPosts = useSns(s => s.localPosts);
@@ -65,7 +63,6 @@ export function FeedTab({ now, tz, nameOf, onAuthor, onCut }: {
           <FeedCard
             item={it} friend={it.why === undefined} now={now} tz={tz} nameOf={nameOf}
             onAuthor={onAuthor}
-            onCut={k => onCut(it, k)}
             onLike={() => { if (localIds.has(it.post.id)) likeLocalToggle(it.post.id); else void likeToggle(it.post.id); }}
           />
         </Fragment>

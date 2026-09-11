@@ -633,7 +633,7 @@
 
 /* ─── Reduced motion: one block. Position/progress/time still update; everything decorative is static. ─── */
 @media (prefers-reduced-motion: reduce) {
-  .scr, .scr *, .scene *, .sheet, .sheet-dim, .book, .sns, .sns-sheet, .sns-viewer, .bubble, .cm-p, .dev, .tt-chara, .act-chara, .act-friend, .slp-z, .slp-chara, .chrome-owner, .jetlag { animation: none !important; transition: none !important; }
+  .scr, .scr *, .scene *, .sheet, .sheet-dim, .book, .sns, .sns-sheet, .bubble, .cm-p, .dev, .tt-chara, .act-chara, .act-friend, .slp-z, .slp-chara, .chrome-owner, .jetlag { animation: none !important; transition: none !important; }
 }
 
 /* ─── timetable as a bottom sheet (opened from the top-right ring button on any screen) ─── */

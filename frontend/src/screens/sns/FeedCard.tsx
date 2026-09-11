@@ -13,7 +13,7 @@ export interface CardItem { post: Post; author: AuthorLite; why?: string }
  * 좋아요 · 동행 · "주인이 고쳤어요". 작성자를 누르면 프로필, 컷을 누르면 크게 보기.
  * 친구 배지는 **친구의 글에만**(`friend`) — 내 글이나 아직 친구가 아닌 사람의 글(추천 작성자의 격자에서 연 것)에는 아무 칩도 없다.
  */
-export function FeedCard({ item, friend = false, now, tz, nameOf, onAuthor, onCut, onLike }: {
+export function FeedCard({ item, friend = false, now, tz, nameOf, onAuthor, onIndex, onLike }: {
   item: CardItem;
   /** 작성자가 내 친구다 (이유 칩이 없을 때 '친구' 배지) */
   friend?: boolean;
@@ -21,7 +21,8 @@ export function FeedCard({ item, friend = false, now, tz, nameOf, onAuthor, onCu
   tz: string;
   nameOf: (id: string) => string | null;
   onAuthor: (userId: string) => void;
-  onCut: (i: number) => void;
+  /** 지금 보는 컷이 바뀔 때 — 내 글의 '대표컷으로'가 쓴다 */
+  onIndex?: (i: number) => void;
   onLike: () => void;
 }) {
   const { post, author, why } = item;
@@ -38,7 +39,7 @@ export function FeedCard({ item, friend = false, now, tz, nameOf, onAuthor, onCu
         </button>
         {why ? <Chip tone="sun" tiny className="sns-why">{why}</Chip> : friend ? <Chip tone="paper2" tiny className="sns-why">친구</Chip> : null}
       </div>
-      <CutStrip cuts={post.cuts} onOpen={onCut} fallback={<span className="sns-cut-empty">{author.emoji}</span>} />
+      <CutStrip cuts={post.cuts} onIndex={onIndex} fallback={<span className="sns-cut-empty">{author.emoji}</span>} />
       {post.caption && <p className="sns-cap">{post.caption}</p>}
       <div className="sns-meta">
         <button type="button" className={`sns-like ${post.likedByMe ? 'is-on' : ''}`} onClick={onLike} aria-pressed={post.likedByMe} aria-label="좋아요">

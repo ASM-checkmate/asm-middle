@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSns, type SnsTab } from '../sim/sns';
 import { useWorld } from '../sim/store';
-import type { Post, PostCut } from '../sim/posts';
+import type { Post } from '../sim/posts';
 import type { Comic, Friend } from '../sim/types';
 import { agentById } from '../sim/agents';
 import { currentUser } from '../sim/api';
@@ -13,7 +13,6 @@ import { MineTab } from './sns/MineTab';
 import { ProfileView } from './sns/ProfileView';
 import { PostView } from './sns/PostView';
 import { ComposeSheet } from './sns/ComposeSheet';
-import { CutViewer } from './sns/CutStrip';
 import type { AuthorLite } from './sns/FeedCard';
 import './sns.css';
 
@@ -60,7 +59,6 @@ export function SnsOverlay({ onClose, preview }: { onClose: () => void; preview?
 
   /** 격자에서 연 글 (내 글이면 편집·삭제) */
   const [post, setPost] = useState<{ post: Post; author: AuthorLite; mine: boolean } | null>(null);
-  const [viewer, setViewer] = useState<{ cuts: PostCut[]; index: number; mine: boolean } | null>(null);
   const [editing, setEditing] = useState<Post | null>(null);
   // 업로드가 끝날 때마다 다시 그린다 — 초안 카드·글쓰기의 '업로드 중…'이 걷힌다
   const [uploadedTick, setUploadedTick] = useState(0);
@@ -74,7 +72,7 @@ export function SnsOverlay({ onClose, preview }: { onClose: () => void; preview?
   const nameOf = (id: string): string | null => friends.find(f => f.id === id)?.name ?? agentById(id)?.name ?? (id === meId ? memory.name : null);
   /** 내 친구인가 — 카드의 '친구' 배지: 내 친구 목록, 피드의 친구 구간(why 없는 서버 글), 내 폰의 가상 친구 글 */
   const isFriend = (id: string): boolean => friends.some(f => f.id === id) || feed.some(i => i.author.id === id && i.why === undefined) || localPosts.some(i => i.author.id === id);
-  const openProfile = (id: string) => { setPost(null); setViewer(null); setProfileOpen(id === meId ? null : id); if (id === meId) setTab('mine'); };
+  const openProfile = (id: string) => { setPost(null); setProfileOpen(id === meId ? null : id); if (id === meId) setTab('mine'); };
   const me: AuthorLite = { id: meId ?? 'me', name: memory.name, emoji: '🙂', ...(memory.repShotId ? { repShotId: memory.repShotId } : {}) };
   const localIds = new Set(localPosts.map(i => i.post.id));
   const like = (p: Post) => { if (localIds.has(p.id)) likeLocalToggle(p.id); else void likeToggle(p.id); };
@@ -104,7 +102,7 @@ export function SnsOverlay({ onClose, preview }: { onClose: () => void; preview?
           <PostView
             post={livePost} author={post.author} mine={post.mine} friend={isFriend(post.author.id)} now={now} tz={tz} nameOf={nameOf}
             onAuthor={openProfile}
-            onCut={i => setViewer({ cuts: livePost.cuts, index: i, mine: post.mine })}
+            onPin={shotId => setSnsProfile({ repShotId: shotId })} pinnedShotId={memory.repShotId}
             onLike={() => like(livePost)}
             onEdit={() => { setEditing(livePost); setComposeOpen(true); }}
             onRemove={() => { if (confirm('이 글을 지울까요? 사진은 책에 남아요.')) void removePost(livePost.id).then(ok => { if (ok) setPost(null); }); }}
@@ -115,19 +113,13 @@ export function SnsOverlay({ onClose, preview }: { onClose: () => void; preview?
             onPost={(p, author) => setPost({ post: p, author, mine: false })}
           />
         ) : tab === 'feed' ? (
-          <FeedTab now={now} tz={tz} nameOf={nameOf} onAuthor={openProfile} onCut={(it, i) => setViewer({ cuts: it.post.cuts, index: i, mine: false })} />
+          <FeedTab now={now} tz={tz} nameOf={nameOf} onAuthor={openProfile} />
         ) : tab === 'friends' ? (
           <FriendsTab friends={friends} encounters={encounters} localPosts={localPosts} feed={feed} now={now} tz={tz} today={today} onOpen={openProfile} />
         ) : (
           <MineTab now={now} uploadedTick={uploadedTick} onOpenPost={p => setPost({ post: p, author: me, mine: true })} onCompose={() => { setEditing(null); setComposeOpen(true); }} />
         )}
       </div>
-      {viewer && (
-        <CutViewer
-          cuts={viewer.cuts} index={viewer.index} onClose={() => setViewer(null)}
-          action={viewer.mine ? { label: '대표컷으로', onClick: i => setSnsProfile({ repShotId: viewer.cuts[i].shotId }), done: i => memory.repShotId === viewer.cuts[i].shotId } : undefined}
-        />
-      )}
       {composeOpen && (
         <ComposeSheet
           // 키는 고치는 글로만 — 초안 id로 걸면 고치는 사이 스토어가 초안을 비울 때(엔진이 올림) 화면이 새로 떠 손본 것이 날아간다

@@ -12,7 +12,8 @@ class LookPromptTest {
   @Test
   void namesTheDescribedOptions() {
     String p = LookPrompt.build();
-    for (List<String> names : List.of(LlmDtos.LOOK_HAIR_STYLES, LlmDtos.LOOK_GLASSES, LlmDtos.LOOK_BEARDS, LlmDtos.LOOK_TOPS)) {
+    for (List<String> names : List.of(LlmDtos.LOOK_HAIR_STYLES, LlmDtos.LOOK_GLASSES, LlmDtos.LOOK_BEARDS, LlmDtos.LOOK_TOPS,
+        LlmDtos.LOOK_FACES, LlmDtos.LOOK_EYES, LlmDtos.LOOK_BROWS, LlmDtos.LOOK_NOSES, LlmDtos.LOOK_MOUTHS, LlmDtos.LOOK_EARS, LlmDtos.LOOK_BUILDS)) {
       for (String n : names) assertThat(p).as(n).contains(n);
     }
     assertThat(p).contains("\"seen\"", "light", "dark");
@@ -27,9 +28,13 @@ class LookPromptTest {
 
   @Test
   @SuppressWarnings("unchecked")
-  void schemaRequiresAllSevenWithEnums() {
+  void schemaRequiresAllFourteenWithEnums() {
     Map<String, Object> s = LookSchema.of();
-    assertThat((List<String>) s.get("required")).containsExactly("skin", "hairColor", "hairStyle", "glasses", "beard", "top", "seen");
+    assertThat((List<String>) s.get("required")).containsExactly("skin", "hairColor", "hairStyle", "glasses", "beard", "top",
+        "face", "eyes", "brows", "nose", "mouth", "ears", "build", "seen");
+    Map<String, Object> props0 = (Map<String, Object>) s.get("properties");
+    for (String k : LookSchema.REQUIRED) assertThat(props0).as(k).containsKey(k);
+    assertThat(((Map<String, Object>) props0.get("build")).get("enum")).isEqualTo(LlmDtos.LOOK_BUILDS);
     Map<String, Object> props = (Map<String, Object>) s.get("properties");
     assertThat(((Map<String, Object>) props.get("hairStyle")).get("enum")).isEqualTo(LlmDtos.LOOK_HAIR_STYLES);
     assertThat(((Map<String, Object>) props.get("seen")).get("type")).isEqualTo("string");

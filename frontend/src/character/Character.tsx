@@ -3,7 +3,7 @@
 // Arms hold a "pivot ring" (invisible circle around the shoulder) so the fill-box
 // origin stays on the shoulder even when the hand holds a pencil or a sketchbook.
 import type { CSSProperties, ReactNode } from 'react';
-import { C, Head, INK, INK3 } from './shapes';
+import { BUILD_HALF, C, Head, INK, INK3, bodyPath } from './shapes';
 import type { Face, Variant } from './shapes';
 import type { Look } from '../sim/types';
 import { lookVars, useOwnerLook } from './look';
@@ -55,10 +55,11 @@ export function Character({ pose = 'idle', size = 240, variant = 'me', color, cl
   const st = { ...(color ? { '--friend': color } : null), ...lookVars(look), ...style } as CSSProperties;
   const cls = ['ch', paused ? 'is-paused' : '', className ?? ''].filter(Boolean).join(' ');
 
+  const bw = BUILD_HALF[look?.build ?? 'normal'];
   const arms = (
     <>
-      <Arm side="l" angle={al}>{pose === 'draw' && <Sketchbook />}</Arm>
-      <Arm side="r" angle={ar}>{pose === 'draw' && <Pencil />}</Arm>
+      <Arm side="l" angle={al} x={100 - bw - 2}>{pose === 'draw' && <Sketchbook />}</Arm>
+      <Arm side="r" angle={ar} x={100 + bw + 2}>{pose === 'draw' && <Pencil />}</Arm>
     </>
   );
 
@@ -69,7 +70,7 @@ export function Character({ pose = 'idle', size = 240, variant = 'me', color, cl
         <g className="ch-root">
           {!armsFront && arms}
           <g className="ch-body">
-            <path d="M68 156 a14 14 0 0 1 14 -14 h36 a14 14 0 0 1 14 14 v10 a14 14 0 0 1 -14 14 H82 a14 14 0 0 1 -14 -14z" fill={variant === 'friend' && !look ? C.coral : C.top} {...INK} />
+            <path d={bodyPath(100, 142, bw)} fill={variant === 'friend' && !look ? C.coral : C.top} {...INK} />
           </g>
           <g className="ch-foot ch-foot-l"><ellipse cx={sit ? 84 : 86} cy={sit ? 184 : 182} rx={sit ? 15 : 13} ry={sit ? 9 : 7} fill={C.skin} {...INK} /></g>
           <g className="ch-foot ch-foot-r"><ellipse cx={sit ? 116 : 114} cy={sit ? 184 : 182} rx={sit ? 15 : 13} ry={sit ? 9 : 7} fill={C.skin} {...INK} /></g>
@@ -92,9 +93,9 @@ export function Character({ pose = 'idle', size = 240, variant = 'me', color, cl
   );
 }
 
-function Arm({ side, angle, children }: { side: 'l' | 'r'; angle: number; children?: ReactNode }) {
+function Arm({ side, angle, x, children }: { side: 'l' | 'r'; angle: number; x?: number; children?: ReactNode }) {
   return (
-    <g transform={`translate(${side === 'l' ? 66 : 134} 150) rotate(${angle})`}>
+    <g transform={`translate(${x ?? (side === 'l' ? 66 : 134)} 150) rotate(${angle})`}>
       <g className={`ch-arm ch-arm-${side}`}>
         <circle className="pivot" r="48" fill="none" />
         <ellipse cx="0" cy="15" rx="8" ry="15" fill={C.skin} {...INK} />

@@ -6,6 +6,7 @@ import { Character, CharacterDefs, Rider } from '../character';
 import type { Pose } from '../character';
 import type { TransportMode } from '../sim/types';
 import { LookLab } from './LookLab';
+import { FaceSheet } from './FaceSheet';
 
 const POSES: Pose[] = ['idle', 'walk', 'sit', 'sleep', 'wave', 'draw', 'happy', 'eat', 'read', 'think'];
 const POSE_KO: Record<Pose, string> = { idle: '가만히', walk: '걷기', sit: '앉기', sleep: '잠', wave: '인사', draw: '그리기', happy: '기쁨', eat: '먹기', read: '읽기', think: '생각' };
@@ -43,6 +44,8 @@ const CSS = `
 `;
 
 export function CharacterLab() {
+  // ?sheet=faces는 얼굴 시트만 — 훅은 조건 앞에서 다 부른다 (rules-of-hooks)
+  const sheet = new URLSearchParams(location.search).get('sheet') === 'faces';
   const [variant, setVariant] = useState<'me' | 'friend'>('me');
   const [facing, setFacing] = useState<'right' | 'left'>('right');
   const [moving, setMoving] = useState(true);
@@ -57,6 +60,8 @@ export function CharacterLab() {
 
   const board = () => { setBoarding(true); setTimeout(() => setBoarding(false), 220); };
   const tg = (on: boolean) => `tg${on ? ' on' : ''}`;
+
+  if (sheet) return <FaceSheet />;
 
   return (
     <div className="clab" style={{ '--friend': '#5FC9A6' } as CSSProperties}>

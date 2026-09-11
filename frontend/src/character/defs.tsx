@@ -21,7 +21,7 @@ export function CharacterDefs() {
         <symbol id="chara-face-friend" viewBox={VB} overflow="visible"><Head variant="friend" /></symbol>
         <symbol id="chara-face-friend-3q" viewBox={VB} overflow="visible"><Head variant="friend" quarter /></symbol>
         <symbol id="chara-face-friend-happy" viewBox={VB} overflow="visible"><Head variant="friend" face="happy" /></symbol>
-        <symbol id="chara-body" viewBox="-50 -30 100 60" overflow="visible"><BodyStub /></symbol>
+        <symbol id="chara-body" viewBox="-50 -30 100 60" overflow="visible"><BodyStub look={look} /></symbol>
         {/* Static full character (kept for anything that still points at the stub's symbol). */}
         <symbol id="chara-idle" viewBox="0 0 200 200" overflow="visible">
           <ellipse cx="100" cy="190" rx="48" ry="7" fill={C.ink} opacity=".12" />

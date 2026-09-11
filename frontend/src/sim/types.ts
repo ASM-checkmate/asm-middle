@@ -153,10 +153,18 @@ export type WorryKey = 'work' | 'people' | 'body' | 'money' | 'focus' | 'blue' |
 // ─── 겉모습 (ADR-0019): 사진에서 비전 모델이 고른 옵션 여섯 개. 그리기는 character/가 한다 ───
 export const LOOK_SKINS = ['light', 'fair', 'tan', 'brown', 'dark'] as const;
 export const LOOK_HAIR_COLORS = ['black', 'dark-brown', 'brown', 'blond', 'red', 'gray', 'white'] as const;
-export const LOOK_HAIR_STYLES = ['bowl', 'short', 'buzz', 'bob', 'long', 'curly', 'bald'] as const;
+export const LOOK_HAIR_STYLES = ['bowl', 'short', 'buzz', 'bob', 'long', 'curly', 'bald', 'side-part', 'bangs', 'ponytail', 'bun', 'afro', 'spiky', 'pigtails', 'wavy'] as const;
 export const LOOK_GLASSES = ['none', 'round', 'square'] as const;
 export const LOOK_BEARDS = ['none', 'stubble', 'mustache', 'full'] as const;
 export const LOOK_TOPS = ['coral', 'sun', 'mint', 'sky', 'night', 'paper', 'leaf'] as const;
+// 얼굴 축 실험(2026-09-11): 색·머리만으로는 개인이 안 살아서 실루엣 축을 더한다. 전부 선택 — 없으면 모모(round·dot·none·none·smile·hidden)
+export const LOOK_FACES = ['round', 'long', 'square', 'heart'] as const;
+export const LOOK_EYES = ['dot', 'big', 'narrow', 'sharp'] as const;
+export const LOOK_BROWS = ['none', 'thin', 'thick', 'angled'] as const;
+export const LOOK_NOSES = ['none', 'small', 'big'] as const;
+export const LOOK_MOUTHS = ['smile', 'wide', 'flat'] as const;
+export const LOOK_EARS = ['hidden', 'out'] as const;
+export const LOOK_BUILDS = ['slim', 'normal', 'wide'] as const;
 export interface Look {
   skin: (typeof LOOK_SKINS)[number];
   hairColor: (typeof LOOK_HAIR_COLORS)[number];
@@ -164,6 +172,13 @@ export interface Look {
   glasses: (typeof LOOK_GLASSES)[number];
   beard: (typeof LOOK_BEARDS)[number];
   top: (typeof LOOK_TOPS)[number];
+  face?: (typeof LOOK_FACES)[number];
+  eyes?: (typeof LOOK_EYES)[number];
+  brows?: (typeof LOOK_BROWS)[number];
+  nose?: (typeof LOOK_NOSES)[number];
+  mouth?: (typeof LOOK_MOUTHS)[number];
+  ears?: (typeof LOOK_EARS)[number];
+  build?: (typeof LOOK_BUILDS)[number];
 }
 /** 기본 캐릭터(모모)의 겉모습 — look이 없을 때 그려지는 그대로 */
 export const DEFAULT_LOOK: Look = { skin: 'fair', hairColor: 'dark-brown', hairStyle: 'bowl', glasses: 'none', beard: 'none', top: 'coral' };
@@ -173,8 +188,11 @@ export const isLook = (v: unknown): v is Look => {
   return !!o && typeof o === 'object'
     && (LOOK_SKINS as readonly unknown[]).includes(o.skin) && (LOOK_HAIR_COLORS as readonly unknown[]).includes(o.hairColor)
     && (LOOK_HAIR_STYLES as readonly unknown[]).includes(o.hairStyle) && (LOOK_GLASSES as readonly unknown[]).includes(o.glasses)
-    && (LOOK_BEARDS as readonly unknown[]).includes(o.beard) && (LOOK_TOPS as readonly unknown[]).includes(o.top);
+    && (LOOK_BEARDS as readonly unknown[]).includes(o.beard) && (LOOK_TOPS as readonly unknown[]).includes(o.top)
+    && opt(o.face, LOOK_FACES) && opt(o.eyes, LOOK_EYES) && opt(o.brows, LOOK_BROWS) && opt(o.nose, LOOK_NOSES)
+    && opt(o.mouth, LOOK_MOUTHS) && opt(o.ears, LOOK_EARS) && opt(o.build, LOOK_BUILDS);
 };
+const opt = (v: unknown, allowed: readonly string[]) => v === undefined || (allowed as readonly unknown[]).includes(v);
 
 /** 성별 (ADR-0027) — 서버는 검증만 하고 추정하지 않는다. 없으면 모름 */
 export type Gender = 'female' | 'male';

@@ -6,7 +6,7 @@ import type { ChangeEvent } from 'react';
 import { Character, Rider } from '../character';
 import { useWorld } from '../sim/store';
 import { fetchLook } from '../sim/llm';
-import { DEFAULT_LOOK, LOOK_BEARDS, LOOK_GLASSES, LOOK_HAIR_COLORS, LOOK_HAIR_STYLES, LOOK_SKINS, LOOK_TOPS, isLook, type Look } from '../sim/types';
+import { DEFAULT_LOOK, LOOK_BEARDS, LOOK_BROWS, LOOK_BUILDS, LOOK_EARS, LOOK_EYES, LOOK_FACES, LOOK_GLASSES, LOOK_HAIR_COLORS, LOOK_HAIR_STYLES, LOOK_MOUTHS, LOOK_NOSES, LOOK_SKINS, LOOK_TOPS, isLook, type Look } from '../sim/types';
 
 const FIELDS: { key: keyof Look; label: string; values: readonly string[] }[] = [
   { key: 'skin', label: '피부', values: LOOK_SKINS },
@@ -15,7 +15,17 @@ const FIELDS: { key: keyof Look; label: string; values: readonly string[] }[] = 
   { key: 'glasses', label: '안경', values: LOOK_GLASSES },
   { key: 'beard', label: '수염', values: LOOK_BEARDS },
   { key: 'top', label: '상의', values: LOOK_TOPS },
+  // 얼굴·체형 축 (ADR-0020) — 선택 칸이라 없으면 모모 값으로 표시한다
+  { key: 'face', label: '얼굴형', values: LOOK_FACES },
+  { key: 'eyes', label: '눈', values: LOOK_EYES },
+  { key: 'brows', label: '눈썹', values: LOOK_BROWS },
+  { key: 'nose', label: '코', values: LOOK_NOSES },
+  { key: 'mouth', label: '입', values: LOOK_MOUTHS },
+  { key: 'ears', label: '귀', values: LOOK_EARS },
+  { key: 'build', label: '체형', values: LOOK_BUILDS },
 ];
+/** 선택 칸의 화면 기본값 (shapes.tsx의 기본과 같다) */
+const AXIS_DEFAULT: Partial<Record<keyof Look, string>> = { face: 'round', eyes: 'dot', brows: 'none', nose: 'none', mouth: 'smile', ears: 'hidden', build: 'normal' };
 const MAX_PX = 512;
 
 /** 사진을 긴 변 512px JPEG dataURL로 줄인다 — 본문 상한(1.5 MB) 안쪽, 모델은 이 크기면 충분하다 */
@@ -68,7 +78,7 @@ export function LookLab() {
 
   return (
     <>
-      <h2>겉모습 <small>Look · 사진 → 여섯 칸 (ADR-0019)</small></h2>
+      <h2>겉모습 <small>Look · 사진 → 열세 칸 (ADR-0019 · ADR-0020)</small></h2>
       <div className="bar">
         <label className="tg" style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
           {busy ? '읽는 중…' : '사진 고르기'}
@@ -104,7 +114,7 @@ export function LookLab() {
           <div className="sub">{f.label}</div>
           <div className="bar">
             {f.values.map(v => (
-              <button key={v} className={tg(look[f.key] === v)} onClick={() => setLocal({ ...look, [f.key]: v })}>{v}</button>
+              <button key={v} className={tg((look[f.key] ?? AXIS_DEFAULT[f.key]) === v)} onClick={() => setLocal({ ...look, [f.key]: v })}>{v}</button>
             ))}
           </div>
         </div>

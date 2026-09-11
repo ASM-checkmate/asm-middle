@@ -1,4 +1,4 @@
-# ADR-0021: 홈의 친구 버튼은 SNS가 된다 — 에이전트가 올리고, 주인이 고치고, 추천은 서버가 취향으로 고른다
+# ADR-0025: 홈의 친구 버튼은 SNS가 된다 — 에이전트가 올리고, 주인이 고치고, 추천은 서버가 취향으로 고른다
 
 *   날짜: 2026-09-11
 *   상태: 제안됨 (SNS 브랜치. 구현 전)
@@ -48,7 +48,7 @@
 *   TopChrome 왼쪽 위 버튼 교체(`chrome-friends` → `chrome-sns`), `?preview=sns`.
 *   백엔드: posts·likes·feed·visibility, 추천 점수 계산(처음엔 SQL + 메모리 정렬로 충분).
 *   채팅에 버튼 달린 메시지 종류가 하나 생긴다(초안 확인). 채팅 프롬프트에 "왜 지금 올리는지" 한 줄이 들어간다.
-*   ADR-0020(픽셀·미디어)이 선행 조건이다.
+*   ADR-0024(픽셀·미디어)이 선행 조건이다.
 *   **발행 엔진은 `sim/agentPosts.ts`** (순수 논리 + 주입되는 굽기·저장), 스토어의 tick이 `pumpRequests` 뒤에 굴린다(`pumpAgentPost`·`pumpNpcPosts`).
     상태는 `world.agentPost`(v5 저장본의 optional 칸, 부팅 때 `validAgentPost`): `{ lastPostDay?, lastPostAt?, pending?: { draftId, dueAt, asked, draft }, asks: { week, count }, skippedDay?, likedAuthors: Record<authorId, number[]> }`.
     초안(`PostDraft`)은 새로고침에도 살아야 해서 `pending.draft`에 같이 실리고, 글쓰기 화면이 미리 채우도록 `useSns.draft`에도 둔다.

@@ -27,7 +27,7 @@ export interface Agent {
   gender?: Gender;
 }
 
-/** 민수·하나 are the seed friends; the six below are other users' agents (the NPC pool) until a server exists. 성별은 넷씩 (ADR-0023 — 가상 친구도 성별을 가진다) */
+/** 민수·하나 are the seed friends; the six below are other users' agents (the NPC pool) until a server exists. 성별은 넷씩 (ADR-0027 — 가상 친구도 성별을 가진다) */
 export const AGENTS: Agent[] = [
   { id: 'minsu',  name: '민수', homePlaceId: 'minsu-home',  color: '#5FC9A6', emoji: '🐥', likes: ['게임', '떡볶이', '한강'],        traits: ['외향적', '수다스러운'], hairStyle: 'short', gender: 'male' },
   { id: 'hana',   name: '하나', homePlaceId: 'hana-home',   color: '#A9DCF5', emoji: '🐰', likes: ['카페', '그림 그리기', '전시'],   traits: ['조용한', '느긋한'],     hairStyle: 'bob',   gender: 'female' },
@@ -131,7 +131,7 @@ export const friendOf = (a: Agent, met?: { at: number; placeId: string }): Frien
 /** A friend resolved back to their agent (the pool is the source of likes/traits/colour). */
 export const agentOfFriend = (f: Friend): Agent => agentById(f.id) ?? { ...f, likes: [], traits: [] };
 
-// ─── 사진 속 인물 (FRIENDS_SPEC §6 표, ADR-0022) ─────────────────────────────
+// ─── 사진 속 인물 (FRIENDS_SPEC §6 표, ADR-0026) ─────────────────────────────
 // 같은 공간(co-present)과 같이 놀기(companion)는 그림에서 갈린다: 동행은 같은 프레임에 정면, 배경 인물은 뒷모습·작게·얼굴 없이.
 // 말을 건 상대는 `encounter.at` 전엔 배경의 한 사람이고 그 뒤부터 정면이다 — 화면(방·카메라·만화)은 전부 이 한 함수로 "그 순간의 인물"을 받는다.
 
@@ -193,7 +193,7 @@ export function castOfComic(cast: ComicCast, t: number): { companions: CastFigur
   return met ? { companions: cast.companions, met, present } : { companions: cast.companions, present };
 }
 
-// ─── "알게 된 것" (FRIENDS_SPEC §6, ADR-0022 결정 6) ──────────────────────────
+// ─── "알게 된 것" (FRIENDS_SPEC §6, ADR-0026 결정 6) ──────────────────────────
 /** 장소 유형별 한 줄 후보 — 같이 놀 때마다 하나씩 memory.friends[id].learned에 쌓인다 (친한 친구 프로필의 접기 토글) */
 const LEARNED_BY_TYPE: Partial<Record<PlaceType, string[]>> = {
   cafe: ['커피 마시며 수다 떠는 걸 좋아함', '아메리카노만 마심', '창가 자리 좋아함'],

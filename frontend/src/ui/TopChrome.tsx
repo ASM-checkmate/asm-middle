@@ -16,7 +16,7 @@ export interface TopChromeProps {
   /** opens the timetable sheet from any state */
   onTimetable?: () => void;
   hideTimetable?: boolean;
-  /** SNS를 연다 (ADR-0021) — 친구 목록은 그 안의 탭이다 */
+  /** SNS를 연다 (ADR-0025) — 친구 목록은 그 안의 탭이다 */
   onSns?: () => void;
   /** 에이전트가 써 둔 초안이 있으면 SNS 버튼에 코랄 점 */
   snsBadge?: boolean;

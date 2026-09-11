@@ -1,4 +1,4 @@
-// ─── 에이전트 발행 엔진 (ADR-0021 결정 5·6 · SNS_SPEC §8·§9) ─────────────────────────────────────────
+// ─── 에이전트 발행 엔진 (ADR-0025 결정 5·6 · SNS_SPEC §8·§9) ─────────────────────────────────────────
 // 하루 1글. 에이전트가 "여유 있는 창"(카페·집에서 쉼·20분 이상 이동·자기 전 대기)에 그때까지의 컷으로 초안을 만들어 올린다.
 // 기본은 묻지 않고 올리고 채팅에 "올렸어 · 보러 가기" 한 줄. **고민이 있을 때만**(§9의 여섯 조건, 주 2회 상한) 채팅으로 묻고,
 // 답이 없으면 15분 뒤 그냥 올린다. 자기 전 대기창에서는 고민이 있어도 묻지 않고 올린다 (§8). 주인이 초안을 버린 날은 건너뛴다.
@@ -6,7 +6,7 @@
 //
 // 이 모듈은 순수 논리 + 굽기·저장이 주입되는 작은 드라이버다. 브라우저 API·.tsx를 직접 import하지 않는다 — node 하네스
 // (scripts/sim-agentpost.test.mjs)가 그대로 돌린다. 스토어(sim/store.ts)가 tick마다 decidePost·tryPost를 굴리고 상태를 world에 적는다.
-// 캡션·고민 문장은 규칙 기반이다 — TODO(ADR-0021 §영향): 모델 한 줄("왜 지금 올리는지")은 뒤로 미룬다. LLM은 여기서 부르지 않는다.
+// 캡션·고민 문장은 규칙 기반이다 — TODO(ADR-0025 §영향): 모델 한 줄("왜 지금 올리는지")은 뒤로 미룬다. LLM은 여기서 부르지 않는다.
 import type { Comic, DayKey, Friend, Look, Memory, Phase, PlaceType, ScheduledActivity, ShotCrop, ShotWin, UserShot } from './types';
 import { DEFAULT_LOOK, LOOK_HAIR_STYLES, splitDayKey } from './types';
 import type { FeedItem, PostCut, PostDraft, PostIn } from './posts';
@@ -209,7 +209,7 @@ export function stripAgentNames(text: string, memory: Memory, withNames: string[
 /**
  * 캡션 한 줄 — 만화의 요약("카페 X에서 그림 그리기, 고양이 그린 건데 강아지냐고 물어봤다.")에서 고른다. 60자 이내, 이름 없음.
  * 머리와 twist를 따로 지운다 — 합친 뒤엔 twist의 이름이 문장 머리가 아니라서.
- * TODO(ADR-0021 §영향): 모델이 짓는 캡션은 뒤로 — 지금은 규칙.
+ * TODO(ADR-0025 §영향): 모델이 짓는 캡션은 뒤로 — 지금은 규칙.
  */
 export function captionOf(comic: Comic, memory: Memory): string {
   const summary = comic.summary.replace(/[.\s]+$/, '');
@@ -237,7 +237,7 @@ const nameOf = (id: string, memory: Memory): string | null => memory.friends.fin
 /**
  * 여섯 조건을 이 순서로 본다 — 관심 있는 사람 · 잘 보이고 싶은 상대(설렘) · 남이 나옴(동행) · 낙서 · 평소랑 다른 하루(범주·처음 간 곳) ·
  * 막 친구 된 사람. 걸리는 첫 것의 한 줄을 돌려준다 (이름을 채워서). 없으면 undefined. 상한은 여기서 보지 않는다 (underAskCap).
- * TODO(ADR-0021 §영향): 문장은 규칙 — 모델 한 줄은 뒤로.
+ * TODO(ADR-0025 §영향): 문장은 규칙 — 모델 한 줄은 뒤로.
  */
 export function worryLine(ctx: PostCtx, draft: PostDraft, comics: Comic[], acts: ScheduledActivity[]): string | undefined {
   const { memory, now } = ctx;
@@ -349,7 +349,7 @@ export function decidePost(ctx: PostCtx, phase: Phase): PostDecision {
   return { kind: 'post', draft };
 }
 
-// ─── 가상 친구의 글 (ADR-0021 결정 6) ─────────────────────────────────────────────────
+// ─── 가상 친구의 글 (ADR-0025 결정 6) ─────────────────────────────────────────────────
 /** 굽기에 필요한 것 — 장면 종류는 장소 타입으로(sceneTypeFor는 .tsx라 부르는 쪽이 옮긴다), 주인공은 NPC의 겉모습 */
 export interface NpcBakeInput { placeType: PlaceType; pose: Pose; crop: ShotCrop; look: Look; color: string }
 export type NpcBaker = (input: NpcBakeInput) => Promise<{ blob: Blob; mime: string }>;
@@ -400,7 +400,7 @@ const NPC_CROPS: ShotCrop[] = [
   { scale: 1.3, x: -4, y: 0, rot: 9, pitch: 12, light: 0.6, dof: 0.35, focus: 'far' },
 ];
 
-/** 활동 제목에서 캡션 한 줄 — 규칙 (TODO ADR-0021 §영향: 모델은 뒤로) */
+/** 활동 제목에서 캡션 한 줄 — 규칙 (TODO ADR-0025 §영향: 모델은 뒤로) */
 export function npcCaptionOf(act: AgentActivity, placeName: string, area: string, seed: string): string {
   const stem = shortTitle(act.option.title).replace(/하기$/, '').trim() || act.option.title;
   const r = rng(`npccaption:${seed}`);

@@ -467,7 +467,7 @@ export function makeComic(act: ScheduledActivity, memory: Memory, shots: Partial
       // 사용자가 찍은 그대로: crop % 단위, 촬영 시각, 흐림·열화 없음 — 캡션은 그대로 둔다 (BLUR_CAPTION 치환 대상이 아니다)
       userCount++;
       p.by = 'user'; p.unit = 'pct'; p.t = mine.at; p.crop = { ...mine.crop }; p.blur = undefined;
-      // 찍는 순간 구운 픽셀의 id (ADR-0020) — 굽기가 실패한 샷엔 없다. 굴림(rng)은 건드리지 않는다
+      // 찍는 순간 구운 픽셀의 id (ADR-0024) — 굽기가 실패한 샷엔 없다. 굴림(rng)은 건드리지 않는다
       if (mine.shotId) p.shotId = mine.shotId;
       return;
     }
@@ -493,7 +493,7 @@ export function makeComic(act: ScheduledActivity, memory: Memory, shots: Partial
       ...act.companions.map(id => memory.friends.find(f => f.id === id)?.name ?? agentById(id)?.name).filter((n): n is string => !!n),
       ...(enc?.talked ? [other] : []),
     ],
-    // 찍힐 때의 인물 구성 (ADR-0022): 컷을 나중에 구울 때(ADR-0020 결정 2) 활동이 없어도 같은 그림 — 난수는 안 쓴다 (위 시드 순서 불변)
+    // 찍힐 때의 인물 구성 (ADR-0026): 컷을 나중에 구울 때(ADR-0024 결정 2) 활동이 없어도 같은 그림 — 난수는 안 쓴다 (위 시드 순서 불변)
     cast: comicCastOf(act, memory),
   };
 }

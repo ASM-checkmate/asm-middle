@@ -18,7 +18,7 @@ public final class LlmDtos {
   public record Agent(String name, List<String> traits, List<String> likes, List<String> dislikes) {}
   /** 설렘 단계 (AFFECTION_SPEC §1) — 없음은 crush 자체가 null. */
   public static final List<String> CRUSH_STAGES = List.of("interest", "like", "love");
-  /** 설렘 대상 (ADR-0023 결정 3). name은 1~40자, stage는 CRUSH_STAGES 중 하나. 숫자는 오지 않는다 — 단계만. */
+  /** 설렘 대상 (ADR-0027 결정 3). name은 1~40자, stage는 CRUSH_STAGES 중 하나. 숫자는 오지 않는다 — 단계만. */
   public record Crush(String name, String stage) {}
   /** lateWhy·worry·crush는 null일 수 있다. mood·fatigue는 0..100. */
   public record Situation(String where, String doing, String hhmm, String lateWhy, int mood, int fatigue, String worry, Crush crush) {}

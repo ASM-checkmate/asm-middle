@@ -29,7 +29,7 @@ import world.theworld.server.social.FriendshipId;
 import world.theworld.server.social.FriendshipRepository;
 
 /**
- * 글·좋아요·글 격자 (CONTRACT §2.5, ADR-0021). 서버가 지키는 것: authorId는 늘 요청자, 컷은 전부 내 미디어, 동행은 내 친구와의 교집합,
+ * 글·좋아요·글 격자 (CONTRACT §2.5, ADR-0025). 서버가 지키는 것: authorId는 늘 요청자, 컷은 전부 내 미디어, 동행은 내 친구와의 교집합,
  * 비공개 계정의 글은 친구만. 추천은 {@link FeedService}.
  */
 @Service
@@ -157,7 +157,7 @@ public class PostService {
 
   // ── §2.5 DELETE /api/posts/{id} ──
 
-  /** 좋아요 행도 같이. 미디어는 남긴다 — "책이 참조하지 않는 것만 지운다"는 책 문서를 열어 봐야 알 수 있어 이 단계 밖(ADR-0020 결정 4). */
+  /** 좋아요 행도 같이. 미디어는 남긴다 — "책이 참조하지 않는 것만 지운다"는 책 문서를 열어 봐야 알 수 있어 이 단계 밖(ADR-0024 결정 4). */
   @Transactional
   public void delete(String me, String id) {
     mine(me, id);

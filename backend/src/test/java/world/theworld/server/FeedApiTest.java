@@ -17,7 +17,7 @@ import world.theworld.server.post.PostLikeRepository;
 import world.theworld.server.post.PostRepository;
 
 /**
- * 피드 (CONTRACT §2.5 GET /api/feed, ADR-0021 결정 3·4): 친구 글(why 없음) → 추천(why 있음). 비공개 남·나 자신·내가 좋아요한 글은 추천에 없다.
+ * 피드 (CONTRACT §2.5 GET /api/feed, ADR-0025 결정 3·4): 친구 글(why 없음) → 추천(why 있음). 비공개 남·나 자신·내가 좋아요한 글은 추천에 없다.
  * 점수는 데이터가 같으면 순서도 같다 — 글은 createdAt·likes를 정해 표에 직접 넣는다(API로 만들면 시각을 못 정한다).
  */
 class FeedApiTest extends ApiTest {

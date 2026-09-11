@@ -1,4 +1,4 @@
-// ─── 굽기의 순수한 부분 (ADR-0020 스파이크): 색표·자리·크기·조도·심도·id ──────────────────────
+// ─── 굽기의 순수한 부분 (ADR-0024 스파이크): 색표·자리·크기·조도·심도·id ──────────────────────
 // React·DOM 없이 돈다 — scripts/sim-bake.test.mjs가 node에서 그대로 읽는다. 여기 숫자는 전부 camera.css·scenes.css·tokens.css를
 // 옮겨 적은 것이다: 라이브 무대(CameraOverlay ShotStage)가 %와 CSS 변수로 하는 일을 px와 SVG 속성으로 다시 쓴다.
 // 라이브 쪽 규칙이 바뀌면 여기도 같이 바꿔야 한다 — 그래서 각 상수 옆에 원래 줄을 적어 뒀다.
@@ -99,7 +99,7 @@ export const STILL_CSS = [
 // ─── 프레임 ──────────────────────────────────────────────────────────────────
 /** camera.css .cam-frame aspect-ratio 1 / 1.08 — 세로가 긴 변 */
 export const FRAME_ASPECT = 1.08;
-/** ADR-0020: 긴 변 300px */
+/** ADR-0024: 긴 변 300px */
 export const DEFAULT_LONG_EDGE = 300;
 /** 무대 svg viewBox (scenes/index.tsx) */
 export const SCENE_VB = { w: 390, h: 844 } as const;
@@ -261,7 +261,7 @@ export function newShotId(): string {
 }
 export const isShotId = (s: unknown): s is string => typeof s === 'string' && /^[0-9a-f]{32}$/.test(s);
 
-// ─── 파일 크기 정책 (ADR-0020: WebP ≤ 60 KB) ─────────────────────────────────
+// ─── 파일 크기 정책 (ADR-0024: WebP ≤ 60 KB) ─────────────────────────────────
 export const MAX_BYTES = 60 * 1024;
 export const DEFAULT_QUALITY = 0.82;
 /** 넘치면 한 번 품질을 낮추고, 그래도 넘치면 긴 변을 260으로 */

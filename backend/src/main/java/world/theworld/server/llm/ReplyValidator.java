@@ -79,7 +79,7 @@ public final class ReplyValidator {
       isText(batch) ? batch.asText() : null);
   }
 
-  /** 설렘 대상 — 없거나(null/생략) 모양이 틀리면(이름 1~40자·단계 enum 밖) 조용히 없음으로. 400은 내지 않는다 (ADR-0023: 숫자는 서버에 안 온다). */
+  /** 설렘 대상 — 없거나(null/생략) 모양이 틀리면(이름 1~40자·단계 enum 밖) 조용히 없음으로. 400은 내지 않는다 (ADR-0027: 숫자는 서버에 안 온다). */
   static Crush crush(JsonNode v) {
     if (v == null || !v.isObject()) return null;
     JsonNode name = v.get("name");

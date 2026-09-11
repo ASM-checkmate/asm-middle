@@ -47,7 +47,7 @@ curl -X PUT -H 'X-User-Id: yoongwan' -H 'content-type: application/json' \
 2026-09-08 인증 개정으로 `V1`의 `app_user`가 바뀌었다 — 그 전에 만든 `data/`가 있으면 지우고 다시 띄운다(체크섬 불일치).
 H2와 PostgreSQL 둘 다 도는 SQL(text · bigint · varchar)만 쓴다 — H2에서 `text`가 CLOB으로 보고돼 검증이 어긋나는 문제는 `common/TheworldH2Dialect`가 흡수한다(prod는 표준 PostgreSQLDialect).
 
-표: `app_user`(고정 아이디 5명, 시드) · `user_doc`(문서 4종, 버전) · `agent_profile` · `published_activity`(창 교체) · `friendship`(정렬된 쌍) · `trip_pack` / `trip_search`(여행 캐시, 모든 사용자 공유) · `media`(구운 컷의 행 — 바이트는 `data/media/<id>` 파일, ADR-0020) · `post` / `post_like`(SNS 글과 좋아요, 추천은 `post/FeedService`가 메모리에서 점수 매김, ADR-0021).
+표: `app_user`(고정 아이디 5명, 시드) · `user_doc`(문서 4종, 버전) · `agent_profile` · `published_activity`(창 교체) · `friendship`(정렬된 쌍) · `trip_pack` / `trip_search`(여행 캐시, 모든 사용자 공유) · `media`(구운 컷의 행 — 바이트는 `data/media/<id>` 파일, ADR-0024) · `post` / `post_like`(SNS 글과 좋아요, 추천은 `post/FeedService`가 메모리에서 점수 매김, ADR-0025).
 
 ## 환경변수 (`application.yml` `theworld.*`)
 

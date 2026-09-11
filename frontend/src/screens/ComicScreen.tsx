@@ -86,7 +86,7 @@ export function ComicScreen({ phase, onNext }: { phase: ComicPhase; onNext: (blo
         {fx && <div className="cm-diff-say">{fx.line}</div>}
         {/* "내가 N장, 모모가 M장" / "안 찍길래 내가 대충 찍었어" — 계획대로였을 때도, 옛 만화에도 붙는다 (ADR-0004) */}
         <ShotsLine shots={shots} name={memory.name} />
-        {/* 인물 구성은 만화가 기억한다(comic.cast, ADR-0022) — 그게 없는 옛 만화만 phase에서 되찾은 것으로 그린다 */}
+        {/* 인물 구성은 만화가 기억한다(comic.cast, ADR-0026) — 그게 없는 옛 만화만 phase에서 되찾은 것으로 그린다 */}
         <div className="cm-gridwrap"><ComicPanels comic={comic} option={act.option} friendColor={friend?.color} tz={phase.tz} cast={castOf(phase.companions, enc)} /></div>
       </div>
       <Character className="cm-me" pose="happy" size={170} />
@@ -164,7 +164,7 @@ function Panel({ p, i, comicId, option, friendColor, tz, placeType, agentName, c
   const { friendColor: fColor, metColor: mColor, present } = panelCast(p, cast, friendColor, timed);
   const left = p.withFriend || p.beat === 'arrive' || !!mColor;
 
-  // ── 옛 컷은 다음 열람 때 한 번 굽는다 (ADR-0020 결정 2) — 브라우저에서만, 컷마다 한 번, ?preview 화면은 제외 ──
+  // ── 옛 컷은 다음 열람 때 한 번 굽는다 (ADR-0024 결정 2) — 브라우저에서만, 컷마다 한 번, ?preview 화면은 제외 ──
   // 사용자 컷: 카메라와 같은 BakeInput(무대·자세·% 크롭·겉모습·인물). 에이전트 컷: 근사 — 원래 컷은 무대 없이 단색 바닥 + 소품 +
   // 118px 캐릭터인데, 굽기는 무대 위의 캐릭터로 그린다(같은 자세·동행·열화 클래스). px 크롭(--cx/--cy, .cm-shot: rotate → scale →
   // translate, origin 50 % 78 %)은 굽기의 % 단위로 옮긴다: 지금 그려진 컷의 크기로 나눈다 (못 재면 PANEL_W). 굽고 나면 다시 그릴 일이 없다
@@ -206,7 +206,7 @@ function Panel({ p, i, comicId, option, friendColor, tz, placeType, agentName, c
       <span className="cm-k num">{p.t && tz ? hhmmIn(p.t, tz) : i + 1}</span>
       {/* 누가 찍었나 스티커 — 옛 만화(by 없음)에는 붙이지 않는다 (헤더 줄은 전부 에이전트로 센다: util.shotCount) */}
       {p.by && <span className="cm-by">{mine ? '내가 찍음' : `${agentName}가 찍음`}</span>}
-      {/* 구운 사진(ADR-0020): 같은 .cm-shot 자리에 <img> — is-dark/is-blur 필터가 그대로 얹힌다. 못 받으면 옛 경로 */}
+      {/* 구운 사진(ADR-0024): 같은 .cm-shot 자리에 <img> — is-dark/is-blur 필터가 그대로 얹힌다. 못 받으면 옛 경로 */}
       {p.shotId ? <PhotoImg shotId={p.shotId} className="cm-shot" alt={p.caption}>{legacy}</PhotoImg> : legacy}
       <div className="cm-cap">{p.caption}</div>
     </div>

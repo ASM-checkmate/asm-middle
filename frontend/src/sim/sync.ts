@@ -34,7 +34,7 @@ const META_KEY = 'theworld.sync.v1';
 const LOCAL_KEYS = ['theworld.world.v5', 'theworld.world.v4', 'theworld.days.v3', 'theworld.memory.v2', 'theworld.book.v1', 'theworld.places.v1', 'theworld.seen.v3', 'theworld.chatseen.v1', 'theworld.onboarded.v1', META_KEY,
   'theworld.auth.v1', 'theworld.device.v1',   // 옛 기기 토큰(2026-09-08 이전) — 이제 안 쓰니 같이 지운다
   'theworld.media-queue.v1',                    // 아직 안 올린 사진 id들 (media.ts MEDIA_QUEUE_KEY와 같아야 한다) — 다른 아이디의 사진을 올리지 않게
-  'theworld.snslocal.v1'] as const;             // 가상 친구의 글 (sns.ts LOCAL_POSTS_KEY, ADR-0021 결정 6) — 그 아이디의 미디어 id를 가리킨다
+  'theworld.snslocal.v1'] as const;             // 가상 친구의 글 (sns.ts LOCAL_POSTS_KEY, ADR-0025 결정 6) — 그 아이디의 미디어 id를 가리킨다
 
 export type BackendStatus = 'unknown' | 'ok' | 'down';
 export interface SyncInfo {
@@ -114,7 +114,7 @@ const saveMeta = () => { try { localStorage.setItem(META_KEY, JSON.stringify(met
 export function clearLocalDocs() {
   cancelAll();
   for (const k of LOCAL_KEYS) { try { localStorage.removeItem(k); } catch { /* ignore */ } }
-  // 폰의 사진 캐시(IndexedDB·blob URL)도 그 아이디의 것이다 — 같이 비운다 (ADR-0020 결정 5). 실패는 삼킨다
+  // 폰의 사진 캐시(IndexedDB·blob URL)도 그 아이디의 것이다 — 같이 비운다 (ADR-0024 결정 5). 실패는 삼킨다
   void clearMedia().catch(() => { /* ignore */ });
   // 비운 기기에서 새 하루가 먼저 저장되면 baseVersion 0의 PUT이 409를 받는다 — 서버 목록을 받기 전까지는 그 409에서 서버본을 채택한다
   meta = { userId: null, versions: {}, lastPushAt: {}, fresh: true };

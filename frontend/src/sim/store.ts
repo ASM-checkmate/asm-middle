@@ -51,7 +51,7 @@ export type MemoryPatch = Partial<Pick<Memory, 'name' | 'likes' | 'dislikes' | '
 export type Regen = Record<DayKey, Partial<Record<BlockId, number>>>;
 /** The pure inputs of the timeline — the bundle the helpers below pass around. `remote`는 진짜 사람 에이전트 캐시 (§3.4, 없으면 null). */
 export interface World { days: Days; anchor: Anchor; memory: Memory; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; llmPlans: LlmPlans; remote?: RemoteCache | null; agentPost?: AgentPostState; agentLikes?: AgentLikes }
-/** v5 그대로 — `shots`(ADR-0004)·`llmPlans`(ADR-0010)·`remote`(BACKEND-CONTRACT §3.4)·`agentPost`(ADR-0021)는 optional 필드라 옛 저장본은 빈 값으로 읽는다 (버전을 올리지 않는다). */
+/** v5 그대로 — `shots`(ADR-0004)·`llmPlans`(ADR-0010)·`remote`(BACKEND-CONTRACT §3.4)·`agentPost`(ADR-0025)는 optional 필드라 옛 저장본은 빈 값으로 읽는다 (버전을 올리지 않는다). */
 interface Persisted { v: 5; days: Days; anchor: Anchor; journeys: JourneyCache; regen: Regen; encounters: Encounters; requests: AgentRequest[]; calls: CallEvent[]; messages: ChatMsg[]; dueCalls: DueCall[]; shots: UserShot[]; llmPlans?: LlmPlans; remote?: RemoteCache; agentPost?: AgentPostState; agentLikes?: AgentLikes }
 
 const WORLD_KEY = 'theworld.world.v5';   // + 대화 실 (ADR-0002). 옛 판은 한 번만 읽어 올린다
@@ -176,7 +176,7 @@ const validDays = (raw: unknown): Days => {
 /** 캔버스가 만든 dataURL만 받는다 (SketchOverlay: `canvas.toDataURL('image/png')`). */
 const isSketch = (v: unknown): v is string => typeof v === 'string' && v.startsWith('data:image/');
 const isWin = (v: unknown): v is ShotWin => v === 0 || v === 1 || v === 2 || v === 3;
-/** 저장된 샷 검증 — 모양이 어긋난 항목은 버린다 (사용자 컷은 만화에 그대로 들어가므로 숫자여야 한다). shotId는 32자 hex일 때만 남긴다 (ADR-0020) */
+/** 저장된 샷 검증 — 모양이 어긋난 항목은 버린다 (사용자 컷은 만화에 그대로 들어가므로 숫자여야 한다). shotId는 32자 hex일 때만 남긴다 (ADR-0024) */
 const validShots = (raw: unknown): UserShot[] => {
   if (!Array.isArray(raw)) return [];
   return (raw as Partial<UserShot>[]).filter((x): x is UserShot => {
@@ -302,7 +302,7 @@ function friendProposal(id: BlockId, dayKey: DayKey, myCity: string, friend: Fri
 }
 
 /**
- * 설렘이 좋아함 이상이면 그 사람이 그 블록에 가는 곳이 카드 후보에 오른다 (AFFECTION_SPEC §4 "계획 후보에 그 사람이 자주 가는 곳", ADR-0023 영향).
+ * 설렘이 좋아함 이상이면 그 사람이 그 블록에 가는 곳이 카드 후보에 오른다 (AFFECTION_SPEC §4 "계획 후보에 그 사람이 자주 가는 곳", ADR-0027 영향).
  * 동행이 아니다 — friendId·proposedBy 없이 장소·활동만, 이유는 얼버무린 "왠지 {동네} 가고 싶어" (이름·단계는 절대 안 나온다). 그 사람의 하루(NPC는 시드,
  * 진짜 사람은 발행된 일정)에서 내 도시 안·집이 아닌 활동일 때만. 없으면 null. 결정적 — 난수 없음
  */
@@ -486,7 +486,7 @@ function prune(w: World, now: number, onAct: (a: ScheduledActivity) => void): Wo
  * roll succeeded — the new friend (FRIENDS_SPEC §4: 활동이 끝나면 friends에 추가). The encounter log counts every
  * 마주침, talked or not, so running into the same agent again is likelier to end in a hello. Pure.
  *
- * 같이 놀았으면 SNS 친구 (FRIENDS_SPEC §6, ADR-0022 결정 3): 동행(`companions`)과 말을 튼 상대(`encounter.talked` — 대화 롤 성공 이후는 동행이다,
+ * 같이 놀았으면 SNS 친구 (FRIENDS_SPEC §6, ADR-0026 결정 3): 동행(`companions`)과 말을 튼 상대(`encounter.talked` — 대화 롤 성공 이후는 동행이다,
  * §6 표) 마다 친구가 아니면 그 자리에서 친구가 되고, 우정(`bond`)이 1 오르고, 상대에 대해 알게 된 한 줄이 `learned`에 쌓인다 (규칙·결정적, 중복 없이
  * 12개). 같은 공간에 있기만 한 사람(`presentNearby`)은 마주침 카운트만 오른다 (§6 표 "관계 효과: 없음. 마주침 카운트만" — SNS '최근 마주친',
  * 다음 굴림의 '또 봤네' +20 %). 동행은 세지 않는다. 만화 id로 멱등이라 한 활동이 두 번 세지지 않는다.
@@ -518,7 +518,7 @@ function settle(a: ScheduledActivity, book: Comic[], memory: Memory, encounters:
     friends = friends.map(f => f.id === id ? { ...f, bond: (f.bond ?? 0) + 1, learned: appendLearned(f.learned, learnedLine(a, id, label, f.learned ?? [])) } : f);
     nextMemory = { ...nextMemory, friends };
   }
-  // 설렘 (AFFECTION_SPEC §3, ADR-0023): 사다리 뒤에 — 동행은 소폭, 마주침은 크게, 같은 공간의 친구는 "서로 봤다". 이성이고 내 성별을 알 때만.
+  // 설렘 (AFFECTION_SPEC §3, ADR-0027): 사다리 뒤에 — 동행은 소폭, 마주침은 크게, 같은 공간의 친구는 "서로 봤다". 이성이고 내 성별을 알 때만.
   // 상대의 성별·취향은 풀·서버 프로필에서 (옛 저장본의 친구 칸엔 성별이 없다)
   nextMemory = crushAfterActivity(nextMemory, a, id => { const ag = agentById(id); return ag ? { gender: ag.gender, likes: ag.likes } : null; });
   return { comic, book: [...book, comic], memory: nextMemory, encounters: nextEncounters };
@@ -573,7 +573,7 @@ export interface WorldState {
   say: { text: string; at: number } | null;
   /** 사용자가 찍은 컷들 (ADR-0004 오너 결정 7). 추가전용, 같은 활동·창은 뒤가 이긴다. 활동이 끝나면 만화에 박힌다. */
   shots: UserShot[];
-  /** 에이전트 발행 엔진의 상태 (sim/agentPosts, ADR-0021 결정 5): 마지막 글·쥔 초안·주간 물음 수·버린 날·좋아요 기록. world 저장본에 실린다 */
+  /** 에이전트 발행 엔진의 상태 (sim/agentPosts, ADR-0025 결정 5): 마지막 글·쥔 초안·주간 물음 수·버린 날·좋아요 기록. world 저장본에 실린다 */
   agentPost: AgentPostState;
   /** 주인이 그 사람 글에 좋아요를 켰다 (sns.onLike → 여기) — "관심 있는 사람" 고민의 재료 */
   noteLike: (authorId: string) => void;
@@ -696,12 +696,12 @@ export interface WorldState {
   /** 한 장 찍는다. 같은 actKey+win은 교체(뒤가 이김). 활동 종료 전(now < endAt)에만 — 만화는 endAt에 한 번 만들어진다. */
   addShot: (shot: UserShot) => void;
   /**
-   * 굽기가 실패한 샷의 shotId를 뗀다 (ADR-0020: 픽셀이 없으면 옛 경로로 그린다). 그 사이 다시 찍었으면(다른 id) 건드리지 않는다.
+   * 굽기가 실패한 샷의 shotId를 뗀다 (ADR-0024: 픽셀이 없으면 옛 경로로 그린다). 그 사이 다시 찍었으면(다른 id) 건드리지 않는다.
    * 활동이 끝난 뒤에 실패했으면 만화가 이미 그 id를 컷에 옮겼다 — 책의 컷에서도 뗀다 (화면이 다음 열람 때 다시 굽는다)
    */
   dropShotId: (shotId: string) => void;
   /**
-   * 책의 컷에 구운 픽셀의 id를 적는다 (ADR-0020 결정 2: 옛 컷·에이전트 컷은 다음 열람 때 화면이 한 번 굽는다). 책 항목을 불변으로
+   * 책의 컷에 구운 픽셀의 id를 적는다 (ADR-0024 결정 2: 옛 컷·에이전트 컷은 다음 열람 때 화면이 한 번 굽는다). 책 항목을 불변으로
    * 바꾸고 저장한다(book 문서). 이미 id가 있거나 만화·컷을 못 찾으면 아무것도 안 한다
    */
   patchPanelShot: (comicId: string, panelIndex: number, shotId: string) => void;
@@ -727,7 +727,7 @@ const summaryOf = (acts: ScheduledActivity[], comicOf: (a: ScheduledActivity) =>
   [...acts].sort((a, b) => a.endAt - b.endAt).slice(-SUMMARY_CAP).map(a => ({ blockId: a.blockIds[0], act: a, comic: comicOf(a) }));
 const worldOf = (s: WorldState): World => ({ days: s.days, anchor: s.anchor, memory: s.memory, journeys: s.journeys, regen: s.regen, encounters: s.encounters, requests: s.requests, calls: s.calls, messages: s.messages, dueCalls: s.dueCalls, shots: s.shots, llmPlans: s.llmPlans, remote: s.remote, agentPost: s.agentPost, agentLikes: s.agentLikes });
 
-// ─── 가상 친구 글의 굽기 (ADR-0021 결정 6) ──────────────────────────────────────────────
+// ─── 가상 친구 글의 굽기 (ADR-0025 결정 6) ──────────────────────────────────────────────
 // bakeShot(photo/bake.tsx)·sceneTypeFor(scenes/index.tsx)는 .tsx라 node 하네스가 못 읽는다 — 브라우저에서만 동적으로 올리고, 하네스는
 // setNpcBaker로 가짜를 꽂는다. 굽기가 없으면 NPC 글은 안 만든다 (다음 날 다시).
 let npcBaker: NpcBaker | null = null;
@@ -828,7 +828,7 @@ export const useWorld = create<WorldState>((set, get) => {
   let lastHealthAt = 0;
   // 동기화 모듈은 스토어를 모른다 — 상태가 바뀌면 여기로 복사해 화면(DevPanel·TopChrome)이 구독한다
   subscribeSync(s => set({ backend: s.backend, sync: s.sync }));
-  // 사진 업로드 줄 (ADR-0020): 밀린 사진을 올리고, 서버가 살아날 때마다 다시. dev 시계에도 올린다 (media.ts 머리 주석)
+  // 사진 업로드 줄 (ADR-0024): 밀린 사진을 올리고, 서버가 살아날 때마다 다시. dev 시계에도 올린다 (media.ts 머리 주석)
   startMediaQueue();
 
   // ── 진짜 사람 에이전트 (BACKEND-CONTRACT §3.4) ──
@@ -1015,7 +1015,7 @@ export const useWorld = create<WorldState>((set, get) => {
     if (requests !== s.requests) { set({ requests: trimRequests(requests, s.anchor.t) }); persist(); }
   };
 
-  // ─── 에이전트 발행 엔진 (sim/agentPosts, ADR-0021 결정 5·6 · SNS_SPEC §8·§9) ───────────────────────────
+  // ─── 에이전트 발행 엔진 (sim/agentPosts, ADR-0025 결정 5·6 · SNS_SPEC §8·§9) ───────────────────────────
   /** 글 올리기가 진행 중 — 겹쳐 보내지 않는다 */
   let postInFlight = false;
   /** 실패 뒤 다음 시도 시각 (sim ms)·연속 실패 수 — 60s → 2m → … ≤ 15m */
@@ -1136,7 +1136,7 @@ export const useWorld = create<WorldState>((set, get) => {
   };
   /** 오늘 굽는 중이거나 실패한 가상 친구 글 id — 실패하면 오늘은 다시 안 굽는다 (id에 날짜가 들어 있어 다음 날은 새 키) */
   const npcTried = new Set<string>();
-  /** 가상 친구의 글 (ADR-0021 결정 6): 걔들의 하루 중 한 활동이 끝난 시각이 지나면 컷을 굽고 로컬 문서에 넣는다. 굽기가 없으면(하네스) 아무것도 안 한다 */
+  /** 가상 친구의 글 (ADR-0025 결정 6): 걔들의 하루 중 한 활동이 끝난 시각이 지나면 컷을 굽고 로컬 문서에 넣는다. 굽기가 없으면(하네스) 아무것도 안 한다 */
   const pumpNpcPosts = (t: number) => {
     const bake = npcBaker;
     if (!bake) return;
@@ -1275,7 +1275,7 @@ export const useWorld = create<WorldState>((set, get) => {
       arriveSay(s.phase, get().phase, from, t);
       // 쪽지: 마감이 지난 건 "혼자 정했다"로 넘기고, 물어볼 게 있으면 하나 만든다 — 상한 없이, 오래된 것부터 카드로 (sim/requests.ts)
       pumpRequests(t);
-      // 글: 하루 하나, 여유 있는 창에서 (ADR-0021 결정 5). 가상 친구의 글도 여기서 (결정 6)
+      // 글: 하루 하나, 여유 있는 창에서 (ADR-0025 결정 5). 가상 친구의 글도 여기서 (결정 6)
       pumpAgentPost(t);
       pumpNpcPosts(t);
       // 전화: 약속한 전화만 (ADR-0013). 접속 중이면 울리고, 지나갔으면 부재중(내용 없음).

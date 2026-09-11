@@ -34,7 +34,7 @@ public final class ReplyPrompt {
 
   static final Map<String, String> WORRY_KO = Map.of("work", "일", "people", "사람", "body", "몸", "money", "돈", "focus", "집중", "blue", "기분", "bored", "심심함");
 
-  /** 설렘은 행동으로만 드러난다 (AFFECTION_SPEC §4, ADR-0023 결정 3) — 단계는 알려주되 인정은 못 하게. */
+  /** 설렘은 행동으로만 드러난다 (AFFECTION_SPEC §4, ADR-0027 결정 3) — 단계는 알려주되 인정은 못 하게. */
   static final String CRUSH_RULE = "누가 물어도 직접 인정하지 않는다 — 얼버무리거나 딴청을 부린다. 이름은 먼저 꺼내지 않는다.";
 
   /** 단계별 한 문장. 단계는 검증을 지나 세 값뿐이다. 이름은 "하늘이가"·"유리를"처럼 사람 이름꼴로 — "하늘이 좋다"는 날씨 얘기로 읽힌다. */

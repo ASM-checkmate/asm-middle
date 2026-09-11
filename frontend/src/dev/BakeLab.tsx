@@ -1,4 +1,4 @@
-// ─── 굽기 실험실 (ADR-0020, ?lab=bake) ────────────────────────────────────────────
+// ─── 굽기 실험실 (ADR-0024, ?lab=bake) ────────────────────────────────────────────
 // 프리셋마다 왼쪽은 라이브 무대(ShotStage still — 카메라·필름·만화가 쓰는 바로 그 컴포넌트), 오른쪽은 구운 픽셀(<img>)을 같은 크기로.
 // 둘이 같아 보여야 "찍은 그대로"다. QA: window.__bake = { bakeSvg, bakeShot, presets }.
 import { useEffect, useState } from 'react';
@@ -84,7 +84,7 @@ export function BakeLab() {
     <div className="blab">
       <style>{CSS}</style>
       <h1>굽기 랩</h1>
-      <div className="sub">BAKE LAB · 왼쪽 라이브 ShotStage / 오른쪽 구운 픽셀 · ADR-0020</div>
+      <div className="sub">BAKE LAB · 왼쪽 라이브 ShotStage / 오른쪽 구운 픽셀 · ADR-0024</div>
       <div className="bar">
         <button type="button" className="tg on" disabled={!!busy} onClick={bakeAll} data-bake-all>{busy ? `굽는 중… ${busy}` : '전부 굽기'}</button>
       </div>

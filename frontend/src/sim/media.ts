@@ -1,4 +1,4 @@
-// ─── 폰의 사진 저장소 + 업로드 큐 (ADR-0020 결정 5 · CONTRACT §2.5) ─────────────────────────────────
+// ─── 폰의 사진 저장소 + 업로드 큐 (ADR-0024 결정 5 · CONTRACT §2.5) ─────────────────────────────────
 // 컷은 찍는 순간 픽셀로 굳고(photo/bake.tsx) 문서(world의 shots·book의 panels)는 id만 가리킨다. 픽셀은 여기 — IndexedDB
 // `theworld-media`/`blobs`(id → { blob, mime, bytes, kind, at, uploaded })에 두고, 아직 안 올린 id는 localStorage
 // `theworld.media-queue.v1`에 줄 세워 서버(`PUT /api/media/{id}?kind=`)에 하나씩 올린다. 받은 남의 사진도 같은 곳에
@@ -19,7 +19,7 @@ import { isShotId } from '../photo/geometry';
 export type MediaKind = 'shot' | 'sketch' | 'npc';
 /** 아직 안 올린 id들 (JSON string[]). 사용자가 바뀌면 sync.clearLocalDocs가 지운다 — sync.ts LOCAL_KEYS와 같아야 한다 */
 export const MEDIA_QUEUE_KEY = 'theworld.media-queue.v1';
-/** 폰 캐시 상한 (ADR-0020 결정 5: 100~200 MB) */
+/** 폰 캐시 상한 (ADR-0024 결정 5: 100~200 MB) */
 export const MEDIA_CACHE_MAX_BYTES = 150 * 1024 * 1024;
 let cacheMax = MEDIA_CACHE_MAX_BYTES;
 /** 하네스용: 상한을 낮춰 evict를 돌려 본다 (앱은 부르지 않는다) */

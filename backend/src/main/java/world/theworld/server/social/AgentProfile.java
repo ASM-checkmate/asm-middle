@@ -52,11 +52,11 @@ public class AgentProfile {
 
   // ── §2.5 SNS 칸 (V3) ──
 
-  /** female | male | null — 서버는 검증만 하고 추정하지 않는다 (ADR-0023). */
+  /** female | male | null — 서버는 검증만 하고 추정하지 않는다 (ADR-0027). */
   @Column(name = "gender", length = 8)
   private String gender;
 
-  /** public | private. 기본 private (ADR-0021 결정 7). */
+  /** public | private. 기본 private (ADR-0025 결정 7). */
   @Column(name = "visibility", length = 8, nullable = false)
   private String visibility = VISIBILITY_PRIVATE;
 

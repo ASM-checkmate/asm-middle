@@ -30,7 +30,7 @@ public class BodyLimitFilter extends OncePerRequestFilter {
   public static final long SKETCH_MAX = 512L * 1024;
   /** 사진 dataURL — 프런트가 512px JPEG로 줄여 보내지만 여유를 둔다. */
   public static final long LOOK_MAX = 1536L * 1024;
-  /** 구운 컷 하나 — 300px WebP ≤ 60 KB (ADR-0020, CONTRACT §2.5). 서비스도 같은 수로 한 번 더 잰다. */
+  /** 구운 컷 하나 — 300px WebP ≤ 60 KB (ADR-0024, CONTRACT §2.5). 서비스도 같은 수로 한 번 더 잰다. */
   public static final long MEDIA_MAX = 60L * 1024;
   public static final long DEFAULT_MAX = 256L * 1024;
 

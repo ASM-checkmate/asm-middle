@@ -137,7 +137,7 @@ export function buildTimeline(anchor: Anchor, days: Days, memory: Memory, journe
  * NPC 풀보다 앞에 선다. 캐시가 비면 NPC 풀 그대로. 굴림 시드는 진짜 사람이면 두 id를 정렬한 것(양쪽이 같은 결과),
  * NPC면 예전 그대로 `${dayKey}:${placeId}:${memory.name}:${agentId}` (기존 결과 보존).
  *
- * 같은 공간 ≠ 같이 놀기 (FRIENDS_SPEC §6, ADR-0022): 걸러진 사람 **전부**가 `presentNearby`에 남는다 (id 오름차순, 최대 3 — 말을 건
+ * 같은 공간 ≠ 같이 놀기 (FRIENDS_SPEC §6, ADR-0026): 걸러진 사람 **전부**가 `presentNearby`에 남는다 (id 오름차순, 최대 3 — 말을 건
  * 상대는 잘리지 않는다). 굴림은 예전처럼 첫 사람(met[0])에게만, 하루 한 번. 말을 텄으면 `at`(활동의 30~64 % 지점, 시드 = 날짜·장소·둘의 id)
  * 전까지는 배경의 한 사람이고 그 뒤부터 만난 사람이다 — 4컷 중 3컷째(65 %)가 만남 장면이라 그 앞에서 끝난다.
  */

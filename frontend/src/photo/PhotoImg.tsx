@@ -1,4 +1,4 @@
-// ─── 구운 사진 한 장 (ADR-0020) ─────────────────────────────────────────────────
+// ─── 구운 사진 한 장 (ADR-0024) ─────────────────────────────────────────────────
 // shotId → sim/media.ts objectUrlFor(폰 캐시, 없으면 서버)로 blob URL을 받아 <img>로 그린다. 받는 동안은 종이색 상자,
 // 못 받으면(권한 없음·오프라인·지워짐) fallback(children) — 없으면 상자 그대로. 자리는 부모가 준다 (photo.css).
 import { useEffect, useState, type ReactNode } from 'react';

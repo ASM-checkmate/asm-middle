@@ -81,7 +81,7 @@ export function ShotStage({ type, pose, crop, friendColor, metColor, present, st
       <div className="cam-shot">
         {/* 배경은 프레임보다 넓게(가로 3장·세로 2배) — 밀고 돌려도 끝이 안 보인다. 양옆은 거울처럼 뒤집어 이어 붙인다 */}
         <div className="cam-bg"><Still type={type} /><Still type={type} /><Still type={type} /></div>
-        {/* 배경 인물: 뒷모습(얼굴 없음) — 비공개 계정 사람이 남의 사진에 얼굴로 나오는 일이 없다 (ADR-0022). 설렘 대상만 슬쩍 돌아본 3/4 얼굴 (AFFECTION_SPEC §4) */}
+        {/* 배경 인물: 뒷모습(얼굴 없음) — 비공개 계정 사람이 남의 사진에 얼굴로 나오는 일이 없다 (ADR-0026). 설렘 대상만 슬쩍 돌아본 3/4 얼굴 (AFFECTION_SPEC §4) */}
         {present?.slice(0, 2).map((p, i) => <Chara key={i} className={`cam-present cam-present-${i}`} pose="idle" size={120} variant="friend" color={p.color} look={presentLook(p.hairStyle)} back glance={p.glance} paused={still} />)}
         {friendColor && <Chara className="cam-friend" pose="wave" size={224} variant="friend" color={friendColor} paused={still} />}
         <Chara className="cam-me" pose={pose} size={300} paused={still} />
@@ -134,7 +134,7 @@ export function CameraOverlay({ act, progress, nowMs, preview, onClose }: Camera
   const dragRef = useRef<{ id: number; sx: number; sy: number; x0: number; y0: number; w: number; h: number; moved: boolean } | null>(null);
 
   const pose = poseFor(act.option);
-  // 찍는 순간의 인물 구성 (ADR-0022): 동행은 정면, 말을 건 상대는 encounter.at 뒤부터 정면, 같은 공간의 사람들은 뒷모습.
+  // 찍는 순간의 인물 구성 (ADR-0026): 동행은 정면, 말을 건 상대는 encounter.at 뒤부터 정면, 같은 공간의 사람들은 뒷모습.
   // phase의 companions/encounter는 헤더 칩용 그대로 두고 그림은 castAt 하나로 — 방(RoomStage)·만화와 같은 규칙
   const memory = useWorld(s => s.memory);
   const stage = { type: act.place.type, pose, ...shotCastOf(castAt(act, nowMs, memory)) };
@@ -183,7 +183,7 @@ export function CameraOverlay({ act, progress, nowMs, preview, onClose }: Camera
 
   // ── 셔터: 지금 창에만. 같은 창을 다시 찍으면 뒤가 이긴다 ──
   const shoot = () => {
-    // 찍는 순간 id를 정하고(폰이 정한다 — CONTRACT §2.5) 샷은 바로 저장한다. 굽기는 뒤에서 — 저장을 기다리게 하지 않는다 (ADR-0020 결정 1).
+    // 찍는 순간 id를 정하고(폰이 정한다 — CONTRACT §2.5) 샷은 바로 저장한다. 굽기는 뒤에서 — 저장을 기다리게 하지 않는다 (ADR-0024 결정 1).
     // ?preview는 id 없이 로컬 state에만 — 굽지도(IDB·업로드 줄·서버에 남는다) 않는다. ComicScreen의 지연 굽기가 PREVIEW를 건너뛰는 것과 같다
     if (preview) {
       setLocal(ss => [...ss.filter(s => s.win !== now), { actKey: act.key, win: now, at: nowMs, crop: { ...crop } }]);

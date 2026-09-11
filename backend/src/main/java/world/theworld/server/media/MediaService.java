@@ -25,8 +25,8 @@ import world.theworld.server.social.FriendshipId;
 import world.theworld.server.social.FriendshipRepository;
 
 /**
- * 미디어 저장소 (CONTRACT §2.5, ADR-0020). 파일은 {@code theworld.media.dir/<id>}, 행은 media 표. 서버는 픽셀을 해석하지 않는다 —
- * 타입·크기·id 모양만 보고 그대로 둔다. 지우는 경로는 없다(ADR-0020 결정 4).
+ * 미디어 저장소 (CONTRACT §2.5, ADR-0024). 파일은 {@code theworld.media.dir/<id>}, 행은 media 표. 서버는 픽셀을 해석하지 않는다 —
+ * 타입·크기·id 모양만 보고 그대로 둔다. 지우는 경로는 없다(ADR-0024 결정 4).
  */
 @Service
 public class MediaService {

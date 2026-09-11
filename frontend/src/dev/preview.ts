@@ -389,7 +389,7 @@ function buildPreview(spec: PreviewSpec, now0: number): PreviewBase {
       // `&p=` — 활동(ACTIVE_MIN분) 중 지금까지 지난 비율만큼 도착을 앞당긴다 (기본 .35 = 35분 전 도착)
       const departAt = now0 - (journey.totalMin + spec.p * ACTIVE_MIN) * 60_000;
       const act = fakeAct(place, o, journey, departAt, ACTIVE_MIN, spec.tz, from, spec.jetlag ? now0 + 20 * HOUR_MS : null);
-      // 마주침 미리보기 (ADR-0022): 같은 공간에 NPC 둘이 있고(배경의 뒷모습), talked면 첫 사람과 활동 중간(50 %)에 말을 튼다 —
+      // 마주침 미리보기 (ADR-0026): 같은 공간에 NPC 둘이 있고(배경의 뒷모습), talked면 첫 사람과 활동 중간(50 %)에 말을 튼다 —
       // `&p=0.35`(기본)면 아직 뒷모습, `&p=0.6`이면 옆에 서서 "안녕!". seen이면 둘 다 끝까지 배경
       const others = AGENTS.filter(a => !memory().friends.some(f => f.id === a.id)).slice(0, 2);
       const other = others[0];
@@ -542,7 +542,7 @@ export function usePreviewOverlay(): { summary: DaySummaryItem[] | null; book: C
   }, [spec, realBook, now0]);
 }
 
-// ─── `?preview=sns…` (SNS_SPEC · ADR-0021): 가짜 글·친구·초안. 컷은 진짜 픽셀이어야 하니 그 자리에서 굽는다 ───────────────
+// ─── `?preview=sns…` (SNS_SPEC · ADR-0025): 가짜 글·친구·초안. 컷은 진짜 픽셀이어야 하니 그 자리에서 굽는다 ───────────────
 // 스토어(memory·world·book)는 안 건드린다 — 친구·마주침·책은 SnsOverlay의 `preview` prop으로 얹고, 글·초안은 useSns.setState로 넣는다.
 // id는 고정 시드의 32자 hex라 다시 그려도 같은 id → 폰 캐시(sim/media)를 그대로 쓴다. 사용자가 없으니 서버로는 아무것도 안 간다.
 

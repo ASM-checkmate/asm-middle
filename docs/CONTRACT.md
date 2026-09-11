@@ -174,9 +174,9 @@ interface PublishedActivity { key: string /* `${dayKey}:${blockId}` */; agentId:
 `{ "activities": PublishedActivity[] }` (arriveAt 순). 친구가 아니면 `403`, 창이 7일을 넘으면 `400`.
 프론트는 remote 친구의 오늘~내일을 받아 동행 카드와 친구 목록의 '지금'에 쓴다.
 
-## 2.5 SNS — 미디어 · 글 · 좋아요 · 피드 (초안, ADR-0020·0021. 2026-09-11)
+## 2.5 SNS — 미디어 · 글 · 좋아요 · 피드 (초안, ADR-0024·0021. 2026-09-11)
 
-> 서버 구현 기준(media·post 패키지, 2026-09-11). 사진은 픽셀(ADR-0020)이고 글은 opaque 문서가 아니라 서버 리소스다(ADR-0021). 프론트 타입은 이 절을 따른다.
+> 서버 구현 기준(media·post 패키지, 2026-09-11). 사진은 픽셀(ADR-0024)이고 글은 opaque 문서가 아니라 서버 리소스다(ADR-0025). 프론트 타입은 이 절을 따른다.
 
 타입
 
@@ -197,7 +197,7 @@ interface Likes { likes: number; likedByMe: boolean }          // POST/DELETE /a
 
 **id는 클라이언트가 만든다** — 32자 hex(`^[0-9a-f]{32}$`). 찍는 순간 폰이 id를 정하고 책·글은 업로드 전에도 그 id로 가리킨다(오프라인·dev 시계에서도 책이 먼저 산다).
 본문 `image/webp`(Safari 폴백 `image/png`) 그대로, ≤ 60 KB, 긴 변 ≤ 300px. 쿼리 `?kind=shot|sketch|npc` → 응답 (201) `Media`.
-**멱등**: 같은 소유자가 같은 id를 다시 올리면 바이트를 버리고 (200) 기존 `Media`(kind·mime도 처음 것). 다른 소유자의 id면 `403 'not yours'`. `kind=npc`는 내 폰의 가상 친구 글(ADR-0021 결정 6)이며 내 용량으로 센다. 파일은 `backend/data/media/<id>`(`theworld.media.dir`).
+**멱등**: 같은 소유자가 같은 id를 다시 올리면 바이트를 버리고 (200) 기존 `Media`(kind·mime도 처음 것). 다른 소유자의 id면 `403 'not yours'`. `kind=npc`는 내 폰의 가상 친구 글(ADR-0025 결정 6)이며 내 용량으로 센다. 파일은 `backend/data/media/<id>`(`theworld.media.dir`).
 *   `400`: `id must be 32 hex chars` · `kind required` / `kind must be shot|sketch|npc` · `unsupported image type`(415가 아니다 — 본문이 JSON이 아닌 경로라서) · `body required`. 60 KB(61440 바이트)를 넘으면 `413 'body too large'`.
 *   **dev 시계 예외 (프론트).** world/book 문서·일정 발행은 dev가 시간을 돌리는 중(`clockWhy`≠null)이면 올리지 않지만(§3.3), 미디어와 글은 **올린다** —
     id는 폰이 정한 고유값이고 PUT은 멱등이며 픽셀은 세계의 시각을 옮기지 않는다. 가드는 부트스트랩 여부·사용자·`backend≠down`뿐 (`sim/media.ts`).
@@ -205,7 +205,7 @@ interface Likes { likes: number; likedByMe: boolean }          // POST/DELETE /a
 ### GET /api/media/{id}
 
 저장된 타입(`image/webp`·`image/png`) 그대로. 권한: 소유자, 소유자의 친구, 그 id를 참조하는 **공개 계정의 글**이 있을 때(`visibility: 'public'`인 작성자의 `Post.cuts[].shotId` — 비공개로 돌리면 다시 막힌다), 또는 **누군가의 대표컷**(`RemoteAgent.repShotId`)일 때 — 핀은 본인이 얼굴로 내건 것이라 공개 여부와 무관하게 누구나 받고(SNS_SPEC §10 "비공개도 이름·대표컷"), 핀을 풀면 다시 막힌다. 아니면 `403 'not allowed'`(없으면 `404`; 행은 있는데 파일이 지워졌어도 `404`). `Cache-Control: private, max-age=31536000`.
-헤더 인증이라 `<img src>`로는 못 받는다 — 프론트는 `X-User-Id`를 붙여 fetch하고 blob URL로 그린다(폰 캐시는 IndexedDB LRU, ADR-0020 §5).
+헤더 인증이라 `<img src>`로는 못 받는다 — 프론트는 `X-User-Id`를 붙여 fetch하고 blob URL로 그린다(폰 캐시는 IndexedDB LRU, ADR-0024 §5).
 
 ### POST /api/posts
 
@@ -221,7 +221,7 @@ interface Likes { likes: number; likedByMe: boolean }          // POST/DELETE /a
 
 ### DELETE /api/posts/{id}
 
-`204`. 작성자만(`403 'not yours'`, 없으면 `404`). 좋아요 행도 같이 지운다. **미디어는 남긴다** — "책이 참조하지 않는 것만 지운다"는 책 문서(opaque)를 열어 봐야 알 수 있어 이 단계 밖(ADR-0020 결정 4의 정리 정책과 함께 나중에).
+`204`. 작성자만(`403 'not yours'`, 없으면 `404`). 좋아요 행도 같이 지운다. **미디어는 남긴다** — "책이 참조하지 않는 것만 지운다"는 책 문서(opaque)를 열어 봐야 알 수 있어 이 단계 밖(ADR-0024 결정 4의 정리 정책과 함께 나중에).
 
 ### POST /api/posts/{id}/like · DELETE /api/posts/{id}/like
 
@@ -253,7 +253,7 @@ interface Likes { likes: number; likedByMe: boolean }          // POST/DELETE /a
 
 ### PUT /api/me/agent (개정)
 
-요청에 `"gender"?: "female" | "male"`(ADR-0023), `"visibility"?: "public" | "private"`, `"repShotId"?: string`(대표컷 핀)이 추가된다.
+요청에 `"gender"?: "female" | "male"`(ADR-0027), `"visibility"?: "public" | "private"`, `"repShotId"?: string`(대표컷 핀)이 추가된다.
 `RemoteAgent`에 같은 세 칸이 실린다 — `visibility`는 항상, `gender`·`repShotId`는 있을 때만(키 생략). 성별은 서버가 검증만 하고 추정하지 않는다.
 
 *   세 칸 모두 **키를 빼면 이전 값을 지킨다**(처음 올리는 프로필은 `visibility: 'private'`, 나머지 없음) — 이 칸을 모르는 클라이언트(부팅·메모리 갱신마다 올리는 `publishProfile`)가 다시 올려도 공개 여부·성별·핀이 되돌아가지 않는다.
@@ -303,7 +303,7 @@ interface Likes { likes: number; likedByMe: boolean }          // POST/DELETE /a
 *   `recent`는 이번 묶음을 뺀 최근 대화, 오래된 것부터. 서버는 마지막 12줄만 본다.
 *   `texts`는 이번 묶음 — 연달아 보낸 내 말들. 1개 이상, 서버는 마지막 8줄만 본다.
 *   `mood`·`fatigue`는 0–100.
-*   `situation.crush`는 선택 — 설렘 대상의 이름(1–40자)과 단계(ADR-0023, AFFECTION_SPEC §4). 없으면 생략하거나 null.
+*   `situation.crush`는 선택 — 설렘 대상의 이름(1–40자)과 단계(ADR-0027, AFFECTION_SPEC §4). 없으면 생략하거나 null.
     숫자(`crush.v`)는 보내지 않는다 — 단계는 프런트가 AFFECTION_SPEC §1의 띠(`crushStage`)로 고르고, 여럿이면 `v`가 가장 큰 한 사람(`crushTarget`).
     있으면 서버가 프롬프트에 단계 한 줄과 "직접 인정하지 않는다" 규칙을 넣고, 사용자·최근 대화가 꺼낸 적 없는 그 이름이 답장에 나오면 답장을 null로 돌린다.
     이름·단계가 틀린 모양이면 400이 아니라 없는 것으로 친다.

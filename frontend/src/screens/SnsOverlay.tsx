@@ -23,7 +23,7 @@ const TABS: { id: SnsTab; label: string }[] = [{ id: 'feed', label: '피드' }, 
 export interface SnsPreviewData { friends?: Friend[]; encounters?: Record<string, number>; comics?: Comic[] }
 
 /**
- * SNS (ADR-0021 · SNS_SPEC §1): 홈 왼쪽 위 버튼. 피드 / 친구 / 내 글 세 탭. 그 위에 프로필(뒤로 가면 보던 탭), 글 하나, 컷 크게 보기,
+ * SNS (ADR-0025 · SNS_SPEC §1): 홈 왼쪽 위 버튼. 피드 / 친구 / 내 글 세 탭. 그 위에 프로필(뒤로 가면 보던 탭), 글 하나, 컷 크게 보기,
  * 글쓰기(책의 고르기 모드)가 얹힌다. 상태는 useSns(서버 자원·UI 플래그) — 시뮬 저장본에 끼지 않는다.
  */
 export function SnsOverlay({ onClose, preview }: { onClose: () => void; preview?: SnsPreviewData }) {

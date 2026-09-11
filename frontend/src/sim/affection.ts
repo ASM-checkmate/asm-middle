@@ -1,4 +1,4 @@
-// 설렘 축 (AFFECTION_SPEC §1~§5, ADR-0023) — 숫자(crush.v)를 단계로 읽는 유일한 곳이자 숫자를 올리고 내리는 유일한 곳. SNS 고민 줄·채팅 프롬프트
+// 설렘 축 (AFFECTION_SPEC §1~§5, ADR-0027) — 숫자(crush.v)를 단계로 읽는 유일한 곳이자 숫자를 올리고 내리는 유일한 곳. SNS 고민 줄·채팅 프롬프트
 // (situation.crush)·계획 카드 훅·사진의 돌아본 얼굴이 전부 여기를 본다 — 소비자마다 문턱을 두면 "잘 보이고 싶은 상대"와 "요즘 좋다"가 다른 사람이 된다.
 // 순수·결정적(난수 없음): 재료는 전부 내 폰에 있고(마주침·동행·취향), 어느 기기에서 봐도 같은 마음이다. 주인에겐 숫자·단계가 절대 보이지 않는다 (§4).
 import type { Friend, Gender, Memory } from './types';
@@ -73,10 +73,10 @@ export const tasteBonus = (shared: number): number => Math.min(CRUSH_TASTE_CAP, 
 export const chanceEncounter = (cur: Crush | undefined, at: number, shared = 0): Crush => bump(cur, CRUSH_CHANCE + tasteBonus(shared), at);
 /** 계획된 동행 (+0.06) + 취향 근접 */
 export const plannedTogether = (cur: Crush | undefined, at: number, shared = 0): Crush => bump(cur, CRUSH_PLANNED + tasteBonus(shared), at);
-/** 상대가 내 글에 좋아요 (+0.04). 아직 부르는 곳이 없다 — 앱이 "누가 좋아요를 눌렀나"를 알게 되면(서버 알림) 그때 (ADR-0023 미룬 것) */
+/** 상대가 내 글에 좋아요 (+0.04). 아직 부르는 곳이 없다 — 앱이 "누가 좋아요를 눌렀나"를 알게 되면(서버 알림) 그때 (ADR-0027 미룬 것) */
 export const likedMyPost = (cur: Crush | undefined, at: number): Crush => bump(cur, CRUSH_LIKED, at);
-// §3 "대화 롤 연속 실패 ↓"는 1차에 재료가 없다: 굴림은 친구가 아닌 상대에게만 돌고(친구는 겹치면 늘 `again`, ADR-0022) crush는 친구에게만 있다.
-// 켜 둔 채로는 한 번도 닿지 않고 몰아서 정산할 때만 닿는 길을 두면 기기마다 마음이 달라지므로 두지 않는다 (ADR-0023 미룬 것)
+// §3 "대화 롤 연속 실패 ↓"는 1차에 재료가 없다: 굴림은 친구가 아닌 상대에게만 돌고(친구는 겹치면 늘 `again`, ADR-0026) crush는 친구에게만 있다.
+// 켜 둔 채로는 한 번도 닿지 않고 몰아서 정산할 때만 닿는 길을 두면 기기마다 마음이 달라지므로 두지 않는다 (ADR-0027 미룬 것)
 /**
  * 시간 감쇠 — `at`에서 14일이 지난 뒤 하루마다 −0.03. 소비한 날만큼 `at`을 앞으로 옮겨 두 번 적용해도 겹쳐 깎이지 않고(멱등), 며칠 껐다 켜도 밀린
  * 날수만큼 한 번에 깎인다. 관심(0.2)에 닿은 마음은 그 아래로 안 떨어진다 (§3) — 관심 아래였으면 0까지. 깎을 게 없으면 같은 객체

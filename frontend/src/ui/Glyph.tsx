@@ -58,7 +58,7 @@ export function Glyph({ name, size = 22, color = INK }: { name: GlyphName; size?
         </svg>
       );
     case 'sns':
-      // SNS (ADR-0021) — 사진 카드 한 장: 종이 액자 안의 해와 언덕. 홈 왼쪽 위 버튼
+      // SNS (ADR-0025) — 사진 카드 한 장: 종이 액자 안의 해와 언덕. 홈 왼쪽 위 버튼
       return (
         <svg {...common}>
           <rect x="3.5" y="4.5" width="17" height="15" rx="3" fill={PAPER} />

@@ -205,7 +205,7 @@ export function BookOverlay({ onClose, comics, pick }: { onClose: () => void; co
                       <b>{c.title}</b>
                       <span>{c.summary}</span>
                       <div className="book-thumbs" aria-hidden="true">
-                        {/* 사용자 컷은 코랄 테두리 (ADR-0004). 구운 컷(shotId)은 사진 그대로, 아니면 옛 30px 캐릭터 (ADR-0020) */}
+                        {/* 사용자 컷은 코랄 테두리 (ADR-0004). 구운 컷(shotId)은 사진 그대로, 아니면 옛 30px 캐릭터 (ADR-0024) */}
                         {c.panels.map((p, i) => (
                           <i key={i} className={p.by === 'user' ? 'is-user' : undefined} style={{ background: p.bg }}>
                             {p.shotId ? <PhotoImg shotId={p.shotId}><Character pose={beatPose(p.beat)} size={30} /></PhotoImg> : <Character pose={beatPose(p.beat)} size={30} />}

@@ -31,7 +31,7 @@ export function ActivityScreen({ phase }: { phase: Active }) {
   const shots = useWorld(s => s.shots);
   const memory = useWorld(s => s.memory);
   const shotCount = Object.keys(shotsFor(shots, act.key)).length;
-  // 지금 이 순간의 인물 구성 (ADR-0022) — 방·카메라·만화가 같은 규칙으로 그린다
+  // 지금 이 순간의 인물 구성 (ADR-0026) — 방·카메라·만화가 같은 규칙으로 그린다
   const cast = castAt(act, nowMs, memory);
   const friend = cast.companions[0];
   const met = cast.met?.agent ?? null;

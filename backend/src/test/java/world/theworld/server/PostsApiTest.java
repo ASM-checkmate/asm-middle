@@ -27,7 +27,7 @@ import world.theworld.server.post.PostRepository;
 import world.theworld.server.post.PostService;
 
 /**
- * 글·좋아요·글 격자 (CONTRACT §2.5, ADR-0021): 컷은 내 미디어만, 동행은 친구만, 작성자만 고치고 지운다, 좋아요는 멱등, 비공개 계정은 친구만.
+ * 글·좋아요·글 격자 (CONTRACT §2.5, ADR-0025): 컷은 내 미디어만, 동행은 친구만, 작성자만 고치고 지운다, 좋아요는 멱등, 비공개 계정은 친구만.
  * 공개 글이 참조하는 컷은 누구나 받는다(PostMediaAccess).
  */
 class PostsApiTest extends ApiTest {

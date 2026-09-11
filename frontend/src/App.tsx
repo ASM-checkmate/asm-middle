@@ -26,7 +26,7 @@ const CharacterLab = lazy(async () => {
   if (!C) throw new Error('CharacterLab has no component export');
   return { default: C };
 });
-// `?lab=bake` → src/dev/BakeLab.tsx (ADR-0020 굽기 스파이크): 라이브 무대와 구운 픽셀을 나란히
+// `?lab=bake` → src/dev/BakeLab.tsx (ADR-0024 굽기 스파이크): 라이브 무대와 구운 픽셀을 나란히
 const BakeLab = lazy(async () => {
   const load = labModules['./dev/BakeLab.tsx'];
   if (!load) throw new Error('BakeLab not found');

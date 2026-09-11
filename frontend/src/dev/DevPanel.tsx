@@ -62,7 +62,7 @@ export function DevPanel() {
   const planDay = useWorld(s => s.planDay);
   const today = useWorld(s => s.today);
   const planned = useWorld(s => Object.keys(s.llmPlans[s.today] ?? {}).join(' '));
-  // SNS (ADR-0021): 열기 · 에이전트가 지금 올리기 · 지금 묻기(초안 + 채팅) · 피드 다시 받기
+  // SNS (ADR-0025): 열기 · 에이전트가 지금 올리기 · 지금 묻기(초안 + 채팅) · 피드 다시 받기
   const postNow = useWorld(s => s.postNow);
   const askPostNow = useWorld(s => s.askPostNow);
   const setSnsOpen = useSns(s => s.setSnsOpen);

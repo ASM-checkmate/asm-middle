@@ -101,12 +101,12 @@ export interface RemotePlace {
  * 다른 사용자의 에이전트 (§2.3 RemoteAgent). `id` = 서버 userId. `Agent`를 그대로 만족시켜 encounterOf·talkChance·화면이
  * 바뀌지 않는다. `home`은 내 카탈로그에 없는 집이라 동봉된다 — type 'friend_home', ownerFriendId = id, id = `home:${userId}`.
  * SNS 세 칸(§2.5 PUT /api/me/agent 개정): `visibility`는 서버가 항상 내지만 옛 응답·저장본엔 없을 수 있어 선택이다.
- * `gender`(ADR-0023)·`repShotId`(대표컷 핀, 32자 hex 미디어 id)는 있을 때만.
+ * `gender`(ADR-0027)·`repShotId`(대표컷 핀, 32자 hex 미디어 id)는 있을 때만.
  */
 export interface RemoteAgent extends Agent {
   home: Place;
   gender?: Gender;
-  /** 공개 계정이면 추천에 노출·누구나 열람, 비공개면 친구만 (ADR-0021 결정 7). 없으면 비공개로 친다 */
+  /** 공개 계정이면 추천에 노출·누구나 열람, 비공개면 친구만 (ADR-0025 결정 7). 없으면 비공개로 친다 */
   visibility?: Visibility;
   /** 대표컷 — 본인이 얼굴로 내건 컷의 미디어 id. 핀이 없으면 키 없음 */
   repShotId?: string;
@@ -176,7 +176,7 @@ export const isLook = (v: unknown): v is Look => {
     && (LOOK_BEARDS as readonly unknown[]).includes(o.beard) && (LOOK_TOPS as readonly unknown[]).includes(o.top);
 };
 
-/** 성별 (ADR-0023) — 서버는 검증만 하고 추정하지 않는다. 없으면 모름 */
+/** 성별 (ADR-0027) — 서버는 검증만 하고 추정하지 않는다. 없으면 모름 */
 export type Gender = 'female' | 'male';
 /** 계정 공개 여부 (CONTRACT §2.5 PUT /api/me/agent). 서버 기본값은 private */
 export type Visibility = 'public' | 'private';
@@ -185,7 +185,7 @@ export interface Memory {
   name: string;                 // 캐릭터 이름
   /** 내 캐릭터의 겉모습 (ADR-0019). 없으면 기본 모모 */
   look?: Look;
-  /** 성별 (ADR-0023). 없으면 서버에 키를 빼서 이전 값을 지킨다 */
+  /** 성별 (ADR-0027). 없으면 서버에 키를 빼서 이전 값을 지킨다 */
   gender?: Gender;
   /** 계정 공개 여부 (SNS_SPEC §10). 없으면 서버에 키를 빼서 이전 값(처음은 private)을 지킨다 */
   visibility?: Visibility;
@@ -318,7 +318,7 @@ export interface ScheduledActivity {
   /** friend ids going along (from `option.friendId`) — companionship is data, never copy (FRIENDS_SPEC 동행 표시 규칙) */
   companions: string[];
   /**
-   * 같은 공간에 있던 사람들 (FRIENDS_SPEC §6, ADR-0022): 같은 장소에 30분 이상 겹친 에이전트 id — 동행은 뺀다. 그 순간의 사실이지
+   * 같은 공간에 있던 사람들 (FRIENDS_SPEC §6, ADR-0026): 같은 장소에 30분 이상 겹친 에이전트 id — 동행은 뺀다. 그 순간의 사실이지
    * 관계가 아니다: 사진엔 배경의 뒷모습, 글엔 태그 없음. 말을 건 상대(`encounter`)도 대화 전엔 여기 있는 한 사람이다. id 오름차순, 최대 3
    */
   presentNearby: string[];
@@ -346,7 +346,7 @@ export type ShotWin = 0 | 1 | 2 | 3;
  */
 export interface ShotCrop { scale: number; x: number; y: number; rot: number; pitch?: number; light?: number; dof?: number; focus?: 'near' | 'far' }
 /**
- * `shotId`: 찍는 순간 구운 픽셀(ADR-0020)의 미디어 id(32자 hex, 폰이 정한다). 굽기가 실패한 컷·옛 컷에는 없다 — 그때는 crop으로
+ * `shotId`: 찍는 순간 구운 픽셀(ADR-0024)의 미디어 id(32자 hex, 폰이 정한다). 굽기가 실패한 컷·옛 컷에는 없다 — 그때는 crop으로
  * 다시 그린다(옛 경로). 있으면 crop은 굽는 순간에만 쓰인 값이고 진실은 픽셀이다.
  */
 export interface UserShot { actKey: string; win: ShotWin; at: number; crop: ShotCrop; shotId?: string }
@@ -356,7 +356,7 @@ export type PanelFlaw = 'blur' | 'dark' | 'overzoom' | 'cut' | 'tilt';
 /**
  * 마주침: someone else's agent shared this place. `talked` → a new friend when the activity ends; `again` → already a friend.
  * `at`: 말을 튼 순간 (ms, 활동 시간의 30~64 % 지점, 시드 = 날짜·장소·둘의 id) — 그 전엔 같은 공간의 한 사람(뒷모습), 그 뒤부터 '만난 사람'(정면).
- * talked·again일 때만 있다 (ADR-0022 결정 5: 활동 중간에 대화가 성공하면 앞 컷은 뒷모습, 뒤 컷은 정면)
+ * talked·again일 때만 있다 (ADR-0026 결정 5: 활동 중간에 대화가 성공하면 앞 컷은 뒷모습, 뒤 컷은 정면)
  */
 export interface Encounter { agentId: string; talked: boolean; again?: boolean; at?: number }
 
@@ -367,7 +367,7 @@ export interface Encounter { agentId: string; talked: boolean; again?: boolean; 
  */
 export interface CastFigure { id: string; color: string; hairStyle?: Look['hairStyle']; glance?: boolean }
 /**
- * 만화가 기억하는 인물 구성 (Comic.cast) — 활동은 KEEP_DAYS 뒤 타임라인에서 사라지니 컷을 나중에 구울 때(ADR-0020 결정 2) 되찾을 수 없다.
+ * 만화가 기억하는 인물 구성 (Comic.cast) — 활동은 KEEP_DAYS 뒤 타임라인에서 사라지니 컷을 나중에 구울 때(ADR-0024 결정 2) 되찾을 수 없다.
  * `met.at` 전의 컷은 그 사람을 `present`(배경 뒷모습)로, 뒤의 컷은 정면으로 그린다 (sim/agents.ts castOfComic)
  */
 export interface ComicCast { companions: CastFigure[]; met?: CastFigure & { at: number }; present: CastFigure[] }
@@ -393,7 +393,7 @@ export interface ComicPanel {
   /** 에이전트가 대충 찍은 흔적. by==='user'면 항상 없음 */
   flaws?: PanelFlaw[];
   /**
-   * 구운 픽셀의 미디어 id (ADR-0020 결정 2). 사용자 컷은 makeComic이 샷에서 복사하고, 에이전트 컷·옛 컷은 다음 열람 때
+   * 구운 픽셀의 미디어 id (ADR-0024 결정 2). 사용자 컷은 makeComic이 샷에서 복사하고, 에이전트 컷·옛 컷은 다음 열람 때
    * 화면이 한 번 굽고 store.patchPanelShot으로 적는다. 없으면 crop으로 다시 그린다(옛 경로)
    */
   shotId?: string;
@@ -422,7 +422,7 @@ export interface Comic {
   city?: string;
   /** 같이 있던 사람들 이름 (동행, 말을 건 상대) — 이름으로도 찾힌다 */
   withNames?: string[];
-  /** 찍힐 때의 인물 구성 (ADR-0022) — 컷을 나중에 구울 때 쓴다. 옛 만화에는 없다 (화면이 타임라인의 활동에서 되찾는다: util.castOf) */
+  /** 찍힐 때의 인물 구성 (ADR-0026) — 컷을 나중에 구울 때 쓴다. 옛 만화에는 없다 (화면이 타임라인의 활동에서 되찾는다: util.castOf) */
   cast?: ComicCast;
 }
 

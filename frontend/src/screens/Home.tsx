@@ -83,7 +83,7 @@ export function Home() {
   const ttOpen = useWorld(s => s.ttOpen);
   const setTtOpen = useWorld(s => s.setTtOpen);
   const selectBlock = useWorld(s => s.selectBlock);
-  // SNS (ADR-0021): 상태는 useSns — 서버 자원이라 시뮬 저장본과 따로 산다. `?preview=sns…`는 usePreviewSns가 픽스처를 넣고 연다
+  // SNS (ADR-0025): 상태는 useSns — 서버 자원이라 시뮬 저장본과 따로 산다. `?preview=sns…`는 usePreviewSns가 픽스처를 넣고 연다
   const snsOpen = useSns(s => s.snsOpen);
   const setSnsOpen = useSns(s => s.setSnsOpen);
   const snsDraft = useSns(s => s.draft);

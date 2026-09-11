@@ -1,4 +1,4 @@
-// ─── SNS 상태 (ADR-0021 · SNS_SPEC §1·§4~§6) ─────────────────────────────────────────────────────────
+// ─── SNS 상태 (ADR-0025 · SNS_SPEC §1·§4~§6) ─────────────────────────────────────────────────────────
 // useWorld와 **일부러 따로** 둔다 — 피드·글·좋아요는 시뮬레이션이 아니라 서버 리소스라 저장본(world·memory)에 끼지 않고,
 // 새로고침하면 서버에서 다시 받는다. 이 스토어는 서버에서 받은 장들을 이어 붙이고(중복 없이, 순서 그대로), 좋아요는 먼저
 // 화면에 반영한 뒤 서버가 거절하면 되돌린다. 네트워크는 posts.ts가 맡는다 (여기서는 null만 본다). React 컴포넌트 없음.
@@ -8,7 +8,7 @@ import { createPost, deletePost, fetchFeed, fetchMyPosts, fetchUserPosts, lastEr
 
 export type SnsTab = 'feed' | 'friends' | 'mine';
 
-// ─── 가상 친구 글의 로컬 문서 (ADR-0021 결정 6) ───────────────────────────────────────────
+// ─── 가상 친구 글의 로컬 문서 (ADR-0025 결정 6) ───────────────────────────────────────────
 // 서버는 가상 친구를 모른다 — 내 폰이 만든 걸 여기 둔다 (sync.ts LOCAL_KEYS에 있어 아이디가 바뀌면 같이 비운다). 최신 30편.
 export const LOCAL_POSTS_KEY = 'theworld.snslocal.v1';
 const LOCAL_POSTS_CAP = 30;
@@ -80,7 +80,7 @@ export interface SnsState {
   removePost(id: string): Promise<boolean>;
 
   // ── 내 폰이 만든 것 (서버에 없다) ──
-  /** 가상 친구의 글 (ADR-0021 결정 6) — 내 시뮬이 만들고 굽는다. 피드의 친구 구간에만 끼고 추천엔 절대 없다. 채우는 쪽은 sim/agentPosts */
+  /** 가상 친구의 글 (ADR-0025 결정 6) — 내 시뮬이 만들고 굽는다. 피드의 친구 구간에만 끼고 추천엔 절대 없다. 채우는 쪽은 sim/agentPosts */
   localPosts: FeedItem[];
   setLocalPosts(items: FeedItem[]): void;
   /** 에이전트가 써 둔 오늘의 초안 — 채팅의 '컷 고치기'나 내 글 탭에서 글쓰기 화면이 이걸 미리 채운 채 열린다 */

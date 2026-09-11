@@ -30,7 +30,7 @@ import world.theworld.server.media.MediaRepository;
 import world.theworld.server.media.MediaService;
 
 /**
- * 미디어 저장소 (CONTRACT §2.5, ADR-0020): 클라이언트 id · 멱등 · 소유자/친구/공개 글 권한 · 60 KB · 타입.
+ * 미디어 저장소 (CONTRACT §2.5, ADR-0024): 클라이언트 id · 멱등 · 소유자/친구/공개 글 권한 · 60 KB · 타입.
  * 본문이 JSON이 아니라 ApiTest.call을 안 쓰고 요청을 직접 짓는다.
  */
 class MediaApiTest extends ApiTest {

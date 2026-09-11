@@ -1,4 +1,4 @@
-// ─── SNS 글·좋아요·피드 클라이언트 (docs/CONTRACT.md §2.5 · ADR-0021) ─────────────────────────────────────
+// ─── SNS 글·좋아요·피드 클라이언트 (docs/CONTRACT.md §2.5 · ADR-0025) ─────────────────────────────────────
 // 글은 opaque 문서가 아니라 서버 리소스다 — 남이 읽어야 하므로 여기서 모양을 정하고 응답을 검증한다. 다른 관문(sync.ts의
 // publishAgent·refreshRemote, llm.ts의 ask)과 같은 계약: **검증된 값 아니면 null, UI로 절대 throw하지 않는다.** 사용자가
 // 없으면(오프라인으로 시작) fetch 없이 null. 실패 이유는 `lastError`에 한 줄로 남기고 console.warn은 같은 이유가 반복될 땐 한 번만.

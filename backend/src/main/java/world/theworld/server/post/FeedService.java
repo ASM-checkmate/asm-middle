@@ -22,14 +22,14 @@ import world.theworld.server.social.SocialDtos.RemotePlace;
 import world.theworld.server.social.SocialService;
 
 /**
- * 피드 (CONTRACT §2.5 GET /api/feed, ADR-0021 결정 3·4). 한 줄기 — 친구 글(최신순) 다음에 추천. 추천은 서버가 주인의 취향·인기도·신선도로
- * 점수를 매긴다. 후보를 다 읽어 메모리에서 정렬하고 커서의 offset으로 자른다(ADR-0021 §영향 "처음엔 SQL + 메모리 정렬로 충분").
+ * 피드 (CONTRACT §2.5 GET /api/feed, ADR-0025 결정 3·4). 한 줄기 — 친구 글(최신순) 다음에 추천. 추천은 서버가 주인의 취향·인기도·신선도로
+ * 점수를 매긴다. 후보를 다 읽어 메모리에서 정렬하고 커서의 offset으로 자른다(ADR-0025 §영향 "처음엔 SQL + 메모리 정렬로 충분").
  *
- * <p><b>가중치는 서버에서만 바꾼다</b> — 프런트는 순서와 이유 칩만 받는다(ADR-0021 결정 4 "가중치는 서버에서만 바꾼다"). 상수를 한자리에 둔다.</p>
+ * <p><b>가중치는 서버에서만 바꾼다</b> — 프런트는 순서와 이유 칩만 받는다(ADR-0025 결정 4 "가중치는 서버에서만 바꾼다"). 상수를 한자리에 둔다.</p>
  */
 @Service
 public class FeedService {
-  // ── 점수 = 0.5 취향유사도 + 0.3 인기도 + 0.2 신선도 (ADR-0021 결정 4). 서버 전용 — 계약에 값이 실리지 않는다 ──
+  // ── 점수 = 0.5 취향유사도 + 0.3 인기도 + 0.2 신선도 (ADR-0025 결정 4). 서버 전용 — 계약에 값이 실리지 않는다 ──
   static final double W_TASTE = 0.5;
   static final double W_POPULARITY = 0.3;
   static final double W_FRESHNESS = 0.2;

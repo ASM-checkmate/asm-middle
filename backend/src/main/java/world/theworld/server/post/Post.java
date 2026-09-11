@@ -12,7 +12,7 @@ import org.hibernate.type.SqlTypes;
 import org.springframework.data.domain.Persistable;
 
 /**
- * post (CONTRACT §2.5, ADR-0021) — 글 한 편. 컷은 id 목록(cuts_json)일 뿐 픽셀은 media에 있다. place·area·city·category·date_key는
+ * post (CONTRACT §2.5, ADR-0025) — 글 한 편. 컷은 id 목록(cuts_json)일 뿐 픽셀은 media에 있다. place·area·city·category·date_key는
  * 추천·검색용 면, likes는 post_like 행 수의 비정규화 사본. id는 서버가 만든 32자 hex라 {@link Persistable#isNew}로 "방금 만든 객체"를
  * 알려 save가 merge(SELECT 뒤 UPDATE)가 아니라 persist(INSERT)를 하게 한다. edited_by_owner는 bigint 0/1(V1에 불리언 컬럼이 없다).
  */

@@ -10,7 +10,7 @@ import jakarta.persistence.Transient;
 import org.springframework.data.domain.Persistable;
 
 /**
- * media (CONTRACT §2.5, ADR-0020) — 찍는 순간 구운 픽셀의 행. 바이트는 디스크({@code theworld.media.dir/<id>})에 있고 여기엔
+ * media (CONTRACT §2.5, ADR-0024) — 찍는 순간 구운 픽셀의 행. 바이트는 디스크({@code theworld.media.dir/<id>})에 있고 여기엔
  * 소유자·종류·크기만. id는 클라이언트가 만든 32자 hex라 서버가 새 행인지 알 수 없다 — {@link Persistable#isNew}로 "방금 만든 객체"를
  * 알려 save가 merge(SELECT 뒤 UPDATE)가 아니라 persist(INSERT)를 하게 한다. 같은 id를 두 요청이 동시에 올리면 한쪽이 PK 위반으로
  * 깨지고 컨트롤러가 한 번 더 시도한다 — 남의 행을 UPDATE로 덮는 창이 없고, 파일은 INSERT가 통과한 뒤에만 쓰므로 바이트도 덮이지 않는다.

@@ -44,8 +44,8 @@ export function ActivityScreen({ phase }: { phase: Active }) {
       <div className="act-iris" />
       {room && <RoomStage room={room} log={fullLog} seatPose={poseFor(act.option)} cast={cast} seed={act.key} />}
       <div className="act-scene"><Scene type={act.place.type} /></div>
-      {/* 같은 공간에 있던 사람들 — 배경에 뒷모습으로 작게 (얼굴 없음). 설렘 대상(glance)만 슬쩍 돌아본 얼굴 (AFFECTION_SPEC §4). 방이 있는 장소에선 RoomStage가 그린다 */}
-      {cast.present.map((p, i) => <Character key={p.id} className={`act-present act-present-${i}`} pose="idle" size={132} variant="friend" color={p.color} look={presentLook(p.hairStyle)} back glance={p.glance} />)}
+      {/* 같은 공간에 있던 사람들 — 배경에 작게. 방은 내가 지금 보는 장면이라 얼굴을 가리지 않는다 (얼굴을 감추는 건 사진 쪽 규칙, FRIENDS_SPEC §6). 방이 있는 장소에선 RoomStage가 그린다 */}
+      {cast.present.map((p, i) => <Character key={p.id} className={`act-present act-present-${i}`} pose="idle" size={132} variant="friend" color={p.color} look={presentLook(p.hairStyle)} />)}
       {friend && <Character className="act-friend" pose="wave" size={224} variant="friend" color={friend.color} />}
       <Character className="act-chara" pose={poseFor(act.option)} size={350} />
       {met && (

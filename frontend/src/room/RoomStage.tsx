@@ -12,9 +12,15 @@ import { Props, SeatItem, type Cue, type RoomSpec, type Spot } from './Room';
 import './room.css';
 
 const SIZE = 96;              // 인물 한 변 (px). 발은 그림의 91 % 행
-const PRESENT_SIZE = 84;      // 같은 공간에 있던 사람 — 조금 작게, 뒷모습 (FRIENDS_SPEC §6 표)
+const PRESENT_SIZE = 84;      // 같은 공간에 있던 사람 — 조금 작게, 뒤쪽에 (FRIENDS_SPEC §6 표)
 /** 배경 인물 자리: 옆 손님 자리(ghostSeat) 다음은 방마다 이 이름 중 처음 있는 것 (창가·카운터·둘째 옆자리·물가…) */
 const PRESENT_SPOTS = ['window', 'counter', 'side2', 'shore', 'kiosk', 'water', 'mirror', 'escalator', 'label', 'fountain', 'kitchen', 'path'];
+/**
+ * 등을 보이는 게 자연스러운 자리 — 무언가를 마주 보고 서는 곳(카운터·창·키오스크·거울·설명판·에스컬레이터·부엌)과 물가.
+ * 그 밖(옆자리·분수·길)은 그냥 앞을 본다: 방은 내 캐릭터가 지금 보는 장면이라 얼굴을 가릴 이유가 없다.
+ * 얼굴을 감추는 것은 **사진** 쪽 규칙이다 (FRIENDS_SPEC §6 — 남의 사진에 얼굴이 실리지 않게).
+ */
+const BACK_SPOTS = new Set(['window', 'counter', 'kiosk', 'mirror', 'escalator', 'label', 'kitchen', 'shore', 'water']);
 const FEET = 0.91;
 const WALK_MS = 1400;
 const DWELL_MS = 4000;
@@ -206,7 +212,7 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
           `at`이 지나면 배경에서 빠져 met 자리에 정면으로 선다. 설렘 대상(cast의 glance)만 슬쩍 돌아본 3/4 얼굴 (AFFECTION_SPEC §4) */}
       {present.map(p => (
         <div key={p.id} className="room-actor is-still is-present" style={at(room.spots[p.spot]!, PRESENT_SIZE)}>
-          <Character pose="idle" size={PRESENT_SIZE} variant="friend" color={p.color} look={p.hairStyle ? { ...DEFAULT_LOOK, hairStyle: p.hairStyle } : undefined} back glance={p.glance} paused />
+          <Character pose={p.spot === room.ghostSeat ? 'sit' : 'idle'} size={PRESENT_SIZE} variant="friend" color={p.color} look={p.hairStyle ? { ...DEFAULT_LOOK, hairStyle: p.hairStyle } : undefined} back={BACK_SPOTS.has(p.spot)} glance={BACK_SPOTS.has(p.spot) && p.glance} paused />
         </div>
       ))}
       {met && (

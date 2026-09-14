@@ -15,10 +15,10 @@ export function Sprite({ set, order, interval = 220, size, flip = false, style }
   const d = FRAMES[set];
   const seq = order ?? d.frames.map((_, i) => i);
   const [k, setK] = useState(0);
-  useEffect(() => { setK(0); if (seq.length < 2) return; const id = setInterval(() => setK(i => (i + 1) % seq.length), interval); return () => clearInterval(id); }, [set, interval, seq.length]);
+  useEffect(() => { if (seq.length < 2) return; const id = setInterval(() => setK(i => i + 1), interval); return () => clearInterval(id); }, [interval, seq.length]);
   const scale = size / d.h;
   const w = d.w * scale;
-  const step = seq[k] ?? 0;
+  const step = seq[k % seq.length] ?? 0;
   const cur = typeof step === 'number' ? step : step.f;
   const flipped = flip !== (typeof step !== 'number');
   return (

@@ -17,7 +17,7 @@ if (import.meta.env.DEV) {
 
 // `?lab=character` → src/dev/CharacterLab.tsx (built concurrently). Loaded through a glob so a missing file
 // neither breaks the import graph nor the app; a broken one is caught by the boundary below.
-const labModules = import.meta.glob(['./dev/CharacterLab.tsx', './dev/BakeLab.tsx', './dev/PuppetLab.tsx', './dev/RoomLab.tsx']);
+const labModules = import.meta.glob(['./dev/CharacterLab.tsx', './dev/BakeLab.tsx', './dev/RoomLab.tsx']);
 const CharacterLab = lazy(async () => {
   const load = labModules['./dev/CharacterLab.tsx'];
   if (!load) throw new Error('CharacterLab not found');
@@ -36,17 +36,7 @@ const BakeLab = lazy(async () => {
   return { default: C };
 });
 
-// `?lab=puppet` → src/dev/PuppetLab.tsx (나노바나나 조각 퍼펫 스파이크)
-const PuppetLab = lazy(async () => {
-  const load = labModules['./dev/PuppetLab.tsx'];
-  if (!load) throw new Error('PuppetLab not found');
-  const m = (await load()) as { default?: ComponentType; PuppetLab?: ComponentType };
-  const C = m.PuppetLab ?? m.default;
-  if (!C) throw new Error('PuppetLab has no component export');
-  return { default: C };
-});
-
-// `?lab=room` → src/dev/RoomLab.tsx (나노바나나 방 레이어 + 퍼펫)
+// `?lab=room` → src/dev/RoomLab.tsx (방 그림 한 장 + 걸을 수 있는 바닥 + 트리거존)
 const RoomLab = lazy(async () => {
   const load = labModules['./dev/RoomLab.tsx'];
   if (!load) throw new Error('RoomLab not found');
@@ -93,16 +83,6 @@ export default function App() {
       <Boundary fallback={<div className="lab-note">굽기 랩을 열 수 없어요 — src/dev/BakeLab.tsx 를 확인해 주세요.</div>}>
         <Suspense fallback={<div className="lab-note">굽기 랩 여는 중…</div>}>
           <BakeLab />
-        </Suspense>
-      </Boundary>
-    );
-  }
-
-  if (LAB === 'puppet') {
-    return (
-      <Boundary fallback={<div className="lab-note">퍼펫 랩을 열 수 없어요 — src/dev/PuppetLab.tsx 를 확인해 주세요.</div>}>
-        <Suspense fallback={<div className="lab-note">퍼펫 랩 여는 중…</div>}>
-          <PuppetLab />
         </Suspense>
       </Boundary>
     );

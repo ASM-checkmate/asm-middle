@@ -2,194 +2,85 @@
  "id": "bedroom",
  "w": 390,
  "h": 600,
- "back": "/rooms/bedroom/back.jpg?v=72e50af4",
+ "back": "/rooms/bedroom/back.jpg?v=e7f85eae",
  "vanishY": 150,
- "props": [
+ "walk": [
+  [
+   60,
+   400
+  ],
+  [
+   315,
+   400
+  ],
+  [
+   390,
+   540
+  ],
+  [
+   390,
+   600
+  ],
+  [
+   0,
+   600
+  ],
+  [
+   0,
+   520
+  ]
+ ],
+ "home": [
+  70,
+  556
+ ],
+ "zones": [
   {
    "id": "bed",
-   "src": "/rooms/bedroom/props/bed.png?v=8fb8699d",
-   "x": 97.5,
-   "y": 253.0,
-   "w": 201.0,
-   "h": 129.5,
-   "base": 382.5
+   "ko": "침대",
+   "scene": "sleep",
+   "rect": [
+    110,
+    398,
+    290,
+    444
+   ],
+   "stand": [
+    195,
+    428
+   ]
   },
   {
-   "id": "blanket",
-   "src": "/rooms/bedroom/props/blanket.png?v=8a2c0699",
-   "x": 108.5,
-   "y": 296.5,
-   "w": 181.5,
-   "h": 75.0,
-   "base": 386.5
-  },
-  {
-   "id": "nightstand-l",
-   "src": "/rooms/bedroom/props/nightstand-l.png?v=eeb64461",
-   "x": 66.0,
-   "y": 203.5,
-   "w": 77.5,
-   "h": 153.0,
-   "base": 356.5
-  },
-  {
-   "id": "nightstand-r",
-   "src": "/rooms/bedroom/props/nightstand-r.png?v=e3fa8959",
-   "x": 254.0,
-   "y": 200.5,
-   "w": 82.5,
-   "h": 151.5,
-   "base": 352.0
-  },
-  {
-   "id": "dresser",
-   "src": "/rooms/bedroom/props/dresser.png?v=8fc23c4a",
-   "x": 316.5,
-   "y": 162.5,
-   "w": 69.0,
-   "h": 265.5,
-   "base": 428.0
-  },
-  {
-   "id": "door-closed",
-   "src": "/rooms/bedroom/props/door-closed.png?v=3e1c11ee",
-   "x": 4.5,
-   "y": 140.5,
-   "w": 68.5,
-   "h": 261.0,
-   "base": 1.5,
-   "hidden": true
-  },
-  {
-   "id": "curtains",
-   "src": "/rooms/bedroom/props/curtains.png?v=ff31d0ae",
-   "x": 112.5,
-   "y": 120.5,
-   "w": 173.0,
-   "h": 135.0,
-   "base": 0.5
-  },
-  {
-   "id": "rug",
-   "src": "/rooms/bedroom/props/rug.png?v=a2463d13",
-   "x": 73.0,
-   "y": 353.0,
-   "w": 270.5,
-   "h": 74.5,
-   "base": 381.5
-  },
-  {
-   "id": "scene-sleep-1",
-   "src": "/rooms/bedroom/props/scene-sleep-1.png?v=e0450d29",
-   "x": 83.0,
-   "y": 244.0,
-   "w": 215.5,
-   "h": 144.0,
-   "base": 392.5,
-   "hidden": true
-  },
-  {
-   "id": "scene-sleep-2",
-   "src": "/rooms/bedroom/props/scene-sleep-2.png?v=0df7d989",
-   "x": 83.0,
-   "y": 244.0,
-   "w": 215.5,
-   "h": 144.0,
-   "base": 392.5,
-   "hidden": true
-  },
-  {
-   "id": "scene-makeup-1",
-   "src": "/rooms/bedroom/props/scene-makeup-1.png?v=efee4195",
-   "x": 236.0,
-   "y": 162.5,
-   "w": 150.5,
-   "h": 271.0,
-   "base": 434.0,
-   "hidden": true
-  },
-  {
-   "id": "scene-makeup-2",
-   "src": "/rooms/bedroom/props/scene-makeup-2.png?v=390d934d",
-   "x": 236.0,
-   "y": 162.5,
-   "w": 150.5,
-   "h": 271.0,
-   "base": 434.0,
-   "hidden": true
-  },
-  {
-   "id": "scene-makeup-3",
-   "src": "/rooms/bedroom/props/scene-makeup-3.png?v=fb9dfa02",
-   "x": 236.0,
-   "y": 162.5,
-   "w": 150.5,
-   "h": 271.0,
-   "base": 434.0,
-   "hidden": true
+   "id": "makeup",
+   "ko": "화장대",
+   "scene": "makeup",
+   "rect": [
+    308,
+    400,
+    390,
+    464
+   ],
+   "stand": [
+    338,
+    436
+   ]
   }
  ],
- "spots": {
-  "door": {
-   "x": 70,
-   "y": 560,
-   "pose": "idle"
-  },
-  "center": {
-   "x": 195,
-   "y": 500,
-   "pose": "idle"
-  },
-  "bedside": {
-   "x": 150,
-   "y": 420,
-   "pose": "idle"
-  },
-  "dresser": {
-   "x": 300,
-   "y": 450,
-   "pose": "idle"
-  },
-  "makeup": {
-   "x": 330,
-   "y": 470,
-   "pose": "scene",
-   "scene": "makeup"
-  },
-  "bed-edge": {
-   "x": 162,
-   "y": 390.5,
-   "pose": "sit",
-   "z": 387.5,
-   "size": 150
-  },
-  "bed": {
-   "x": 195,
-   "y": 388.5,
-   "pose": "scene",
-   "scene": "sleep"
-  }
- },
  "scenes": {
   "sleep": {
+   "ko": "자기",
    "frames": [
-    "scene-sleep-1",
-    "scene-sleep-2"
-   ],
-   "replaces": [
-    "bed",
-    "blanket"
+    "/rooms/bedroom/scenes/sleep-1.jpg?v=559e71c8",
+    "/rooms/bedroom/scenes/sleep-2.jpg?v=d04a88ba"
    ],
    "interval": 1400
   },
   "makeup": {
+   "ko": "화장",
    "frames": [
-    "scene-makeup-1",
-    "scene-makeup-2",
-    "scene-makeup-3"
-   ],
-   "replaces": [
-    "dresser"
+    "/rooms/bedroom/scenes/makeup-1.jpg?v=d5880b44",
+    "/rooms/bedroom/scenes/makeup-2.jpg?v=f4ab1c19",
+    "/rooms/bedroom/scenes/makeup-3.jpg?v=7c4cce25"
    ],
    "interval": 800
   }

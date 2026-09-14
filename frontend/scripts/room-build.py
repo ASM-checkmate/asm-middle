@@ -39,11 +39,12 @@ ROOMS = {
   },
 }
 # 장면 = 방 전체 그림 몇 장 (그 물건 + 사람이 함께 그려져 있다).
-#   enter  들어가는 길 — 서 있다가 바로 잠들면 어색하니 이불 당기기 → 이불 덮고 눈 뜬 채를 거친다. 나올 땐 거꾸로 되짚는다.
+#   enter  들어가는 길 — 서 있다가 바로 잠들면 어색하니 앉아서 이불 잡기 → 누워서 당기기 → 이불 덮고 눈 뜬 채를 거친다.
+#          나올 땐 거꾸로 되짚는다. 없는 칸은 건너뛴다 (방마다 가진 그림이 다를 수 있으니)
 #   frames 그 자리에서 도는 칸 (숨쉬기·화장 동작)
 SCENES = {
-  'sleep':  { 'ko': '자기', 'enter': ['{bed}-pull', '{bed}-awake'], 'enterMs': 620,
-              'frames': ['{room}-sleeping', '{scene}-sleep-2'], 'interval': 1400 },
+  'sleep':  { 'ko': '자기', 'enter': ['{bed}-sit', '{bed}-pull', '{bed}-awake'], 'enterMs': 620,
+              'frames': ['{room}-sleeping', '{scene}-sleep-2'], 'interval': 3400 },   # 자는 건 천천히 — 두 칸이 자주 바뀌면 뒤척이는 것처럼 보인다
   'makeup': { 'ko': '화장', 'frames': ['{scene}-makeup-1', '{scene}-makeup-2', '{scene}-makeup-3'], 'interval': 800 },
 }
 
@@ -82,8 +83,8 @@ for sid, sc in SCENES.items():
             outs.append(f'/rooms/{RID}/scenes/{sid}-{tag}{i + 1}.jpg?v={save(n, p)}')
         return outs
     frames = cut_all(names, '')
-    enter_names = [fmt(f) for f in sc.get('enter', [])]
-    enter = cut_all(enter_names, 'in') if enter_names and all(have(n) for n in enter_names) else []
+    enter_names = [n for n in (fmt(f) for f in sc.get('enter', [])) if have(n)]   # 없는 칸은 건너뛴다
+    enter = cut_all(enter_names, 'in') if enter_names else []
     scenes[sid] = { 'ko': sc['ko'], 'frames': frames, 'interval': sc['interval'], **({ 'enter': enter, 'enterMs': sc.get('enterMs', 520) } if enter else {}) }
     print(f'  scenes/{sid}-*.jpg  ← {", ".join(enter_names + names)}')
 

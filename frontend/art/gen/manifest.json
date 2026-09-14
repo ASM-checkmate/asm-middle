@@ -405,10 +405,18 @@
       ]
     },
     {
-      "name": "anime2-bed-pull",
-      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bed, bedding, lighting, style, and the SAME character in the SAME lying position: flat on her back, head on the pillow, her whole body on the mattress with her legs straight and fully on the bed under the blanket. She must look exactly like the second reference image (same face, two hair buns, cream V-neck shirt). Only change these two things: (1) her eyes are OPEN and awake instead of closed, and (2) both of her hands grip the top edge of the blanket and are pulling it up toward her chest, caught mid-motion so the blanket is only partway up. The blanket stays neatly on the bed — it must NOT spill over the side or onto the floor, and her legs must NOT hang off the bed.",
+      "name": "anime2-bed-sit",
+      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bed, bedding, lighting and style. The character must look EXACTLY like the second reference image (same face, same two hair buns, same cream V-neck shirt, same proportions). Only change: she is SITTING UP in the bed with her back against the headboard and pillows, facing the camera, her legs stretched out in front of her along the bed. The blanket covers ONLY her legs, from her waist down — her upper body and shirt are fully visible above it. Both of her hands grip the top edge of the blanket at her waist and she is just beginning to pull it upward toward her neck. Eyes open and awake. Her legs and feet are COMPLETELY hidden under the blanket — no feet or toes poking out anywhere. The blanket lies smooth and flat over her legs. It stays neatly on the bed and does not spill onto the floor.",
       "refs": [
         "anime2-room-sleeping",
+        "char-front"
+      ]
+    },
+    {
+      "name": "anime2-bed-pull",
+      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bed, lighting, style, and the SAME character lying flat on her back with her head on the pillow. Her FACE must stay pixel-for-pixel the same as in the first reference and match the second reference: identical eye shape and size, identical pupil position and the white highlight in each eye, identical eyebrows, nose and gentle mouth, identical two hair buns and bangs. Do not redraw or restyle her face at all. Only change this: the blanket is not yet up to her chest — it is only partway up around her waist, and both of her hands grip its top edge, caught mid-motion as she pulls it upward. Her legs and feet stay under the blanket and on the mattress; the blanket stays on the bed and does not spill onto the floor.",
+      "refs": [
+        "anime2-bed-awake",
         "char-front"
       ]
     },

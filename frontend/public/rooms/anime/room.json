@@ -73,10 +73,11 @@
     "/rooms/anime/scenes/sleep-1.jpg?v=c4f6fa27",
     "/rooms/anime/scenes/sleep-2.jpg?v=f06785b5"
    ],
-   "interval": 1400,
+   "interval": 3400,
    "enter": [
-    "/rooms/anime/scenes/sleep-in1.jpg?v=82988c06",
-    "/rooms/anime/scenes/sleep-in2.jpg?v=f6bc555a"
+    "/rooms/anime/scenes/sleep-in1.jpg?v=1bf26a94",
+    "/rooms/anime/scenes/sleep-in2.jpg?v=8154f35e",
+    "/rooms/anime/scenes/sleep-in3.jpg?v=f6bc555a"
    ],
    "enterMs": 620
   },

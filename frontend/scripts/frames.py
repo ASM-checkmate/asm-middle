@@ -3,7 +3,7 @@
 # 프레임끼리 색을 맞춘다: AI 가 매번 새로 렌더해 실루엣은 맞아도 전체 음영이 조금씩 다르다. 그대로 돌리면 프레임이 바뀔
 # 때마다 몸 전체가 번쩍인다 → 첫 장을 기준으로, 겹치는 부분의 색을 채널마다 직선(gain·offset)으로 맞춘다. 자세가 바뀐
 # 부분(다리)은 겹치지 않으니 기준에서 빠진다.
-# 세트: idle(char-front·idle-2·idle-3) · walk-front(5: 왼발 닿음·밀기·스침·뻗기·오른발 닿음 — 뒷반쪽은 밀기·뻗기를 좌우 뒤집어 씀) · walk-back(pose-back·1·2·3) · sit(pose-sit). 앞/뒤 세트는 프레이밍이 조금 달라 따로 잰다.
+# 세트: idle(char-front·idle-2·idle-3) · walk-front(5: 왼발 닿음·밀기·스침·뻗기·오른발 닿음 — 뒷반쪽은 밀기·뻗기를 좌우 뒤집어 씀) · walk-back(pose-back·1·2·3). 앞/뒤 세트는 프레이밍이 조금 달라 따로 잰다.
 # Usage: python3 scripts/frames.py
 import hashlib, json, os
 import numpy as np
@@ -16,7 +16,6 @@ SETS = {
   'idle': ['char-front', 'idle-2', 'idle-3'],
   'walk-front': ['walk-front-1', 'walk-front-push', 'walk-front-2', 'walk-front-reach', 'walk-front-3'],   # 닿음·밀기·스침·뻗기·닿음
   'walk-back': ['pose-back', 'walk-back-1', 'walk-back-2', 'walk-back-3'],
-  'sit': ['pose-sit'],
 }
 
 def key(name):

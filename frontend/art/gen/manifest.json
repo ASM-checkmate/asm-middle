@@ -6,443 +6,156 @@
   "jobs": [
     {
       "name": "char-front",
-      "prompt": "Full-body front view of exactly this character, standing straight in a relaxed A-pose with arms slightly away from the body and a clear gap between the arms and the torso, legs slightly apart, head to toe fully visible, centered. She wears a cream short-sleeve V-neck shirt, loose gray wide-leg drawstring pants and gray strap sandals. No bag. Flat solid pure green background (#00FF00), no ground shadow, no text, no labels, no watermark. Rendered in exactly the same 3D clay / claymation style as the reference character (soft matte clay textures, rounded shapes, soft even studio lighting).",
       "refs": [
         "art/character/base.png"
-      ]
-    },
-    {
-      "name": "char-parts",
-      "prompt": "Exactly this character (same face, hair with two buns, body proportions and clothes as the reference). Draw her as a cut-out animation puppet sheet: the SAME character split into separate body pieces, laid out on the background with clear empty space between every piece, all pieces at the same scale as a full standing body and all seen from the front. Pieces: (1) the head with hair and neck, (2) the torso wearing the cream V-neck shirt from the neck to the hips, (3) the left arm from shoulder to hand, (4) the right arm from shoulder to hand, (5) the left leg from hip to foot wearing the gray pants leg and sandal, (6) the right leg from hip to foot wearing the gray pants leg and sandal. Every piece is complete with rounded joint ends so it can overlap its neighbour when rotated. Flat solid pure green background (#00FF00), no ground shadow, no text, no labels, no watermark. Rendered in exactly the same 3D clay / claymation style as the reference character (soft matte clay textures, rounded shapes, soft even studio lighting).",
-      "refs": [
-        "char-front"
       ],
-      "aspect": "3:4"
-    },
-    {
-      "name": "char-parts2",
-      "prompt": "Cut-out animation puppet sheet of exactly this character (same face, hair with two buns, body proportions and clothes as the reference). All pieces are seen from the front, at the same scale as the full standing body, laid out separately with clear empty green space between every piece. Exactly six pieces: (1) the head with hair and a short neck peg at the bottom, at the top center; (2) the torso in the center: the cream V-neck shirt INCLUDING BOTH SHORT SLEEVES, and below the shirt the gray pants waistband down to the crotch — no neck, no arms, no legs; (3) the left arm and (4) the right arm, on the left and right of the torso: BARE skin only, from a round shoulder ball at the top down to the hand, hanging straight, NO sleeve (the sleeves belong to the torso); (5) the left leg and (6) the right leg, below the torso: one gray pant leg each, from a round ball at the top down to the sandal, straight, NO waistband. Every limb piece ends in a smooth round ball at the joint so it can slide under the torso's sleeve or waistband when rotated. Flat solid pure green background (#00FF00), no ground shadow, no text, no labels, no watermark. Rendered in exactly the same 3D clay / claymation style as the reference character (soft matte clay textures, rounded shapes, soft even studio lighting).",
-      "refs": [
-        "char-front"
-      ],
-      "aspect": "3:4"
-    },
-    {
-      "name": "part-head",
-      "prompt": "Exactly this character (same face, hair with two buns, body proportions and clothes as the reference). Draw only her head with the hair buns and the neck, front view, as an isolated cut-out piece with a rounded joint end, centered, large. Flat solid pure green background (#00FF00), no ground shadow, no text, no labels, no watermark. Rendered in exactly the same 3D clay / claymation style as the reference character (soft matte clay textures, rounded shapes, soft even studio lighting).",
-      "refs": [
-        "char-front"
-      ],
-      "aspect": "3:4"
-    },
-    {
-      "name": "part-torso",
-      "prompt": "Exactly this character (same face, hair with two buns, body proportions and clothes as the reference). Draw only her torso wearing the cream V-neck shirt, from the base of the neck to the hips, no head, no arms, no legs, front view, as an isolated cut-out piece with a rounded joint end, centered, large. Flat solid pure green background (#00FF00), no ground shadow, no text, no labels, no watermark. Rendered in exactly the same 3D clay / claymation style as the reference character (soft matte clay textures, rounded shapes, soft even studio lighting).",
-      "refs": [
-        "char-front"
-      ],
-      "aspect": "3:4"
-    },
-    {
-      "name": "part-arm-left",
-      "prompt": "Exactly this character (same face, hair with two buns, body proportions and clothes as the reference). Draw only her left arm from the shoulder to the hand, hanging straight down, with the cream short sleeve at the top, as an isolated cut-out piece with a rounded joint end, centered, large. Flat solid pure green background (#00FF00), no ground shadow, no text, no labels, no watermark. Rendered in exactly the same 3D clay / claymation style as the reference character (soft matte clay textures, rounded shapes, soft even studio lighting).",
-      "refs": [
-        "char-front"
-      ],
-      "aspect": "3:4"
-    },
-    {
-      "name": "part-arm-right",
-      "prompt": "Exactly this character (same face, hair with two buns, body proportions and clothes as the reference). Draw only her right arm from the shoulder to the hand, hanging straight down, with the cream short sleeve at the top, as an isolated cut-out piece with a rounded joint end, centered, large. Flat solid pure green background (#00FF00), no ground shadow, no text, no labels, no watermark. Rendered in exactly the same 3D clay / claymation style as the reference character (soft matte clay textures, rounded shapes, soft even studio lighting).",
-      "refs": [
-        "char-front"
-      ],
-      "aspect": "3:4"
-    },
-    {
-      "name": "part-leg-left",
-      "prompt": "Exactly this character (same face, hair with two buns, body proportions and clothes as the reference). Draw only her left leg from the hip to the foot, straight, wearing the gray wide pants leg and a gray strap sandal, front view, as an isolated cut-out piece with a rounded joint end, centered, large. Flat solid pure green background (#00FF00), no ground shadow, no text, no labels, no watermark. Rendered in exactly the same 3D clay / claymation style as the reference character (soft matte clay textures, rounded shapes, soft even studio lighting).",
-      "refs": [
-        "char-front"
-      ],
-      "aspect": "3:4"
-    },
-    {
-      "name": "part-leg-right",
-      "prompt": "Exactly this character (same face, hair with two buns, body proportions and clothes as the reference). Draw only her right leg from the hip to the foot, straight, wearing the gray wide pants leg and a gray strap sandal, front view, as an isolated cut-out piece with a rounded joint end, centered, large. Flat solid pure green background (#00FF00), no ground shadow, no text, no labels, no watermark. Rendered in exactly the same 3D clay / claymation style as the reference character (soft matte clay textures, rounded shapes, soft even studio lighting).",
-      "refs": [
-        "char-front"
-      ],
-      "aspect": "3:4"
-    },
-    {
-      "name": "pose-back",
-      "prompt": "Exactly this character (same face, hair with two buns, body proportions and clothes as the reference). Seen from directly behind (back view), standing straight in the same relaxed A-pose, head to toe, centered, showing the back of her head with the two hair buns and the back of the same clothes. Flat solid pure green background (#00FF00), no ground shadow, no text, no labels, no watermark. Rendered in exactly the same 3D clay / claymation style as the reference character (soft matte clay textures, rounded shapes, soft even studio lighting).",
-      "refs": [
-        "char-front"
-      ]
-    },
-    {
-      "name": "pose-lie",
-      "prompt": "Exactly this character (same face, hair with two buns, body proportions and clothes as the reference). Lying flat on her back, viewed from directly above (top-down), body straight and centered, arms resting at her sides, legs together, eyes closed with a calm sleeping expression, same clothes, sandals off (barefoot). Flat solid pure green background (#00FF00), no ground shadow, no text, no labels, no watermark. Rendered in exactly the same 3D clay / claymation style as the reference character (soft matte clay textures, rounded shapes, soft even studio lighting).",
-      "refs": [
-        "char-front"
-      ],
-      "aspect": "3:2"
-    },
-    {
-      "name": "pose-sit",
-      "prompt": "Exactly this character (same face, hair with two buns, body proportions and clothes as the reference). Sitting on an invisible bed edge, front view, knees bent, hands resting on her knees, head to toe visible, centered, same clothes. Flat solid pure green background (#00FF00), no ground shadow, no text, no labels, no watermark. Rendered in exactly the same 3D clay / claymation style as the reference character (soft matte clay textures, rounded shapes, soft even studio lighting).",
-      "refs": [
-        "char-front"
-      ]
-    },
-    {
-      "name": "pose-walk",
-      "prompt": "Exactly this character (same face, hair with two buns, body proportions and clothes as the reference). Mid-stride walking pose, side view facing right, one leg forward and one back, arms swinging, head to toe visible, centered, same clothes. Flat solid pure green background (#00FF00), no ground shadow, no text, no labels, no watermark. Rendered in exactly the same 3D clay / claymation style as the reference character (soft matte clay textures, rounded shapes, soft even studio lighting).",
-      "refs": [
-        "char-front"
-      ]
-    },
-    {
-      "name": "room",
-      "prompt": "A cozy bedroom interior in exactly the same 3D clay / claymation style as this character (soft matte clay textures, rounded shapes, warm soft lighting). One-point perspective seen from a standing person's eye level, back wall centered. On the back wall: a window with curtains; a bed with a pink blanket and pillows against the back wall under the window; small wooden nightstands with lamps on both sides of the bed; a wooden dresser with a mirror on the right wall; an open door on the left wall; wooden floor with a rug in front of the bed. The bottom third of the image is empty floor where a character could stand. No people, no text, no watermark.",
-      "refs": [
-        "char-front"
-      ]
-    },
-    {
-      "name": "room-empty",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, rug, lighting and style. Only change: remove all furniture and objects — no bed, no nightstands, no lamps, no dresser, no mirror, no rug. A completely empty room.",
-      "refs": [
-        "room"
-      ]
-    },
-    {
-      "name": "room-no-bed",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, rug, lighting and style. Only change: remove only the bed (including its blanket and pillows). Everything else stays.",
-      "refs": [
-        "room"
-      ]
-    },
-    {
-      "name": "room-no-blanket",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, rug, lighting and style. Only change: remove only the pink blanket — the bed stays with a bare white mattress and its pillows.",
-      "refs": [
-        "room"
-      ]
-    },
-    {
-      "name": "room-no-nightstands",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, rug, lighting and style. Only change: remove only the two nightstands and their lamps.",
-      "refs": [
-        "room"
-      ]
-    },
-    {
-      "name": "room-no-dresser",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, rug, lighting and style. Only change: remove only the dresser and the mirror above it.",
-      "refs": [
-        "room"
-      ]
-    },
-    {
-      "name": "room-door-closed",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, rug, lighting and style. Only change: the door on the left is closed.",
-      "refs": [
-        "room"
-      ]
-    },
-    {
-      "name": "room-night",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, rug, lighting and style. Only change: it is night — the window shows a dark blue night sky with a moon, the ceiling light is off and the two bedside lamps are on, casting warm light; the rest of the room is dim.",
-      "refs": [
-        "room"
-      ]
-    },
-    {
-      "name": "room-sleeping",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, rug, lighting and style. Only change: the second reference character is lying in the bed asleep on her back, head on the pillow, eyes closed, covered by the pink blanket up to her chest, her arms resting on top of the blanket. Same character face and hair (two buns). Nothing else in the room changes.",
-      "refs": [
-        "room",
-        "char-front"
-      ]
-    },
-    {
-      "name": "scene-sleep-2",
-      "prompt": "Keep everything exactly identical to the reference image — same room, camera, furniture, lighting, style and the same character. Only change: she has rolled her head slightly to her right on the pillow and her mouth is slightly open, still asleep; the blanket rises a little over her chest as she breathes in.",
-      "refs": [
-        "room-sleeping"
-      ]
-    },
-    {
-      "name": "scene-makeup-1",
-      "prompt": "Keep exactly the same room as the first reference image — same camera, walls, furniture, lighting and style. Only change: the character from the second reference (same face, hair with two buns, same clothes) is sitting on a small wooden stool in front of the dresser on the right wall, turned toward the mirror so we see her from behind at a three-quarter angle, one hand raised holding a makeup brush to her cheek. Nothing else changes.",
-      "refs": [
-        "room",
-        "char-front"
-      ]
-    },
-    {
-      "name": "scene-makeup-2",
-      "prompt": "Keep everything exactly identical to the reference image — same room, camera, furniture, lighting, style and the same character. Only change: she is now holding a small lipstick to her lips instead of the brush, the other hand resting on the dresser.",
-      "refs": [
-        "scene-makeup-1"
-      ]
-    },
-    {
-      "name": "scene-makeup-3",
-      "prompt": "Keep everything exactly identical to the reference image — same room, camera, furniture, lighting, style and the same character. Only change: both her hands are lowered onto the dresser and she leans slightly toward the mirror, looking at her reflection.",
-      "refs": [
-        "scene-makeup-1"
-      ]
-    },
-    {
-      "name": "walk-front-1",
-      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: she is walking straight toward the camera, mid-stride with her LEFT foot forward and planted, right foot behind lifting off the ground, arms swinging naturally (right arm forward, left arm back).",
-      "refs": [
-        "char-front"
-      ]
-    },
-    {
-      "name": "walk-front-2",
-      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: she is walking toward the camera, in the passing pose: feet close together under her body, one knee slightly bent, arms near her sides.",
-      "refs": [
-        "walk-front-1"
-      ]
-    },
-    {
-      "name": "walk-front-3",
-      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: she is walking toward the camera, mid-stride with her RIGHT foot forward and planted, left foot behind lifting off the ground, arms swinging naturally (left arm forward, right arm back).",
-      "refs": [
-        "walk-front-1"
-      ]
-    },
-    {
-      "name": "walk-back-1",
-      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: seen from behind, she is walking away from the camera, mid-stride with her LEFT foot forward, right foot behind lifting, arms swinging naturally.",
-      "refs": [
-        "pose-back"
-      ]
-    },
-    {
-      "name": "walk-back-2",
-      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: seen from behind, she is walking away from the camera, in the passing pose: feet close together under her body, arms near her sides.",
-      "refs": [
-        "walk-back-1"
-      ]
-    },
-    {
-      "name": "walk-back-3",
-      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: seen from behind, she is walking away from the camera, mid-stride with her RIGHT foot forward, left foot behind lifting, arms swinging naturally.",
-      "refs": [
-        "walk-back-1"
-      ]
+      "prompt": "Full-body front view of exactly this character, standing straight in a relaxed A-pose with arms slightly away from the body, head to toe fully visible, centered. She wears a cream short-sleeve V-neck shirt, loose gray wide-leg drawstring pants and gray strap sandals. No bag. Flat solid pure green background (#00FF00), no ground shadow, no text, no labels, no watermark. Rendered in exactly the same 3D clay / claymation style as the reference character (soft matte clay textures, rounded shapes, soft even studio lighting)."
     },
     {
       "name": "idle-2",
-      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: her eyes are closed as if blinking, everything else the same.",
       "refs": [
         "char-front"
-      ]
+      ],
+      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: her eyes are closed as if blinking, everything else the same."
     },
     {
       "name": "idle-3",
-      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: her head is tilted slightly to one side with a small smile, everything else the same.",
       "refs": [
         "char-front"
-      ]
+      ],
+      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: her head is tilted slightly to one side with a small smile, everything else the same."
+    },
+    {
+      "name": "walk-front-1",
+      "refs": [
+        "char-front"
+      ],
+      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: she is walking straight toward the camera, mid-stride with her LEFT foot forward and planted, right foot behind lifting off the ground, arms swinging naturally (right arm forward, left arm back)."
     },
     {
       "name": "walk-front-push",
-      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: she is walking toward the camera: her weight is fully on her planted LEFT foot, her right foot is behind her with only the toes touching, heel lifted, about to push off; arms mid-swing.",
       "refs": [
         "walk-front-1"
-      ]
+      ],
+      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: she is walking toward the camera: her weight is fully on her planted LEFT foot, her right foot is behind her with only the toes touching, heel lifted, about to push off; arms mid-swing."
+    },
+    {
+      "name": "walk-front-2",
+      "refs": [
+        "walk-front-1"
+      ],
+      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: she is walking toward the camera, in the passing pose: feet close together under her body, one knee slightly bent, arms near her sides."
     },
     {
       "name": "walk-front-reach",
-      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: she is walking toward the camera: her RIGHT foot is swinging forward in the air just before landing, knee slightly bent, left foot planted behind; arms mid-swing.",
       "refs": [
         "walk-front-1"
-      ]
+      ],
+      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: she is walking toward the camera: her RIGHT foot is swinging forward in the air just before landing, knee slightly bent, left foot planted behind; arms mid-swing."
     },
     {
-      "name": "anime-room-empty",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, lighting and the same anime illustration style. Only change: remove all furniture and objects — no bed, no nightstands, no lamps, no dresser, no mirror, no shelf items. Keep the rug on the floor and the curtains. An otherwise empty room.",
+      "name": "walk-front-3",
       "refs": [
-        "anime-room"
-      ]
+        "walk-front-1"
+      ],
+      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: she is walking toward the camera, mid-stride with her RIGHT foot forward and planted, left foot behind lifting off the ground, arms swinging naturally (left arm forward, right arm back)."
     },
     {
-      "name": "anime-room-no-bed",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, lighting and the same anime illustration style. Only change: remove only the bed (including its blanket and pillows). Everything else stays.",
+      "name": "pose-back",
       "refs": [
-        "anime-room"
-      ]
-    },
-    {
-      "name": "anime-room-no-nightstands",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, lighting and the same anime illustration style. Only change: remove only the two nightstands and their lamps.",
-      "refs": [
-        "anime-room"
-      ]
-    },
-    {
-      "name": "anime-room-no-dresser",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, lighting and the same anime illustration style. Only change: remove only the dresser and the mirror above it.",
-      "refs": [
-        "anime-room"
-      ]
-    },
-    {
-      "name": "anime-room-sleeping",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, lighting and the same anime illustration style. Only change: the character from the second reference image (keep her exact look: clay-figure style, two hair buns, cream V-neck shirt) is lying in the bed asleep on her back, head on the pillow, eyes closed, covered by the pink blanket up to her chest, her arms resting on top of the blanket. Nothing else in the room changes.",
-      "refs": [
-        "anime-room",
         "char-front"
-      ]
+      ],
+      "prompt": "Exactly this character seen from directly behind (back view), standing straight in the same relaxed A-pose, head to toe, centered, showing the back of her head with the two hair buns and the back of the same clothes. Flat solid pure green background (#00FF00), no ground shadow, no text, no labels, no watermark. Rendered in exactly the same 3D clay / claymation style as the reference character (soft matte clay textures, rounded shapes, soft even studio lighting)."
     },
     {
-      "name": "anime-scene-sleep-2",
-      "prompt": "Keep everything exactly identical to the reference image — same room, camera, furniture, lighting, style and the same character. Only change: she has rolled her head slightly to her right on the pillow and her mouth is slightly open, still asleep; the blanket rises a little over her chest as she breathes in.",
+      "name": "walk-back-1",
       "refs": [
-        "anime-room-sleeping"
-      ]
+        "pose-back"
+      ],
+      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: seen from behind, she is walking away from the camera, mid-stride with her LEFT foot forward, right foot behind lifting, arms swinging naturally."
     },
     {
-      "name": "anime-scene-makeup-1",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, lighting and the same anime illustration style. Only change: the character from the second reference image (keep her exact look: clay-figure style, two hair buns, cream V-neck shirt, gray pants) is sitting on a small wooden stool in front of the dresser on the right wall, turned toward the mirror so we see her from behind at a three-quarter angle, one hand raised holding a makeup brush to her cheek. Nothing else changes.",
+      "name": "walk-back-2",
       "refs": [
-        "anime-room",
-        "char-front"
-      ]
+        "walk-back-1"
+      ],
+      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: seen from behind, she is walking away from the camera, in the passing pose: feet close together under her body, arms near her sides."
     },
     {
-      "name": "anime-scene-makeup-2",
-      "prompt": "Keep everything exactly identical to the reference image — same room, camera, furniture, lighting, style and the same character. Only change: she is now holding a small lipstick to her lips instead of the brush, the other hand resting on the dresser.",
+      "name": "walk-back-3",
       "refs": [
-        "anime-scene-makeup-1"
-      ]
-    },
-    {
-      "name": "anime-scene-makeup-3",
-      "prompt": "Keep everything exactly identical to the reference image — same room, camera, furniture, lighting, style and the same character. Only change: both her hands are lowered onto the dresser and she leans slightly toward the mirror, looking at her reflection.",
-      "refs": [
-        "anime-scene-makeup-1"
-      ]
+        "walk-back-1"
+      ],
+      "prompt": "Keep everything exactly identical to the reference image — same character, face, hair, clothes, body proportions, camera distance, framing, lighting and the flat pure green background. Only change: seen from behind, she is walking away from the camera, mid-stride with her RIGHT foot forward, left foot behind lifting, arms swinging naturally."
     },
     {
       "name": "anime2-room",
-      "prompt": "A cozy bedroom interior painted in exactly the same anime illustration style, colors and soft lighting as the reference image. One-point perspective seen from a standing person's eye level, back wall centered. On the back wall: a window with curtains; a bed with a pink blanket and pillows against the back wall under the window; small wooden nightstands with lamps on both sides of the bed; a wooden dresser with a mirror on the right wall; an open door on the left wall; wooden floor with a patterned rug in front of the bed. The bottom third of the image is empty floor where a character could stand. No people, no text, no watermark.",
       "refs": [
-        "anime-room"
-      ]
-    },
-    {
-      "name": "anime2-room-empty",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, rug, lighting and the same anime illustration style. Only change: remove all furniture and objects — no bed, no nightstands, no lamps, no dresser, no mirror. Keep the rug and the curtains. An otherwise empty room.",
-      "refs": [
-        "anime2-room"
-      ]
-    },
-    {
-      "name": "anime2-room-no-bed",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, rug, lighting and the same anime illustration style. Only change: remove only the bed (including its blanket and pillows). Everything else stays.",
-      "refs": [
-        "anime2-room"
-      ]
-    },
-    {
-      "name": "anime2-room-no-nightstands",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, rug, lighting and the same anime illustration style. Only change: remove only the two nightstands and their lamps.",
-      "refs": [
-        "anime2-room"
-      ]
-    },
-    {
-      "name": "anime2-room-no-dresser",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, rug, lighting and the same anime illustration style. Only change: remove only the dresser and the mirror above it.",
-      "refs": [
-        "anime2-room"
-      ]
+        "art/in/bedroom.png",
+        "char-front"
+      ],
+      "prompt": "Redraw this room in exactly the same art style, colors, line work and soft lighting as the SECOND reference image (the character). Keep the first reference image's layout and camera: same one-point perspective from a standing person's eye level, the same furniture in the same places (bed against the back wall under the window, nightstands beside it, dresser with mirror on one side, door on the other, rug on the floor). The bottom third of the image must be empty floor where a character could stand. No people, no text, no watermark."
     },
     {
       "name": "anime2-room-sleeping",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, rug, lighting and the same anime illustration style. Only change: the character from the second reference image (keep her exact look: clay-figure style, two hair buns, cream V-neck shirt, gray pants) is lying in the bed asleep on her back, head on the pillow, eyes closed, covered by the pink blanket up to her chest, her arms resting on top of the blanket. Nothing else in the room changes.",
       "refs": [
         "anime2-room",
         "char-front"
-      ]
+      ],
+      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bedding, lighting and style. The character must look EXACTLY like the last reference image: identical face, eye shape and size, pupil position and the white highlight in each eye, identical eyebrows, nose and mouth, identical two hair buns and bangs, identical cream V-neck shirt and proportions. Do not redraw or restyle her face. Only change: she is lying in the bed asleep on her back, head on the pillow, eyes closed, covered by the blanket up to her chest, her arms resting on top of the blanket. Nothing else in the room changes."
     },
     {
       "name": "anime2-scene-sleep-2",
-      "prompt": "Keep everything exactly identical to the reference image — same room, camera, furniture, lighting, style and the same character. Only change: she has rolled her head slightly to her right on the pillow and her mouth is slightly open, still asleep; the blanket rises a little over her chest as she breathes in.",
       "refs": [
         "anime2-room-sleeping"
-      ]
-    },
-    {
-      "name": "anime2-scene-makeup-1",
-      "prompt": "Keep exactly the same room as the reference image — same camera, walls, window, door, floor, rug, lighting and the same anime illustration style. Only change: the character from the second reference image (keep her exact look: clay-figure style, two hair buns, cream V-neck shirt, gray pants) is sitting on a small wooden stool in front of the dresser on the right wall, turned toward the mirror so we see her from behind at a three-quarter angle, one hand raised holding a makeup brush to her cheek. Nothing else changes.",
-      "refs": [
-        "anime2-room",
-        "char-front"
-      ]
-    },
-    {
-      "name": "anime2-scene-makeup-2",
-      "prompt": "Keep everything exactly identical to the reference image — same room, camera, furniture, lighting, style and the same character. Only change: she is now holding a small lipstick to her lips instead of the brush, the other hand resting on the dresser.",
-      "refs": [
-        "anime2-scene-makeup-1"
-      ]
-    },
-    {
-      "name": "anime2-scene-makeup-3",
-      "prompt": "Keep everything exactly identical to the reference image — same room, camera, furniture, lighting, style and the same character. Only change: both her hands are lowered onto the dresser and she leans slightly toward the mirror, looking at her reflection.",
-      "refs": [
-        "anime2-scene-makeup-1"
-      ]
-    },
-    {
-      "name": "anime2-bed-sit",
-      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bed, bedding, lighting and style. The character must look EXACTLY like the second reference image (same face, same two hair buns, same cream V-neck shirt, same proportions). Only change: she is SITTING UP in the bed with her back against the headboard and pillows, facing the camera, her legs stretched out in front of her along the bed. The blanket covers ONLY her legs, from her waist down — her upper body and shirt are fully visible above it. Both of her hands grip the top edge of the blanket at her waist and she is just beginning to pull it upward toward her neck. Eyes open and awake. Her legs and feet are COMPLETELY hidden under the blanket — no feet or toes poking out anywhere. The blanket lies smooth and flat over her legs. It stays neatly on the bed and does not spill onto the floor.",
-      "refs": [
-        "anime2-room-sleeping",
-        "char-front"
-      ]
-    },
-    {
-      "name": "anime2-bed-pull",
-      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bed, lighting, style, and the SAME character lying flat on her back with her head on the pillow. Her FACE must stay pixel-for-pixel the same as in the first reference and match the second reference: identical eye shape and size, identical pupil position and the white highlight in each eye, identical eyebrows, nose and gentle mouth, identical two hair buns and bangs. Do not redraw or restyle her face at all. Only change this: the blanket is not yet up to her chest — it is only partway up around her waist, and both of her hands grip its top edge, caught mid-motion as she pulls it upward. Her legs and feet stay under the blanket and on the mattress; the blanket stays on the bed and does not spill onto the floor.",
-      "refs": [
-        "anime2-bed-awake",
-        "char-front"
-      ]
+      ],
+      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bedding, lighting and style. Only change: she has rolled her head slightly to her right on the pillow and her mouth is slightly open, still asleep; the blanket rises a little over her chest as she breathes in."
     },
     {
       "name": "anime2-bed-awake",
-      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bedding, lighting and style. The character must look EXACTLY like the second reference image: same face, same eyes, same two hair buns, same cream V-neck shirt, same clay-figure proportions and shading. Do not restyle or redraw her. Only change: she is lying on her back under the blanket, the blanket pulled up to her chest, EYES OPEN looking up at the ceiling, both arms resting on top of the blanket, settled and still.",
       "refs": [
         "anime2-room-sleeping",
         "char-front"
-      ]
+      ],
+      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bedding, lighting and style. The character must look EXACTLY like the last reference image: identical face, eye shape and size, pupil position and the white highlight in each eye, identical eyebrows, nose and mouth, identical two hair buns and bangs, identical cream V-neck shirt and proportions. Do not redraw or restyle her face. Only change: she is lying on her back under the blanket, the blanket pulled up to her chest, EYES OPEN looking up at the ceiling, both arms resting on top of the blanket, settled and still. Her legs and feet stay on the mattress and the blanket stays neatly on the bed — nothing hangs off the side or spills onto the floor."
     },
     {
-      "name": "bed-pull",
-      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bedding, lighting and style. The character must look EXACTLY like the second reference image: same face, same eyes, same two hair buns, same cream V-neck shirt, same clay-figure proportions and shading. Do not restyle or redraw her. Only change: she is lying on her back in the bed, head on the pillow, EYES OPEN and awake, and both of her hands are gripping the top edge of the blanket and pulling it up toward her chest — caught mid-motion, the blanket only partway up over her waist.",
+      "name": "anime2-bed-pull",
       "refs": [
-        "room-sleeping",
+        "anime2-bed-awake",
         "char-front"
-      ]
+      ],
+      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bedding, lighting and style. The character must look EXACTLY like the last reference image: identical face, eye shape and size, pupil position and the white highlight in each eye, identical eyebrows, nose and mouth, identical two hair buns and bangs, identical cream V-neck shirt and proportions. Do not redraw or restyle her face. Keep her lying flat on her back with her head on the pillow exactly as in the first reference. Only change this: the blanket is not yet up to her chest — it is only partway up around her waist, and both of her hands grip its top edge, caught mid-motion as she pulls it upward. Her legs and feet stay on the mattress and the blanket stays neatly on the bed — nothing hangs off the side or spills onto the floor."
     },
     {
-      "name": "bed-awake",
-      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bedding, lighting and style. The character must look EXACTLY like the second reference image: same face, same eyes, same two hair buns, same cream V-neck shirt, same clay-figure proportions and shading. Do not restyle or redraw her. Only change: she is lying on her back under the blanket, the blanket pulled up to her chest, EYES OPEN looking up at the ceiling, both arms resting on top of the blanket, settled and still.",
+      "name": "anime2-bed-sit",
       "refs": [
-        "room-sleeping",
+        "anime2-bed-awake",
         "char-front"
-      ]
+      ],
+      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bedding, lighting and style. The character must look EXACTLY like the last reference image: identical face, eye shape and size, pupil position and the white highlight in each eye, identical eyebrows, nose and mouth, identical two hair buns and bangs, identical cream V-neck shirt and proportions. Do not redraw or restyle her face. Only change: she is SITTING UP in the bed with her back against the headboard and pillows, facing the camera, legs stretched out along the bed. The blanket covers ONLY her legs from the waist down — her upper body and shirt are fully visible above it. Both hands grip the top edge of the blanket at her waist, just beginning to pull it up toward her neck. Eyes open and awake. Her legs and feet are COMPLETELY hidden under the blanket — no feet or toes poking out. Her legs and feet stay on the mattress and the blanket stays neatly on the bed — nothing hangs off the side or spills onto the floor."
+    },
+    {
+      "name": "anime2-scene-makeup-1",
+      "refs": [
+        "anime2-room",
+        "char-front"
+      ],
+      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bedding, lighting and style. The character must look EXACTLY like the last reference image: identical face, eye shape and size, pupil position and the white highlight in each eye, identical eyebrows, nose and mouth, identical two hair buns and bangs, identical cream V-neck shirt and proportions. Do not redraw or restyle her face. Only change: she is sitting on a small wooden stool in front of the dresser, turned toward the mirror so we see her from behind at a three-quarter angle, one hand raised holding a makeup brush to her cheek. Nothing else changes."
+    },
+    {
+      "name": "anime2-scene-makeup-2",
+      "refs": [
+        "anime2-scene-makeup-1"
+      ],
+      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bedding, lighting and style. Only change: she is now holding a small lipstick to her lips instead of the brush, the other hand resting on the dresser."
+    },
+    {
+      "name": "anime2-scene-makeup-3",
+      "refs": [
+        "anime2-scene-makeup-1"
+      ],
+      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bedding, lighting and style. Only change: both her hands are lowered onto the dresser and she leans slightly toward the mirror, looking at her reflection."
     }
   ]
 }

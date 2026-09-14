@@ -1,0 +1,29 @@
+{
+  "_": "방 목록 — 그림 이름(names)·바닥(walk)·존(zones)을 한 군데 모아 둔다. scripts/art.mjs(그림 받기)와 scripts/room-build.py(방 빌드)가 같이 읽는다.",
+  "rooms": {
+    "anime": {
+      "ko": "애니풍 침실",
+      "photo": "art/in/bedroom.png",
+      "names": { "room": "anime2-room", "scene": "anime2-scene", "bed": "anime2-bed" },
+      "scenes": ["sleep", "makeup"],
+      "walk": [[62, 400], [300, 400], [390, 570], [390, 600], [0, 600], [0, 490]],
+      "home": [60, 556],
+      "zones": [
+        { "id": "bed", "ko": "침대", "scene": "sleep", "rect": [100, 398, 290, 444], "stand": [195, 430] },
+        { "id": "makeup", "ko": "화장대", "scene": "makeup", "rect": [300, 400, 390, 474], "stand": [332, 446] }
+      ]
+    },
+    "bedroom": {
+      "ko": "클레이 침실",
+      "frozen": "클레이 결은 더 손대지 않기로 했다 — 그림을 다시 받지 않는다",
+      "names": { "room": "room", "scene": "scene", "bed": "bed" },
+      "scenes": ["sleep", "makeup"],
+      "walk": [[60, 400], [315, 400], [390, 540], [390, 600], [0, 600], [0, 520]],
+      "home": [70, 556],
+      "zones": [
+        { "id": "bed", "ko": "침대", "scene": "sleep", "rect": [110, 398, 290, 444], "stand": [195, 428] },
+        { "id": "makeup", "ko": "화장대", "scene": "makeup", "rect": [308, 400, 390, 464], "stand": [338, 436] }
+      ]
+    }
+  }
+}

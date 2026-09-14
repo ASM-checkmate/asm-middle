@@ -1,0 +1,178 @@
+{
+ "id": "anime",
+ "w": 390,
+ "h": 600,
+ "back": "/rooms/anime/back.jpg?v=875b01c3",
+ "vanishY": 150,
+ "props": [
+  {
+   "id": "bed",
+   "src": "/rooms/anime/props/bed.png?v=b41ffdea",
+   "x": 82.0,
+   "y": 216.5,
+   "w": 252.0,
+   "h": 176.0,
+   "base": 392.5
+  },
+  {
+   "id": "blanket",
+   "src": "/rooms/anime/props/blanket.png?v=4bc82453",
+   "x": 83.5,
+   "y": 241.5,
+   "w": 204.5,
+   "h": 121.0,
+   "base": 396.5
+  },
+  {
+   "id": "nightstand-l",
+   "src": "/rooms/anime/props/nightstand-l.png?v=8128ef0a",
+   "x": 24.5,
+   "y": 213.0,
+   "w": 61.0,
+   "h": 106.5,
+   "base": 319.5
+  },
+  {
+   "id": "nightstand-r",
+   "src": "/rooms/anime/props/nightstand-r.png?v=15b0d5c1",
+   "x": 209.5,
+   "y": 212.5,
+   "w": 40.0,
+   "h": 62.5,
+   "base": 275.0
+  },
+  {
+   "id": "dresser",
+   "src": "/rooms/anime/props/dresser.png?v=a59f2cdc",
+   "x": 279.0,
+   "y": 162.0,
+   "w": 106.5,
+   "h": 234.5,
+   "base": 396.5
+  },
+  {
+   "id": "curtains",
+   "src": "/rooms/anime/props/curtains.png?v=7d3efb7d",
+   "x": 256.5,
+   "y": 154.5,
+   "w": 57.0,
+   "h": 52.0,
+   "base": 0.5
+  },
+  {
+   "id": "scene-sleep-1",
+   "src": "/rooms/anime/props/scene-sleep-1.png?v=cb615c1c",
+   "x": 58.0,
+   "y": 206.0,
+   "w": 281.0,
+   "h": 186.5,
+   "base": 402.5,
+   "hidden": true
+  },
+  {
+   "id": "scene-sleep-2",
+   "src": "/rooms/anime/props/scene-sleep-2.png?v=eecd2905",
+   "x": 58.0,
+   "y": 206.0,
+   "w": 281.0,
+   "h": 186.5,
+   "base": 402.5,
+   "hidden": true
+  },
+  {
+   "id": "scene-makeup-1",
+   "src": "/rooms/anime/props/scene-makeup-1.png?v=159d5b83",
+   "x": 251.0,
+   "y": 162.0,
+   "w": 135.5,
+   "h": 255.0,
+   "base": 402.5,
+   "hidden": true
+  },
+  {
+   "id": "scene-makeup-2",
+   "src": "/rooms/anime/props/scene-makeup-2.png?v=8a63908c",
+   "x": 251.0,
+   "y": 162.0,
+   "w": 135.5,
+   "h": 255.0,
+   "base": 402.5,
+   "hidden": true
+  },
+  {
+   "id": "scene-makeup-3",
+   "src": "/rooms/anime/props/scene-makeup-3.png?v=526e81ef",
+   "x": 251.0,
+   "y": 162.0,
+   "w": 135.5,
+   "h": 255.0,
+   "base": 402.5,
+   "hidden": true
+  }
+ ],
+ "spots": {
+  "door": {
+   "x": 60,
+   "y": 556,
+   "pose": "idle"
+  },
+  "center": {
+   "x": 200,
+   "y": 490,
+   "pose": "idle"
+  },
+  "bedside": {
+   "x": 150,
+   "y": 420,
+   "pose": "idle"
+  },
+  "dresser": {
+   "x": 300,
+   "y": 440,
+   "pose": "idle"
+  },
+  "makeup": {
+   "x": 322,
+   "y": 462,
+   "pose": "scene",
+   "scene": "makeup"
+  },
+  "bed-edge": {
+   "x": 147,
+   "y": 400.5,
+   "pose": "sit",
+   "z": 397.5,
+   "size": 150
+  },
+  "bed": {
+   "x": 195,
+   "y": 398.5,
+   "pose": "scene",
+   "scene": "sleep"
+  }
+ },
+ "scenes": {
+  "sleep": {
+   "frames": [
+    "scene-sleep-1",
+    "scene-sleep-2"
+   ],
+   "replaces": [
+    "bed",
+    "blanket"
+   ],
+   "interval": 1400
+  },
+  "makeup": {
+   "frames": [
+    "scene-makeup-1",
+    "scene-makeup-2",
+    "scene-makeup-3"
+   ],
+   "replaces": [
+    "dresser"
+   ],
+   "interval": 800
+  }
+ }
+}

@@ -3,7 +3,7 @@
 // 바닥을 누르면 걸을 수 있는 자리로 끌어들여 걸어가고, 트리거존에 들어서면 그 자리의 동작(자기·화장)이 걸린다.
 // 동작은 '그 물건 + 사람'을 그린 방 전체 그림 몇 장이라 배경째 갈아 끼운다.
 import { useEffect, useRef, useState } from 'react';
-import { Room } from './room/Room';
+import { FADE, Room } from './room/Room';
 import { Sprite, type Step } from './room/Sprite';
 import { clamp, scaleAt, zoneAt, type Pt, type RoomJson } from './room/types';
 
@@ -43,6 +43,8 @@ const FRONT_WALK: Step[] = [0, 1, 2, 3, 4, { f: 1, flip: true }, 2, { f: 3, flip
 const SIZE = 215;
 /** 걷는 속도 (방 px / 초) — 거리에 따라 걸리는 시간이 달라져야 걸음이 자연스럽다 */
 const SPEED = 150;
+/** 존에 닿고 장면이 시작되기 전에 잠깐 서 있는 시간 — 도착하자마자 눕지 않게 (ms) */
+const SETTLE = 420;
 
 export function RoomLab() {
   const [rid, setRid] = useState<RoomId>(((new URLSearchParams(location.search).get('room') as RoomId) || 'anime'));
@@ -65,18 +67,23 @@ export function RoomLab() {
   }, [rid]);
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  /** 그 자리로 걸어간다 — 바닥 밖이면 가장 가까운 바닥으로, 도착해서 존 안이면 그 동작이 걸린다 */
+  /** 그 자리로 걸어간다 — 바닥 밖이면 가장 가까운 바닥으로, 도착해서 존 안이면 그 동작이 걸린다.
+   *  장면에서 빠져나올 땐 먼저 서 있는 모습으로 겹쳐 돌아온 뒤에 걷기 시작한다 (일어나자마자 걸어 나가면 툭 끊긴다). */
   const go = (r: RoomJson, x: number, y: number) => {
     const [tx, ty] = clamp(r.walk, x, y);
-    const dist = Math.hypot(tx - at[0], ty - at[1]);
-    const t = Math.max(260, Math.round((dist / SPEED) * 1000));
     clearTimeout(timer.current);
-    setSceneId(null); setAway(ty < at[1] - 4); setMs(t); setAt([tx, ty]); setWalking(true);
-    timer.current = window.setTimeout(() => {
-      setWalking(false);
-      const z = zoneAt(r, tx, ty);
-      if (z) { setAt(z.stand as Pt); setSceneId(z.scene); }
-    }, t + 30);
+    const start = () => {
+      const dist = Math.hypot(tx - at[0], ty - at[1]);
+      const t = Math.max(260, Math.round((dist / SPEED) * 1000));
+      setAway(ty < at[1] - 4); setMs(t); setAt([tx, ty]); setWalking(true);
+      timer.current = window.setTimeout(() => {
+        setWalking(false);
+        const z = zoneAt(r, tx, ty);
+        // 도착해서 잠깐 서 있다가 장면으로 겹쳐 넘어간다
+        if (z) timer.current = window.setTimeout(() => { setAt(z.stand as Pt); setSceneId(z.scene); }, SETTLE);
+      }, t + 30);
+    };
+    if (sceneId) { setSceneId(null); timer.current = window.setTimeout(start, FADE); } else start();
   };
 
   if (err) return <div className="rlab"><style>{CSS}</style><div className="hint">public/rooms/{rid}/room.json 을 못 읽었어요 ({err}) — python3 scripts/room-build.py {rid}</div></div>;
@@ -87,7 +94,15 @@ export function RoomLab() {
   const scene = sceneId ? room.scenes[sceneId] : undefined;
   const w = SIZE * 0.42;
   const actor = (
-    <div className="actor" style={{ transform: `translate(${at[0]}px, ${at[1]}px) scale(${s.toFixed(3)})`, transformOrigin: '0 0', transition: `transform ${ms}ms linear` }}>
+    <div
+      className="actor"
+      style={{
+        transform: `translate(${at[0]}px, ${at[1]}px) scale(${s.toFixed(3)})`, transformOrigin: '0 0',
+        // 장면 중엔 사람을 지우지 않고 배경과 같은 박자로 겹쳐 사라지게 한다 — 그래야 서 있다가 누운 그림으로 녹아 넘어간다
+        opacity: scene ? 0 : 1, pointerEvents: 'none',
+        transition: `transform ${ms}ms linear, opacity ${FADE}ms ease-in-out`,
+      }}
+    >
       <div className="shadow halo" style={{ width: w * 0.86, height: w * 0.26, opacity: light.shadow, transform: `translate(-50%, -50%) skewX(${light.skew}deg)` }} />
       <div className="shadow core" style={{ width: w * 0.40, height: w * 0.115, opacity: light.shadow, transform: `translate(-50%, -50%) skewX(${light.skew}deg)` }} />
       {walking

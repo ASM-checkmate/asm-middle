@@ -406,7 +406,7 @@
     },
     {
       "name": "anime2-bed-pull",
-      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bedding, lighting and style. The character must look EXACTLY like the second reference image: same face, same eyes, same two hair buns, same cream V-neck shirt, same clay-figure proportions and shading. Do not restyle or redraw her. Only change: she is lying on her back in the bed, head on the pillow, EYES OPEN and awake, and both of her hands are gripping the top edge of the blanket and pulling it up toward her chest — caught mid-motion, the blanket only partway up over her waist.",
+      "prompt": "Keep everything exactly identical to the first reference image — same room, camera, furniture, bed, bedding, lighting, style, and the SAME character in the SAME lying position: flat on her back, head on the pillow, her whole body on the mattress with her legs straight and fully on the bed under the blanket. She must look exactly like the second reference image (same face, two hair buns, cream V-neck shirt). Only change these two things: (1) her eyes are OPEN and awake instead of closed, and (2) both of her hands grip the top edge of the blanket and are pulling it up toward her chest, caught mid-motion so the blanket is only partway up. The blanket stays neatly on the bed — it must NOT spill over the side or onto the floor, and her legs must NOT hang off the bed.",
       "refs": [
         "anime2-room-sleeping",
         "char-front"

@@ -75,10 +75,10 @@
    ],
    "interval": 1400,
    "enter": [
-    "/rooms/bedroom/scenes/sleep-in1.jpg?v=d1c5c283",
-    "/rooms/bedroom/scenes/sleep-in2.jpg?v=13b432a6"
+    "/rooms/bedroom/scenes/sleep-in1.jpg?v=1316e98c",
+    "/rooms/bedroom/scenes/sleep-in2.jpg?v=2a022704"
    ],
-   "enterMs": 520
+   "enterMs": 620
   },
   "makeup": {
    "ko": "화장",

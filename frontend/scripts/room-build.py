@@ -39,10 +39,10 @@ ROOMS = {
   },
 }
 # 장면 = 방 전체 그림 몇 장 (그 물건 + 사람이 함께 그려져 있다).
-#   enter  들어가는 길 — 서 있다가 바로 누우면 어색하니 걸터앉기 → 이불 위에 눕기를 거친다. 나올 땐 거꾸로 되짚는다.
+#   enter  들어가는 길 — 서 있다가 바로 잠들면 어색하니 이불 당기기 → 이불 덮고 눈 뜬 채를 거친다. 나올 땐 거꾸로 되짚는다.
 #   frames 그 자리에서 도는 칸 (숨쉬기·화장 동작)
 SCENES = {
-  'sleep':  { 'ko': '자기', 'enter': ['{bed}-sit', '{bed}-lie'], 'enterMs': 520,
+  'sleep':  { 'ko': '자기', 'enter': ['{bed}-pull', '{bed}-awake'], 'enterMs': 620,
               'frames': ['{room}-sleeping', '{scene}-sleep-2'], 'interval': 1400 },
   'makeup': { 'ko': '화장', 'frames': ['{scene}-makeup-1', '{scene}-makeup-2', '{scene}-makeup-3'], 'interval': 800 },
 }

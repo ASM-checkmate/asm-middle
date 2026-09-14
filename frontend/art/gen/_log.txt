@@ -145,3 +145,11 @@
 2026-09-14T08:55:24.750Z   저장 art/gen/bed-sit.jpg (image/jpeg)
 2026-09-14T08:55:25.953Z → bed-lie  ← art/gen/room-sleeping.jpg
 2026-09-14T08:55:37.808Z   저장 art/gen/bed-lie.jpg (image/jpeg)
+2026-09-14T09:05:04.500Z → anime2-bed-pull  ← art/gen/anime2-room-sleeping.jpg, art/gen/char-front.jpg
+2026-09-14T09:05:23.563Z   저장 art/gen/anime2-bed-pull.jpg (image/jpeg)
+2026-09-14T09:05:24.765Z → anime2-bed-awake  ← art/gen/anime2-room-sleeping.jpg, art/gen/char-front.jpg
+2026-09-14T09:05:38.796Z   저장 art/gen/anime2-bed-awake.jpg (image/jpeg)
+2026-09-14T09:05:39.998Z → bed-pull  ← art/gen/room-sleeping.jpg, art/gen/char-front.jpg
+2026-09-14T09:05:55.742Z   저장 art/gen/bed-pull.jpg (image/jpeg)
+2026-09-14T09:05:56.944Z → bed-awake  ← art/gen/room-sleeping.jpg, art/gen/char-front.jpg
+2026-09-14T09:06:07.141Z   저장 art/gen/bed-awake.jpg (image/jpeg)

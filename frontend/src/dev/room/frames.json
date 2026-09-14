@@ -1,0 +1,43 @@
+{
+ "idle": {
+  "frames": [
+   "/character/frames/char-front.png?v=36e37896",
+   "/character/frames/idle-2.png?v=be4a462b",
+   "/character/frames/idle-3.png?v=93ef9766"
+  ],
+  "w": 479,
+  "h": 1076,
+  "feetX": 0.5095752386818783
+ },
+ "walk-front": {
+  "frames": [
+   "/character/frames/walk-front-1.png?v=69a7a493",
+   "/character/frames/walk-front-push.png?v=f94e6bb0",
+   "/character/frames/walk-front-2.png?v=8d240b6a",
+   "/character/frames/walk-front-reach.png?v=2cefb43c",
+   "/character/frames/walk-front-3.png?v=90e591ec"
+  ],
+  "w": 467,
+  "h": 1084,
+  "feetX": 0.49690335604873226
+ },
+ "walk-back": {
+  "frames": [
+   "/character/frames/pose-back.png?v=75198f21",
+   "/character/frames/walk-back-1.png?v=776a71ed",
+   "/character/frames/walk-back-2.png?v=c870f894",
+   "/character/frames/walk-back-3.png?v=92dc7592"
+  ],
+  "w": 473,
+  "h": 1079,
+  "feetX": 0.5010435963796273
+ },
+ "sit": {
+  "frames": [
+   "/character/frames/pose-sit.png?v=40fa473a"
+  ],
+  "w": 467,
+  "h": 1075,
+  "feetX": 0.4999717376257203
+ }
+}

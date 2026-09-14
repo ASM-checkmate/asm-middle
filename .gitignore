@@ -1,1 +1,8 @@
 .DS_Store
+
+# 그림 원본 중 지금은 안 쓰는 것 (첫 배치의 옷 변형들 — frontend/art/README.md 참고).
+# 파일은 로컬에 그대로 있고, 필요해지면 이 줄만 지우면 된다.
+frontend/art/character/bald.png
+frontend/art/character/top-*.png
+frontend/art/character/bottom-*.png
+frontend/art/character/shoes-*.png

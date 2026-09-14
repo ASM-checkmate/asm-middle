@@ -1,0 +1,139 @@
+2026-09-13T19:01:44.357Z → char-front  ← art/character/base.png
+2026-09-13T19:01:58.729Z   저장 art/gen/char-front.jpg (image/jpeg)
+2026-09-13T19:01:59.929Z → char-parts  ← art/gen/char-front.png
+2026-09-13T19:01:59.930Z   실패 char-parts: 참고 그림 없음: art/gen/char-front.png (job char-front 을 먼저 받아야 한다)
+2026-09-13T19:01:59.930Z → room  ← art/gen/char-front.png
+2026-09-13T19:01:59.930Z   실패 room: 참고 그림 없음: art/gen/char-front.png (job char-front 을 먼저 받아야 한다)
+2026-09-13T19:02:13.007Z → char-parts  ← art/gen/char-front.jpg
+2026-09-13T19:02:25.221Z   저장 art/gen/char-parts.jpg (image/jpeg)
+2026-09-13T19:02:26.423Z → room  ← art/gen/char-front.jpg
+2026-09-13T19:02:36.266Z   저장 art/gen/room.jpg (image/jpeg)
+2026-09-13T19:02:56.072Z → pose-back  ← art/gen/char-front.jpg
+2026-09-13T19:03:06.603Z   저장 art/gen/pose-back.jpg (image/jpeg)
+2026-09-13T19:03:07.805Z → pose-lie  ← art/gen/char-front.jpg
+2026-09-13T19:03:18.413Z   저장 art/gen/pose-lie.jpg (image/jpeg)
+2026-09-13T19:03:19.616Z → pose-sit  ← art/gen/char-front.jpg
+2026-09-13T19:03:28.833Z   저장 art/gen/pose-sit.jpg (image/jpeg)
+2026-09-13T19:03:30.034Z → pose-walk  ← art/gen/char-front.jpg
+2026-09-13T19:03:43.505Z   저장 art/gen/pose-walk.jpg (image/jpeg)
+2026-09-13T19:03:44.706Z → room-empty  ← art/gen/room.jpg
+2026-09-13T19:03:54.232Z   저장 art/gen/room-empty.jpg (image/jpeg)
+2026-09-13T19:03:55.434Z → room-no-bed  ← art/gen/room.jpg
+2026-09-13T19:04:05.411Z   저장 art/gen/room-no-bed.jpg (image/jpeg)
+2026-09-13T19:04:06.613Z → room-no-blanket  ← art/gen/room.jpg
+2026-09-13T19:04:16.048Z   저장 art/gen/room-no-blanket.jpg (image/jpeg)
+2026-09-13T19:04:17.250Z → room-no-nightstands  ← art/gen/room.jpg
+2026-09-13T19:04:25.821Z   저장 art/gen/room-no-nightstands.jpg (image/jpeg)
+2026-09-13T19:04:27.022Z → room-no-dresser  ← art/gen/room.jpg
+2026-09-13T19:04:36.465Z   저장 art/gen/room-no-dresser.jpg (image/jpeg)
+2026-09-13T19:04:37.667Z → room-door-closed  ← art/gen/room.jpg
+2026-09-13T19:04:47.021Z   저장 art/gen/room-door-closed.jpg (image/jpeg)
+2026-09-13T19:04:48.223Z → room-night  ← art/gen/room.jpg
+2026-09-13T19:04:57.615Z   저장 art/gen/room-night.jpg (image/jpeg)
+2026-09-13T19:22:16.439Z → room-sleeping  ← art/gen/room.jpg, art/gen/char-front.jpg
+2026-09-13T19:22:25.859Z   저장 art/gen/room-sleeping.jpg (image/jpeg)
+2026-09-13T19:25:04.992Z → char-parts2  ← art/gen/char-front.jpg
+2026-09-13T19:25:15.868Z   저장 art/gen/char-parts2.jpg (image/jpeg)
+2026-09-13T19:28:41.610Z → scene-sleep-2  ← art/gen/room-sleeping.jpg
+2026-09-13T19:28:52.268Z   저장 art/gen/scene-sleep-2.jpg (image/jpeg)
+2026-09-13T19:28:53.471Z → scene-makeup-1  ← art/gen/room.jpg, art/gen/char-front.jpg
+2026-09-13T19:29:05.097Z   저장 art/gen/scene-makeup-1.jpg (image/jpeg)
+2026-09-13T19:29:06.299Z → scene-makeup-2  ← art/gen/scene-makeup-1.jpg
+2026-09-13T19:29:19.612Z   저장 art/gen/scene-makeup-2.jpg (image/jpeg)
+2026-09-13T19:29:20.815Z → scene-makeup-3  ← art/gen/scene-makeup-1.jpg
+2026-09-13T19:29:33.312Z   저장 art/gen/scene-makeup-3.jpg (image/jpeg)
+2026-09-13T19:50:55.852Z → walk-front-1  ← art/gen/char-front.jpg
+2026-09-13T19:51:06.337Z   저장 art/gen/walk-front-1.jpg (image/jpeg)
+2026-09-13T19:51:07.538Z → walk-front-2  ← art/gen/walk-front-1.jpg
+2026-09-13T19:51:19.059Z   저장 art/gen/walk-front-2.jpg (image/jpeg)
+2026-09-13T19:51:20.261Z → walk-front-3  ← art/gen/walk-front-1.jpg
+2026-09-13T19:51:30.393Z   저장 art/gen/walk-front-3.jpg (image/jpeg)
+2026-09-13T19:51:31.595Z → walk-back-1  ← art/gen/pose-back.jpg
+2026-09-13T19:51:45.274Z   저장 art/gen/walk-back-1.jpg (image/jpeg)
+2026-09-13T19:51:46.476Z → walk-back-2  ← art/gen/walk-back-1.jpg
+2026-09-13T19:51:55.556Z   저장 art/gen/walk-back-2.jpg (image/jpeg)
+2026-09-13T19:51:56.758Z → walk-back-3  ← art/gen/walk-back-1.jpg
+2026-09-13T19:52:05.601Z   저장 art/gen/walk-back-3.jpg (image/jpeg)
+2026-09-13T19:52:06.803Z → idle-2  ← art/gen/char-front.jpg
+2026-09-13T19:52:16.800Z   저장 art/gen/idle-2.jpg (image/jpeg)
+2026-09-13T19:52:18.002Z → idle-3  ← art/gen/char-front.jpg
+2026-09-13T19:52:27.860Z   저장 art/gen/idle-3.jpg (image/jpeg)
+2026-09-13T19:55:42.972Z → walk-front-push  ← art/gen/walk-front-1.jpg
+2026-09-13T19:55:52.903Z   저장 art/gen/walk-front-push.jpg (image/jpeg)
+2026-09-13T19:55:54.105Z → walk-front-reach  ← art/gen/walk-front-1.jpg
+2026-09-13T19:56:05.413Z   저장 art/gen/walk-front-reach.jpg (image/jpeg)
+2026-09-13T20:00:29.427Z → anime-room-empty  ← anime-room
+2026-09-13T20:00:29.429Z   실패 anime-room-empty: 참고 그림 없음: anime-room (job anime-room 을 먼저 받아야 한다)
+2026-09-13T20:00:29.429Z → anime-room-no-bed  ← anime-room
+2026-09-13T20:00:29.430Z   실패 anime-room-no-bed: 참고 그림 없음: anime-room (job anime-room 을 먼저 받아야 한다)
+2026-09-13T20:00:29.430Z → anime-room-no-nightstands  ← anime-room
+2026-09-13T20:00:29.430Z   실패 anime-room-no-nightstands: 참고 그림 없음: anime-room (job anime-room 을 먼저 받아야 한다)
+2026-09-13T20:00:29.430Z → anime-room-no-dresser  ← anime-room
+2026-09-13T20:00:29.430Z   실패 anime-room-no-dresser: 참고 그림 없음: anime-room (job anime-room 을 먼저 받아야 한다)
+2026-09-13T20:00:29.430Z → anime-room-sleeping  ← anime-room, art/gen/char-front.jpg
+2026-09-13T20:00:29.430Z   실패 anime-room-sleeping: 참고 그림 없음: anime-room (job anime-room 을 먼저 받아야 한다)
+2026-09-13T20:00:29.430Z → anime-scene-sleep-2  ← art/gen/anime-room-sleeping.png
+2026-09-13T20:00:29.430Z   실패 anime-scene-sleep-2: 참고 그림 없음: art/gen/anime-room-sleeping.png (job anime-room-sleeping 을 먼저 받아야 한다)
+2026-09-13T20:00:29.430Z → anime-scene-makeup-1  ← anime-room, art/gen/char-front.jpg
+2026-09-13T20:00:29.430Z   실패 anime-scene-makeup-1: 참고 그림 없음: anime-room (job anime-room 을 먼저 받아야 한다)
+2026-09-13T20:00:29.430Z → anime-scene-makeup-2  ← art/gen/anime-scene-makeup-1.png
+2026-09-13T20:00:29.431Z   실패 anime-scene-makeup-2: 참고 그림 없음: art/gen/anime-scene-makeup-1.png (job anime-scene-makeup-1 을 먼저 받아야 한다)
+2026-09-13T20:00:29.431Z → anime-scene-makeup-3  ← art/gen/anime-scene-makeup-1.png
+2026-09-13T20:00:29.431Z   실패 anime-scene-makeup-3: 참고 그림 없음: art/gen/anime-scene-makeup-1.png (job anime-scene-makeup-1 을 먼저 받아야 한다)
+2026-09-13T20:02:08.807Z → anime-room-empty  ← art/gen/anime-room.png
+2026-09-13T20:02:23.259Z   저장 art/gen/anime-room-empty.jpg (image/jpeg)
+2026-09-13T20:02:24.460Z → anime-room-no-bed  ← art/gen/anime-room.png
+2026-09-13T20:02:37.333Z   저장 art/gen/anime-room-no-bed.jpg (image/jpeg)
+2026-09-13T20:02:38.536Z → anime-room-no-nightstands  ← art/gen/anime-room.png
+2026-09-13T20:02:52.077Z   저장 art/gen/anime-room-no-nightstands.jpg (image/jpeg)
+2026-09-13T20:02:53.278Z → anime-room-no-dresser  ← art/gen/anime-room.png
+2026-09-13T20:03:06.503Z   저장 art/gen/anime-room-no-dresser.jpg (image/jpeg)
+2026-09-13T20:03:07.705Z → anime-room-sleeping  ← art/gen/anime-room.png, art/gen/char-front.jpg
+2026-09-13T20:03:20.966Z   저장 art/gen/anime-room-sleeping.jpg (image/jpeg)
+2026-09-13T20:03:22.169Z → anime-scene-sleep-2  ← art/gen/anime-room-sleeping.jpg
+2026-09-13T20:03:32.177Z   저장 art/gen/anime-scene-sleep-2.jpg (image/jpeg)
+2026-09-13T20:03:33.377Z → anime-scene-makeup-1  ← art/gen/anime-room.png, art/gen/char-front.jpg
+2026-09-13T20:03:48.183Z   저장 art/gen/anime-scene-makeup-1.jpg (image/jpeg)
+2026-09-13T20:03:49.385Z → anime-scene-makeup-2  ← art/gen/anime-scene-makeup-1.jpg
+2026-09-13T20:03:59.906Z   저장 art/gen/anime-scene-makeup-2.jpg (image/jpeg)
+2026-09-13T20:04:01.108Z → anime-scene-makeup-3  ← art/gen/anime-scene-makeup-1.jpg
+2026-09-13T20:04:11.093Z   저장 art/gen/anime-scene-makeup-3.jpg (image/jpeg)
+2026-09-13T20:06:55.510Z → anime-room-empty  ← art/gen/anime-room.png
+2026-09-13T20:07:07.365Z   저장 art/gen/anime-room-empty.jpg (image/jpeg)
+2026-09-13T20:07:08.568Z → anime-room-no-bed  ← art/gen/anime-room.png
+2026-09-13T20:07:21.874Z   저장 art/gen/anime-room-no-bed.jpg (image/jpeg)
+2026-09-13T20:07:23.077Z → anime-room-no-nightstands  ← art/gen/anime-room.png
+2026-09-13T20:07:35.455Z   저장 art/gen/anime-room-no-nightstands.jpg (image/jpeg)
+2026-09-13T20:07:36.657Z → anime-room-no-dresser  ← art/gen/anime-room.png
+2026-09-13T20:07:48.348Z   저장 art/gen/anime-room-no-dresser.jpg (image/jpeg)
+2026-09-13T20:07:49.550Z → anime-room-sleeping  ← art/gen/anime-room.png, art/gen/char-front.jpg
+2026-09-13T20:08:04.313Z   저장 art/gen/anime-room-sleeping.jpg (image/jpeg)
+2026-09-13T20:08:05.514Z → anime-scene-sleep-2  ← art/gen/anime-room-sleeping.jpg
+2026-09-13T20:08:15.717Z   저장 art/gen/anime-scene-sleep-2.jpg (image/jpeg)
+2026-09-13T20:08:16.920Z → anime-scene-makeup-1  ← art/gen/anime-room.png, art/gen/char-front.jpg
+2026-09-13T20:08:20.548Z   그림이 안 왔다: {"candidates":[{"content":{},"finishReason":"NO_IMAGE","index":0}],"usageMetadata":{"promptTokenCount":629,"totalTokenCount":629,"promptTokensDetails":[{"modality":"TEXT","tokenCount":113},{"modality":"IMAGE","tokenCount":516}],"serviceTier":"standard"},"modelVersion":"gemini-3.1-flash-image","respo
+2026-09-13T20:08:38.241Z   저장 art/gen/anime-scene-makeup-1.jpg (image/jpeg)
+2026-09-13T20:08:39.443Z → anime-scene-makeup-2  ← art/gen/anime-scene-makeup-1.jpg
+2026-09-13T20:08:49.750Z   저장 art/gen/anime-scene-makeup-2.jpg (image/jpeg)
+2026-09-13T20:08:50.952Z → anime-scene-makeup-3  ← art/gen/anime-scene-makeup-1.jpg
+2026-09-13T20:09:01.280Z   저장 art/gen/anime-scene-makeup-3.jpg (image/jpeg)
+2026-09-13T20:09:57.650Z → anime2-room  ← art/gen/anime-room.png
+2026-09-13T20:10:09.734Z   저장 art/gen/anime2-room.jpg (image/jpeg)
+2026-09-13T20:10:10.935Z → anime2-room-empty  ← art/gen/anime2-room.jpg
+2026-09-13T20:10:22.097Z   저장 art/gen/anime2-room-empty.jpg (image/jpeg)
+2026-09-13T20:10:23.299Z → anime2-room-no-bed  ← art/gen/anime2-room.jpg
+2026-09-13T20:10:32.596Z   저장 art/gen/anime2-room-no-bed.jpg (image/jpeg)
+2026-09-13T20:10:33.797Z → anime2-room-no-nightstands  ← art/gen/anime2-room.jpg
+2026-09-13T20:10:43.334Z   저장 art/gen/anime2-room-no-nightstands.jpg (image/jpeg)
+2026-09-13T20:10:44.536Z → anime2-room-no-dresser  ← art/gen/anime2-room.jpg
+2026-09-13T20:10:52.313Z   저장 art/gen/anime2-room-no-dresser.jpg (image/jpeg)
+2026-09-13T20:10:53.515Z → anime2-room-sleeping  ← art/gen/anime2-room.jpg, art/gen/char-front.jpg
+2026-09-13T20:11:03.887Z   저장 art/gen/anime2-room-sleeping.jpg (image/jpeg)
+2026-09-13T20:11:05.090Z → anime2-scene-sleep-2  ← art/gen/anime2-room-sleeping.jpg
+2026-09-13T20:11:15.171Z   저장 art/gen/anime2-scene-sleep-2.jpg (image/jpeg)
+2026-09-13T20:11:16.374Z → anime2-scene-makeup-1  ← art/gen/anime2-room.jpg, art/gen/char-front.jpg
+2026-09-13T20:11:33.306Z   저장 art/gen/anime2-scene-makeup-1.jpg (image/jpeg)
+2026-09-13T20:11:34.508Z → anime2-scene-makeup-2  ← art/gen/anime2-scene-makeup-1.jpg
+2026-09-13T20:11:45.050Z   저장 art/gen/anime2-scene-makeup-2.jpg (image/jpeg)
+2026-09-13T20:11:46.252Z → anime2-scene-makeup-3  ← art/gen/anime2-scene-makeup-1.jpg
+2026-09-13T20:11:56.653Z   저장 art/gen/anime2-scene-makeup-3.jpg (image/jpeg)

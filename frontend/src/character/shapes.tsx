@@ -238,7 +238,7 @@ export function Head({ face = 'default', variant = 'me', quarter = false, chew =
 
 // ─── 얼굴 축 조각들 (실험) ─────────────────────────────────────────────────
 /** 눈. 기준: 눈 중심 (±20, 12) */
-function Eyes({ kind, dx }: { kind: NonNullable<Look['eyes']>; dx: number }) {
+export function Eyes({ kind, dx }: { kind: NonNullable<Look['eyes']>; dx: number }) {
   if (kind === 'big') return (
     <>
       <circle cx={-20 + dx} cy="12" r="11" fill={C.ink} />
@@ -282,7 +282,7 @@ function Eyes({ kind, dx }: { kind: NonNullable<Look['eyes']>; dx: number }) {
 }
 
 /** 눈썹. 눈 위 y≈-6 */
-function Brows({ kind, dx }: { kind: NonNullable<Look['brows']>; dx: number }) {
+export function Brows({ kind, dx }: { kind: NonNullable<Look['brows']>; dx: number }) {
   if (kind === 'none') return null;
   if (kind === 'angled') return (
     <g fill="none" stroke={C.ink} strokeWidth="4.5" strokeLinecap="round">
@@ -297,14 +297,14 @@ function Brows({ kind, dx }: { kind: NonNullable<Look['brows']>; dx: number }) {
 }
 
 /** 코. 눈(12)과 입(28) 사이 */
-function Nose({ kind, dx, fy }: { kind: NonNullable<Look['nose']>; dx: number; fy: number }) {
+export function Nose({ kind, dx, fy }: { kind: NonNullable<Look['nose']>; dx: number; fy: number }) {
   if (kind === 'none') return null;
   if (kind === 'big') return <path d={`M${-2 + dx} ${13 + fy / 2} q9 6 3 13 q-3 2 -7 0`} fill="none" {...INK3} />;
   return <path d={`M${1 + dx} ${17 + fy / 2} q4 4 0 7`} fill="none" {...INK3} />;
 }
 
 /** 입(기본 표정일 때만 — 다른 표정은 표정이 이긴다) */
-function Mouth({ kind, dx, fy }: { kind: NonNullable<Look['mouth']>; dx: number; fy: number }) {
+export function Mouth({ kind, dx, fy }: { kind: NonNullable<Look['mouth']>; dx: number; fy: number }) {
   if (kind === 'wide') return <path d={`M${-13 + dx} ${26 + fy} q13 12 26 0`} fill="none" {...INK} />;
   if (kind === 'flat') return <path d={`M${-8 + dx} ${29 + fy} h16`} fill="none" {...INK} />;
   return <path d={`M${-6 + dx} ${28 + fy} q6 6 12 0`} fill="none" {...INK} />;

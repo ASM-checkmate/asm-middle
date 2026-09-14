@@ -17,7 +17,7 @@ if (import.meta.env.DEV) {
 
 // `?lab=character` → src/dev/CharacterLab.tsx (built concurrently). Loaded through a glob so a missing file
 // neither breaks the import graph nor the app; a broken one is caught by the boundary below.
-const labModules = import.meta.glob(['./dev/CharacterLab.tsx', './dev/BakeLab.tsx']);
+const labModules = import.meta.glob(['./dev/CharacterLab.tsx', './dev/BakeLab.tsx', './dev/VrmLab.tsx', './dev/Look3dLab.tsx', './dev/FaceLab.tsx']);
 const CharacterLab = lazy(async () => {
   const load = labModules['./dev/CharacterLab.tsx'];
   if (!load) throw new Error('CharacterLab not found');
@@ -33,6 +33,36 @@ const BakeLab = lazy(async () => {
   const m = (await load()) as { default?: ComponentType; BakeLab?: ComponentType };
   const C = m.BakeLab ?? m.default;
   if (!C) throw new Error('BakeLab has no component export');
+  return { default: C };
+});
+
+// `?lab=vrm` → src/dev/VrmLab.tsx (3D 아바타 스파이크): 툰 셰이딩 방에 VRM 아바타
+const VrmLab = lazy(async () => {
+  const load = labModules['./dev/VrmLab.tsx'];
+  if (!load) throw new Error('VrmLab not found');
+  const m = (await load()) as { default?: ComponentType; VrmLab?: ComponentType };
+  const C = m.VrmLab ?? m.default;
+  if (!C) throw new Error('VrmLab has no component export');
+  return { default: C };
+});
+
+// `?lab=look3d` → src/dev/Look3dLab.tsx: 열세 칸을 3D 도형으로 조립하는 스파이크
+const Look3dLab = lazy(async () => {
+  const load = labModules['./dev/Look3dLab.tsx'];
+  if (!load) throw new Error('Look3dLab not found');
+  const m = (await load()) as { default?: ComponentType; Look3dLab?: ComponentType };
+  const C = m.Look3dLab ?? m.default;
+  if (!C) throw new Error('Look3dLab has no component export');
+  return { default: C };
+});
+
+// `?lab=face` → src/dev/FaceLab.tsx: ICT FaceKit 머리 + 셰이프 키 + 사진 피팅 프리셋
+const FaceLab = lazy(async () => {
+  const load = labModules['./dev/FaceLab.tsx'];
+  if (!load) throw new Error('FaceLab not found');
+  const m = (await load()) as { default?: ComponentType; FaceLab?: ComponentType };
+  const C = m.FaceLab ?? m.default;
+  if (!C) throw new Error('FaceLab has no component export');
   return { default: C };
 });
 
@@ -65,6 +95,36 @@ export default function App() {
           </Suspense>
         </Boundary>
       </OwnerLookContext.Provider>
+    );
+  }
+
+  if (LAB === 'vrm') {
+    return (
+      <Boundary fallback={<div className="lab-note">VRM 랩을 열 수 없어요 — src/dev/VrmLab.tsx 를 확인해 주세요.</div>}>
+        <Suspense fallback={<div className="lab-note">VRM 랩 여는 중…</div>}>
+          <VrmLab />
+        </Suspense>
+      </Boundary>
+    );
+  }
+
+  if (LAB === 'look3d') {
+    return (
+      <Boundary fallback={<div className="lab-note">3D 겉모습 랩을 열 수 없어요 — src/dev/Look3dLab.tsx 를 확인해 주세요.</div>}>
+        <Suspense fallback={<div className="lab-note">3D 겉모습 랩 여는 중…</div>}>
+          <Look3dLab />
+        </Suspense>
+      </Boundary>
+    );
+  }
+
+  if (LAB === 'face') {
+    return (
+      <Boundary fallback={<div className="lab-note">얼굴 랩을 열 수 없어요 — src/dev/FaceLab.tsx 를 확인해 주세요.</div>}>
+        <Suspense fallback={<div className="lab-note">얼굴 랩 여는 중…</div>}>
+          <FaceLab />
+        </Suspense>
+      </Boundary>
     );
   }
 

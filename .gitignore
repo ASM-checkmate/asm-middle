@@ -1,1 +1,5 @@
 .DS_Store
+frontend/public/dev-look3d/
+frontend/public/kaykit/
+frontend/public/quat/
+frontend/public/vrm/

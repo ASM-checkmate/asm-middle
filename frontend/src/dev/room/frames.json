@@ -2,8 +2,8 @@
  "idle": {
   "frames": [
    "/character/frames/char-front.png?v=36e37896",
-   "/character/frames/idle-2.png?v=be4a462b",
-   "/character/frames/idle-3.png?v=93ef9766"
+   "/character/frames/idle-2.png?v=8b77746d",
+   "/character/frames/idle-3.png?v=71a8106d"
   ],
   "w": 479,
   "h": 1076,
@@ -12,10 +12,10 @@
  "walk-front": {
   "frames": [
    "/character/frames/walk-front-1.png?v=69a7a493",
-   "/character/frames/walk-front-push.png?v=f94e6bb0",
-   "/character/frames/walk-front-2.png?v=8d240b6a",
-   "/character/frames/walk-front-reach.png?v=2cefb43c",
-   "/character/frames/walk-front-3.png?v=90e591ec"
+   "/character/frames/walk-front-push.png?v=9955f8aa",
+   "/character/frames/walk-front-2.png?v=873b492b",
+   "/character/frames/walk-front-reach.png?v=0e65672b",
+   "/character/frames/walk-front-3.png?v=d75b8f26"
   ],
   "w": 467,
   "h": 1084,
@@ -24,9 +24,9 @@
  "walk-back": {
   "frames": [
    "/character/frames/pose-back.png?v=75198f21",
-   "/character/frames/walk-back-1.png?v=776a71ed",
-   "/character/frames/walk-back-2.png?v=c870f894",
-   "/character/frames/walk-back-3.png?v=92dc7592"
+   "/character/frames/walk-back-1.png?v=8e9be8fc",
+   "/character/frames/walk-back-2.png?v=79416042",
+   "/character/frames/walk-back-3.png?v=cf71f7af"
   ],
   "w": 473,
   "h": 1079,

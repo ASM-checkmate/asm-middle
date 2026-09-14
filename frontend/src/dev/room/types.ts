@@ -3,8 +3,9 @@
 // 대신 **걸을 수 있는 바닥(walk)** 밖으로는 못 나가게 막고, 바닥 위의 **트리거존(zones)** 에 들어서면 그 자리의 동작이 걸린다.
 export type Pt = [number, number];
 
-/** 존에 들어서면 트는 장면. 프레임은 '그 물건 + 사람'이 함께 그려진 방 전체 그림이라 배경째 갈아 끼운다 */
-export interface RoomScene { ko: string; frames: string[]; interval: number }
+/** 존에 들어서면 트는 장면. 프레임은 '그 물건 + 사람'이 함께 그려진 방 전체 그림이라 배경째 갈아 끼운다.
+ *  enter 는 들어가는 길(걸터앉기 → 눕기)이고, 나올 땐 거꾸로 되짚는다. frames 는 그 자리에서 도는 칸(숨쉬기 등) */
+export interface RoomScene { ko: string; enter?: string[]; frames: string[]; interval: number; enterMs?: number }
 /** 바닥 위의 칸: 여기 들어서면 scene 이 걸린다. stand 는 그때 사람이 서는 자리(장면 중엔 사람을 안 그리니 표시용) */
 export interface RoomZone { id: string; ko: string; scene: string; rect: [number, number, number, number]; stand: Pt }
 

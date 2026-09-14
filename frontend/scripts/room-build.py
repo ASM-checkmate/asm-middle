@@ -19,6 +19,7 @@ ROOMS = {
   'anime': {
     'room': 'anime2-room', 'scene': 'anime2-scene',
     'walk': [(62, 400), (300, 400), (390, 570), (390, 600), (0, 600), (0, 490)],
+    'bed': 'anime2',
     'zones': [
       { 'id': 'bed',    'ko': '침대',   'scene': 'sleep',  'rect': [100, 398, 290, 444], 'stand': [195, 430] },
       { 'id': 'makeup', 'ko': '화장대', 'scene': 'makeup', 'rect': [300, 400, 390, 474], 'stand': [332, 446] },
@@ -29,6 +30,7 @@ ROOMS = {
   'bedroom': {
     'room': 'room', 'scene': 'scene',
     'walk': [(60, 400), (315, 400), (390, 540), (390, 600), (0, 600), (0, 520)],
+    'bed': '',
     'zones': [
       { 'id': 'bed',    'ko': '침대',   'scene': 'sleep',  'rect': [110, 398, 290, 444], 'stand': [195, 428] },
       { 'id': 'makeup', 'ko': '화장대', 'scene': 'makeup', 'rect': [308, 400, 390, 464], 'stand': [338, 436] },
@@ -36,10 +38,13 @@ ROOMS = {
     'home': [70, 556],
   },
 }
-# 장면 = 방 전체 그림 몇 장을 돌린다 (그 물건 + 사람이 함께 그려져 있다)
+# 장면 = 방 전체 그림 몇 장 (그 물건 + 사람이 함께 그려져 있다).
+#   enter  들어가는 길 — 서 있다가 바로 누우면 어색하니 걸터앉기 → 이불 위에 눕기를 거친다. 나올 땐 거꾸로 되짚는다.
+#   frames 그 자리에서 도는 칸 (숨쉬기·화장 동작)
 SCENES = {
-  'sleep':  { 'ko': '자기',   'frames': ['{room}-sleeping', '{scene}-sleep-2'],                      'interval': 1400 },
-  'makeup': { 'ko': '화장',   'frames': ['{scene}-makeup-1', '{scene}-makeup-2', '{scene}-makeup-3'], 'interval': 800 },
+  'sleep':  { 'ko': '자기', 'enter': ['{bed}-sit', '{bed}-lie'], 'enterMs': 520,
+              'frames': ['{room}-sleeping', '{scene}-sleep-2'], 'interval': 1400 },
+  'makeup': { 'ko': '화장', 'frames': ['{scene}-makeup-1', '{scene}-makeup-2', '{scene}-makeup-3'], 'interval': 800 },
 }
 
 RID = sys.argv[1] if len(sys.argv) > 1 else 'anime'
@@ -64,16 +69,23 @@ print(f'  back.jpg  ← {CFG["room"]}')
 
 scenes = {}
 for sid, sc in SCENES.items():
-    names = [f.format(room=CFG['room'], scene=CFG['scene']) for f in sc['frames']]
+    bed = CFG['bed'] + '-bed' if CFG['bed'] else 'bed'
+    fmt = lambda f: f.format(room=CFG['room'], scene=CFG['scene'], bed=bed)
+    names = [fmt(f) for f in sc['frames']]
     missing = [n for n in names if not have(n)]
     if missing:
         print(f'  ! {sid} 건너뜀 — 없는 그림: {", ".join(missing)}'); continue
-    frames = []
-    for i, n in enumerate(names):
-        p = f'{OUT}/scenes/{sid}-{i + 1}.jpg'
-        frames.append(f'/rooms/{RID}/scenes/{sid}-{i + 1}.jpg?v={save(n, p)}')
-    scenes[sid] = { 'ko': sc['ko'], 'frames': frames, 'interval': sc['interval'] }
-    print(f'  scenes/{sid}-*.jpg  ← {", ".join(names)}')
+    def cut_all(src_names, tag):
+        outs = []
+        for i, n in enumerate(src_names):
+            p = f'{OUT}/scenes/{sid}-{tag}{i + 1}.jpg'
+            outs.append(f'/rooms/{RID}/scenes/{sid}-{tag}{i + 1}.jpg?v={save(n, p)}')
+        return outs
+    frames = cut_all(names, '')
+    enter_names = [fmt(f) for f in sc.get('enter', [])]
+    enter = cut_all(enter_names, 'in') if enter_names and all(have(n) for n in enter_names) else []
+    scenes[sid] = { 'ko': sc['ko'], 'frames': frames, 'interval': sc['interval'], **({ 'enter': enter, 'enterMs': sc.get('enterMs', 520) } if enter else {}) }
+    print(f'  scenes/{sid}-*.jpg  ← {", ".join(enter_names + names)}')
 
 room = {
   'id': RID, 'w': W, 'h': H,

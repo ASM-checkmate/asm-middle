@@ -137,3 +137,11 @@
 2026-09-13T20:11:45.050Z   저장 art/gen/anime2-scene-makeup-2.jpg (image/jpeg)
 2026-09-13T20:11:46.252Z → anime2-scene-makeup-3  ← art/gen/anime2-scene-makeup-1.jpg
 2026-09-13T20:11:56.653Z   저장 art/gen/anime2-scene-makeup-3.jpg (image/jpeg)
+2026-09-14T08:54:35.463Z → anime2-bed-sit  ← art/gen/anime2-room-sleeping.jpg
+2026-09-14T08:54:52.098Z   저장 art/gen/anime2-bed-sit.jpg (image/jpeg)
+2026-09-14T08:54:53.299Z → anime2-bed-lie  ← art/gen/anime2-room-sleeping.jpg
+2026-09-14T08:55:06.232Z   저장 art/gen/anime2-bed-lie.jpg (image/jpeg)
+2026-09-14T08:55:07.433Z → bed-sit  ← art/gen/room-sleeping.jpg
+2026-09-14T08:55:24.750Z   저장 art/gen/bed-sit.jpg (image/jpeg)
+2026-09-14T08:55:25.953Z → bed-lie  ← art/gen/room-sleeping.jpg
+2026-09-14T08:55:37.808Z   저장 art/gen/bed-lie.jpg (image/jpeg)

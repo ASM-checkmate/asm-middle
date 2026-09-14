@@ -403,6 +403,34 @@
       "refs": [
         "anime2-scene-makeup-1"
       ]
+    },
+    {
+      "name": "anime2-bed-sit",
+      "prompt": "Keep everything exactly identical to the reference image — same room, camera, furniture, bedding, lighting and style, and the same character (clay-figure style, two hair buns, cream V-neck shirt, gray pants). Only change: she is sitting on the near edge of the bed instead of lying in it, feet on the floor, hands resting on her knees, eyes open, looking toward the camera. The blanket is smooth and undisturbed as if nobody has lain down yet.",
+      "refs": [
+        "anime2-room-sleeping"
+      ]
+    },
+    {
+      "name": "anime2-bed-lie",
+      "prompt": "Keep everything exactly identical to the reference image — same room, camera, furniture, bedding, lighting and style, and the same character (clay-figure style, two hair buns, cream V-neck shirt, gray pants). Only change: she has just lain down on her back on top of the bed, head on the pillow, eyes open and awake, arms at her sides, ON TOP of the blanket — the blanket is not covering her at all.",
+      "refs": [
+        "anime2-room-sleeping"
+      ]
+    },
+    {
+      "name": "bed-sit",
+      "prompt": "Keep everything exactly identical to the reference image — same room, camera, furniture, bedding, lighting and style, and the same character (clay-figure style, two hair buns, cream V-neck shirt, gray pants). Only change: she is sitting on the near edge of the bed instead of lying in it, feet on the floor, hands resting on her knees, eyes open, looking toward the camera. The blanket is smooth and undisturbed as if nobody has lain down yet.",
+      "refs": [
+        "room-sleeping"
+      ]
+    },
+    {
+      "name": "bed-lie",
+      "prompt": "Keep everything exactly identical to the reference image — same room, camera, furniture, bedding, lighting and style, and the same character (clay-figure style, two hair buns, cream V-neck shirt, gray pants). Only change: she has just lain down on her back on top of the bed, head on the pillow, eyes open and awake, arms at her sides, ON TOP of the blanket — the blanket is not covering her at all.",
+      "refs": [
+        "room-sleeping"
+      ]
     }
   ]
 }

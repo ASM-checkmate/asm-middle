@@ -73,7 +73,12 @@
     "/rooms/anime/scenes/sleep-1.jpg?v=c4f6fa27",
     "/rooms/anime/scenes/sleep-2.jpg?v=f06785b5"
    ],
-   "interval": 1400
+   "interval": 1400,
+   "enter": [
+    "/rooms/anime/scenes/sleep-in1.jpg?v=29dc4fe2",
+    "/rooms/anime/scenes/sleep-in2.jpg?v=7f1c6951"
+   ],
+   "enterMs": 520
   },
   "makeup": {
    "ko": "화장",

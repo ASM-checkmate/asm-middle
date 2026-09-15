@@ -2,7 +2,8 @@ import type { ActivityOption, Anchor, BlockId, BlockPlan, Comic, DayKey, Friend,
 import { splitDayKey } from './types';
 import { BLOCK_ORDER, blockAtIn, blockEndAt, blockSlotIn, blockStartAt, nextBlockId } from './blocks';
 import { HOUR_MS, addDaysKey, dayKeyIn, dayStartOfKey, offsetMinutes } from './tz';
-import { estimateJourney, journeyKey } from './journey';
+import { carJourney, estimateJourney, journeyKey } from './journey';
+import { rideSponsorFor } from './sponsors';
 import { PLACES, placeById, tzOf } from './places';
 import { alongPath, cumulativeKm } from './geo';
 import { AGENTS, agentById, agentOfFriend, agentsAt, forcedSlotAt, isRemoteId, remoteMeId, remoteSlotAt, rollTalk, rollTalkRemote, talkChance } from './agents';
@@ -100,12 +101,14 @@ export function buildTimeline(anchor: Anchor, days: Days, memory: Memory, journe
     if (slot.id === 'sleep') {
       const bed = cursor.free < slot.end ? bedPlaceFor(cursor.place, memory) : null;
       if (bed) {
-        const journey = journeys[journeyKey(cursor.place.id, bed.id)] ?? estimateJourney(cursor.place, bed);
+        // 제휴 택시가 있는 도시면 캐시 대신 그 택시의 차 여정 (ADR-0031) — 지도가 라벨을 pill로 띄우고 광고 카드를 단다
+        const ride = rideSponsorFor(bed.city);
+        const journey = ride ? carJourney(cursor.place, bed, ride.label) : journeys[journeyKey(cursor.place.id, bed.id)] ?? estimateJourney(cursor.place, bed);
         const departAt = Math.max(cursor.free, slot.start - (journey.totalMin + BED_MARGIN_MIN) * 60_000);
         const arriveAt = departAt + journey.totalMin * 60_000;
         const dayKey = dayKeyIn(departAt, tz);
         const option: ActivityOption = { id: `${dayKey}-bed`, title: bed.type === 'home' ? '집으로' : '숙소로', reason: '슬슬 잘 시간', emoji: '🛏️', placeId: bed.id, category: 'sleep' };
-        acts.push({ key: `${dayKey}:bed`, dayKey, blockIds: ['sleep'], option, place: bed, fromPlace: cursor.place, journey, departAt, arriveAt, endAt: arriveAt, comicUntil: arriveAt, originTz: tz, tz: tzOf(bed), jetlagUntil: cursor.jetlagUntil, companions: [], presentNearby: [] });
+        acts.push({ key: `${dayKey}:bed`, dayKey, blockIds: ['sleep'], option, place: bed, fromPlace: cursor.place, journey, departAt, arriveAt, endAt: arriveAt, comicUntil: arriveAt, originTz: tz, tz: tzOf(bed), jetlagUntil: cursor.jetlagUntil, companions: [], presentNearby: [], ...(ride ? { ride } : {}) });
         cursor = { ...cursor, place: bed, free: arriveAt };
       }
       t = slot.end; continue;

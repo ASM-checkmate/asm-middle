@@ -17,6 +17,7 @@ import { buildStyle } from './style';
 import { RouteLayers } from './route';
 import { ACTOR_OFFSET, createActorDom, createActorMarker, createPinDom, createPinMarker, setActorBubble, setActorMode, type ActorDom, type BubbleKind } from './marker';
 import { MoveCard, type CardHandle } from './card';
+import { AdCard } from './AdCard';
 import { refineAndStore, sameShape } from './routing';
 import {
   PLANE_MAX_ZOOM, PLANE_MIN_ZOOM, PLANE_SHORT_KM, bboxOf, departEase, easeInOutCubic, isRail, lerpK, lerpLngLat, lerpPose, makeSampler, modeCam,
@@ -859,7 +860,7 @@ export function MapScene({ act, onArrive, onReady }: MapSceneProps) {
   useEffect(() => { void refineAndStore(fromId, toId, journey).catch(() => { /* estimate stays */ }); }, [fromId, toId, journey]);
 
   return (
-    <div className={'map-scene' + (ready ? '' : ' is-loading')} data-to={act.place.id}>
+    <div className={'map-scene' + (ready ? '' : ' is-loading') + (act.ride ? ' has-ad' : '')} data-to={act.place.id}>
       <div className="map-canvas" ref={container} />
       <div className="map-loading" aria-hidden="true">
         <div className="map-loading-park p1" /><div className="map-loading-park p2" /><div className="map-loading-park p3" />
@@ -876,6 +877,8 @@ export function MapScene({ act, onArrive, onReady }: MapSceneProps) {
         dom.rider,
       )}
       <MoveCard act={act} journey={journey} legIndex={leg.index} ticks={leg.ticks} companions={companions} ref={card} />
+      {/* 제휴 택시 광고 (ADR-0031): 이동 카드 위 별도 요소 — .mc는 크기 고정이라 안 건드린다 */}
+      {act.ride && <AdCard ride={act.ride} />}
     </div>
   );
 }

@@ -318,6 +318,9 @@ export interface Leg {
 
 export interface Journey { legs: Leg[]; totalMin: number }
 
+/** 이동 제휴 (ADR-0031): 귀가 택시 같은 스폰서 — 여정 라벨과 지도 광고 카드에 쓴다. 로고 자산 없이 이름·문구·아이콘만 */
+export interface RideSponsor { id: string; name: string; label: string; tagline: string; emoji: string }
+
 export interface ScheduledActivity {
   key: string;               // `${dayKey}:${blockId}` — unique even when a date is lived twice (two zones)
   dayKey: DayKey;            // the day it was planned in (its departure block belongs to this day)
@@ -342,6 +345,8 @@ export interface ScheduledActivity {
   presentNearby: string[];
   /** another agent was at the same place for ≥ 30 min; `talked` = the talk roll succeeded (FRIENDS_SPEC §4) */
   encounter?: Encounter;
+  /** 이동 제휴 (ADR-0031): 취침 전 귀가가 그 도시의 제휴 택시를 탈 때 — 지도에 광고 카드 */
+  ride?: RideSponsor;
   /** 계획과 어긋난 기록 (sim/friction.ts). 없으면 계획대로 갔다는 뜻이다. */
   outcome?: Outcome;
   /** 아침에 그린 그림 — buildTimeline이 plan.sketch를 복사 (활동 로그 첫 줄·만화 헤더가 act만 받으므로) */

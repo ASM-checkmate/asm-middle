@@ -106,6 +106,8 @@ export const PLACES: Place[] = [
   P('pnu', '부산대학교', 'school', 129.0817, 35.2333, '장전동', 'busan', 'KR', '🏫'),
   P('josaeho', '조새호', 'restaurant', 129.1195, 35.1535, '광안동', 'busan', 'KR', '🦪'),
   P('samjin-pocha', '삼진포차', 'bar', 129.1183, 35.1545, '광안동', 'busan', 'KR', '🍶'),
+  // 손님 NPC의 집 (ADR-0031 — 부산 데모의 프랑스 관광객 루이·클로에). 활동 장소로는 안 뽑힌다 (home)
+  P('paris-home', '파리 집', 'home', 2.3522, 48.8566, '마레', 'paris', 'FR', '🏠'),
   P('paradise-busan', '파라다이스 호텔 부산', 'hotel', 129.1655, 35.1592, '해운대', 'busan', 'KR', '🏨'),
 
   // ── 강릉 ──────────────────────────────────────────────────────────────────
@@ -269,7 +271,7 @@ export const CITY_HUBS: Record<string, CityHubs & { intlAirport?: string; hasSub
 /** Korean display names for city keys (titles, comic captions). */
 export const CITY_NAME_KO: Record<string, string> = {
   seoul: '서울', busan: '부산', gangneung: '강릉', gyeongju: '경주', jeonju: '전주', yeosu: '여수', jeju: '제주', udo: '우도',
-  fukuoka: '후쿠오카', tokyo: '도쿄', osaka: '오사카', taipei: '타이베이', newyork: '뉴욕',
+  fukuoka: '후쿠오카', tokyo: '도쿄', osaka: '오사카', taipei: '타이베이', newyork: '뉴욕', paris: '파리',
 };
 export const cityNameKo = (city: string) => CITY_NAME_KO[city] ?? city;
 /** "교토" → "kyoto". 붙박이든 찾아 온 도시든. 모르면 null. */
@@ -290,9 +292,9 @@ export const stayNightsOf = (city: string, country: string): number => CITY_STAY
 /** IANA zone per city key — the character lives in the zone of the place it is at. */
 export const CITY_TZ: Record<string, string> = {
   seoul: 'Asia/Seoul', busan: 'Asia/Seoul', gangneung: 'Asia/Seoul', gyeongju: 'Asia/Seoul', jeonju: 'Asia/Seoul', yeosu: 'Asia/Seoul', jeju: 'Asia/Seoul', udo: 'Asia/Seoul',
-  fukuoka: 'Asia/Tokyo', tokyo: 'Asia/Tokyo', osaka: 'Asia/Tokyo', taipei: 'Asia/Taipei', newyork: 'America/New_York',
+  fukuoka: 'Asia/Tokyo', tokyo: 'Asia/Tokyo', osaka: 'Asia/Tokyo', taipei: 'Asia/Taipei', newyork: 'America/New_York', paris: 'Europe/Paris',
 };
-const COUNTRY_TZ: Record<string, string> = { KR: 'Asia/Seoul', JP: 'Asia/Tokyo', TW: 'Asia/Taipei', US: 'America/New_York' };
+const COUNTRY_TZ: Record<string, string> = { KR: 'Asia/Seoul', JP: 'Asia/Tokyo', TW: 'Asia/Taipei', US: 'America/New_York', FR: 'Europe/Paris' };
 export const tzOf = (p: Pick<Place, 'city' | 'country'>): string => CITY_TZ[p.city] ?? COUNTRY_TZ[p.country] ?? 'Asia/Seoul';
 /** The first city key in `tz` (for the owner-clock pill: "서울 09:12"), or null when no city lives there. */
 export const cityOfTz = (tz: string): string | null => Object.keys(CITY_TZ).find(c => CITY_TZ[c] === tz) ?? null;

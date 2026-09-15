@@ -5,7 +5,7 @@ import { HOUR_MS, addDaysKey, dayKeyIn, dayStartOfKey, offsetMinutes } from './t
 import { estimateJourney, journeyKey } from './journey';
 import { PLACES, placeById, tzOf } from './places';
 import { alongPath, cumulativeKm } from './geo';
-import { AGENTS, agentById, agentOfFriend, agentsAt, isRemoteId, remoteMeId, remoteSlotAt, rollTalk, rollTalkRemote, talkChance } from './agents';
+import { AGENTS, agentById, agentOfFriend, agentsAt, forcedSlotAt, isRemoteId, remoteMeId, remoteSlotAt, rollTalk, rollTalkRemote, talkChance } from './agents';
 import { diverts, pickAlternative, rollFriction, type Outcome } from './friction';
 import { narrate } from './narrate';
 import { rng } from './rng';
@@ -175,13 +175,22 @@ function addEncounters(acts: ScheduledActivity[], memory: Memory, encounters: En
   const talkedDays = new Set<DayKey>();
   for (const a of acts) {
     if (isBedtime(a)) continue;   // 잘 곳으로 가는 길엔 마주침이 없다
+    const forced = forcedSlotAt(a.key, a.place.id, a.arriveAt, a.endAt);   // 시나리오가 못 박은 사람들 (ADR-0031) — 맨 앞
     const remote = remoteSlotAt(a.key, a.place.id, a.arriveAt, a.endAt) ?? [];
-    const met = [...remote, ...agentsAt(a.place.id, a.arriveAt, a.endAt, AGENTS)]
+    const met = [...forced, ...remote, ...agentsAt(a.place.id, a.arriveAt, a.endAt, AGENTS)]
       .filter(x => x.overlapMs >= ENCOUNTER_MIN_MS && !a.companions.includes(x.agent.id) && x.agent.homePlaceId !== memory.homePlaceId);
     if (!met.length) continue;
     const { agent, overlapMs } = met[0];
     a.presentNearby = presentIds(met.map(x => x.agent.id), agent.id);
     const meId = isRemoteId(agent.id) ? remoteMeId() ?? memory.name : memory.name;
+    // 강제 마주침: 굴림 없이 그 시각에 말을 튼다. 둘 이상이면 나머지는 also (같이 온 사람들) — 하루 한 명 규칙도 이 활동이 쓴다
+    const forcedHere = forced.filter(f => f.agent.id === agent.id || met.some(m => m.agent.id === f.agent.id));
+    if (forcedHere.length && forcedHere[0].agent.id === agent.id) {
+      const also = forcedHere.slice(1).map(f => f.agent.id);
+      talkedDays.add(a.dayKey);
+      a.encounter = { agentId: agent.id, talked: true, at: forcedHere[0].at, ...(memory.friends.some(f => f.id === agent.id) ? { again: true } : {}), ...(also.length ? { also } : {}) };
+      continue;
+    }
     const at = talkAt(a, meId, agent.id);
     if (memory.friends.some(f => f.id === agent.id)) { a.encounter = { agentId: agent.id, talked: true, again: true, at }; continue; }
     if (talkedDays.has(a.dayKey)) { a.encounter = { agentId: agent.id, talked: false }; continue; }   // 하루 최대 1명

@@ -380,14 +380,18 @@ export interface UserShot { actKey: string; at: number; crop: ShotCrop; shotId?:
  * `at`: 말을 튼 순간 (ms, 활동 시간의 30~64 % 지점, 시드 = 날짜·장소·둘의 id) — 그 전엔 같은 공간의 한 사람(뒷모습), 그 뒤부터 '만난 사람'(정면).
  * talked·again일 때만 있다 (ADR-0026 결정 5: 활동 중간에 대화가 성공하면 앞 컷은 뒷모습, 뒤 컷은 정면)
  */
-export interface Encounter { agentId: string; talked: boolean; again?: boolean; at?: number }
+export interface Encounter { agentId: string; talked: boolean; again?: boolean; at?: number;
+  /** 같은 순간 같이 말 튼 나머지 (ADR-0031 — 둘이서 온 관광객). talked일 때만; 정산에서 이들도 친구가 된다 */
+  also?: string[] }
 
 // ─── 사진 속 인물 (FRIENDS_SPEC §6 표) ────────────────────────────────────────
 /**
  * 만화가 기억하는 인물 하나 — 색과 머리 모양만 (얼굴은 우리가 그리지 않는다: 동행은 정면 기본 얼굴, 배경 인물은 뒷모습).
  * `glance`: 배경 인물이 설렘 대상이라 뒷모습 대신 슬쩍 돌아본 모습 (AFFECTION_SPEC §4 — 찍힐 때의 마음이 컷에 남는다)
  */
-export interface CastFigure { id: string; color: string; hairStyle?: Look['hairStyle']; glance?: boolean }
+export interface CastFigure { id: string; color: string; hairStyle?: Look['hairStyle']; glance?: boolean;
+  /** 피부·머리색 등 머리 모양 밖의 겉모습 (ADR-0031 손님 NPC) — 없으면 기본 */
+  look?: Partial<Look> }
 /**
  * 만화가 기억하는 인물 구성 (Comic.cast) — 활동은 KEEP_DAYS 뒤 타임라인에서 사라지니 컷을 나중에 구울 때(ADR-0024 결정 2) 되찾을 수 없다.
  * `met.at` 전의 컷은 그 사람을 `present`(배경 뒷모습)로, 뒤의 컷은 정면으로 그린다 (sim/agents.ts castOfComic)

@@ -25,6 +25,10 @@ export interface Agent {
   hairStyle?: string;
   /** 성별 (AFFECTION_SPEC §2) — 설렘은 이성에게만. NPC는 풀에 적혀 있고, 진짜 사람은 서버 프로필에서. 없으면 모름 (추정하지 않는다) */
   gender?: Gender;
+  /** 머리 모양 밖의 겉모습 — 피부·머리색 (ADR-0031 손님 NPC). 없으면 기본 */
+  look?: Partial<Look>;
+  /** 첫 인사 한마디 — 없으면 '안녕!' */
+  hello?: string;
 }
 
 /** 민수·하나 are the seed friends; the six below are other users' agents (the NPC pool) until a server exists. 성별은 넷씩 (ADR-0027 — 가상 친구도 성별을 가진다) */
@@ -39,7 +43,33 @@ export const AGENTS: Agent[] = [
   { id: 'bomi',   name: '보미', homePlaceId: 'bomi-home',   color: '#6B7BB5', emoji: '🐶', likes: ['음악', '바다', '사진'],          traits: ['호기심 많은', '느긋한'], hairStyle: 'curly', gender: 'female' },
 ];
 
-const agentIndex = new Map(AGENTS.map(a => [a.id, a]));
+/**
+ * 손님 NPC (ADR-0031): 풀(AGENTS)에 안 들어간다 — 서울에서 하루를 생성하지 않고, 시나리오의 강제 마주침(setForcedEncounters)으로만 나타난다.
+ * 부산 데모의 프랑스 관광객 둘. 집은 파리.
+ */
+export const GUEST_AGENTS: Agent[] = [
+  { id: 'louis', name: '루이',   homePlaceId: 'paris-home', color: '#6B7BB5', emoji: '🥐', likes: ['바다', '사진', '맥주'],       traits: ['외향적', '수다스러운'], hairStyle: 'wavy', gender: 'male',   look: { skin: 'light', hairColor: 'blond', hairStyle: 'wavy' }, hello: '봉주르!' },
+  { id: 'chloe', name: '클로에', homePlaceId: 'paris-home', color: '#FF9A8B', emoji: '🗼', likes: ['야경', '노을', '조개구이'],   traits: ['호기심 많은', '느긋한'], hairStyle: 'bun',  gender: 'female', look: { skin: 'fair', hairColor: 'brown', hairStyle: 'bun' }, hello: '봉주르~' },
+];
+
+const agentIndex = new Map([...AGENTS, ...GUEST_AGENTS].map(a => [a.id, a]));
+
+// ─── 강제 마주침 (ADR-0031, 시나리오 전용) ─────────────────────────────────────
+// 데모가 "이 활동에 이 사람들이 이 시각에 있다"를 못 박는다. remoteSlots와 같은 모양이고 buildTimeline(addEncounters)이 맨 앞에 둔다 —
+// 굴림 없이 말을 트고, 둘 이상이면 첫째가 encounter.agentId, 나머지는 encounter.also. 모듈 상태라 스토어 부팅 전에 놓는다 (dev/scenario prepScenario)
+export interface ForcedHit { agentId: string; placeId: string; arriveAt: number; endAt: number; /** 말을 트는 순간 */ at: number }
+const forcedSlots = new Map<string, ForcedHit[]>();
+export function setForcedEncounters(key: string, hits: ForcedHit[]): void { if (hits.length) forcedSlots.set(key, hits); else forcedSlots.delete(key); }
+export function forcedSlotAt(key: string, placeId: string, from: number, to: number): { agent: Agent; overlapMs: number; at: number }[] {
+  const out: { agent: Agent; overlapMs: number; at: number }[] = [];
+  for (const h of forcedSlots.get(key) ?? []) {
+    const agent = agentIndex.get(h.agentId);
+    if (!agent || h.placeId !== placeId) continue;
+    const overlapMs = Math.min(to, h.endAt) - Math.max(from, h.arriveAt);
+    if (overlapMs > 0) out.push({ agent, overlapMs, at: h.at });
+  }
+  return out;
+}
 
 // ─── 진짜 사람 에이전트 캐시 (BACKEND-CONTRACT §3.4) ─────────────────────────
 // 서버가 붙으면 NPC 풀 자리에 실제 사용자의 발행 일정이 들어온다 (FRIENDS_SPEC §4). buildTimeline은 동기·순수라 fetch를
@@ -98,7 +128,7 @@ export const remoteAgents = (): RemoteAgent[] => [...remoteIndex.values()].sort(
 export const isRemoteId = (id: string): boolean => remoteIndex.has(id);
 export const remoteMeId = (): string | null => meId;
 /** NPC 이름 + 진짜 사람 이름 — 제목에서 지울 이름들 (store.stripNames) */
-export const agentNames = (): string[] => [...AGENTS.map(a => a.name), ...remoteAgents().map(a => a.name)];
+export const agentNames = (): string[] => [...AGENTS.map(a => a.name), ...GUEST_AGENTS.map(a => a.name), ...remoteAgents().map(a => a.name)];
 
 /**
  * 내 활동 key의 슬롯 (§3.4 timeline): 서버가 그 장소·시간에 있다고 한 사람들. 겹침은 캐시된 활동과 지금 창으로 다시 잰다
@@ -139,7 +169,7 @@ export const agentOfFriend = (f: Friend): Agent => agentById(f.id) ?? { ...f, li
 export const hairStyleOf = (a: Agent | null | undefined): Look['hairStyle'] | undefined =>
   a && (LOOK_HAIR_STYLES as readonly string[]).includes(a.hairStyle ?? '') ? (a.hairStyle as Look['hairStyle']) : undefined;
 
-const figureOf = (a: Agent): CastFigure => { const h = hairStyleOf(a); return h ? { id: a.id, color: a.color, hairStyle: h } : { id: a.id, color: a.color }; };
+const figureOf = (a: Agent): CastFigure => { const h = hairStyleOf(a); return { id: a.id, color: a.color, ...(h ? { hairStyle: h } : {}), ...(a.look ? { look: a.look } : {}) }; };
 /** 배경 인물이 설렘 대상(관심부터)이면 뒷모습 대신 슬쩍 돌아본 모습 (AFFECTION_SPEC §4) — 그 순간의 memory가 정하고, 만화는 그 결과를 cast에 기억한다 */
 const glancing = (memory: Memory, fig: CastFigure): CastFigure => (crushStage(memory.friends.find(f => f.id === fig.id)?.crush?.v) ? { ...fig, glance: true } : fig);
 
@@ -149,9 +179,12 @@ export const PRESENT_MAX = 2;
 const keepFirst = <T>(xs: T[], isKeep: (x: T) => boolean): T[] => [...xs.filter(isKeep), ...xs.filter(x => !isKeep(x))];
 
 /** `castAt`의 결과 — 동행(정면), 만난 사람(`at` 뒤, 정면·손 흔듦), 같은 공간의 사람들(뒷모습, ≤ 2) */
+export interface CastMet { agent: Agent; color: string; hairStyle?: Look['hairStyle']; look?: Partial<Look>; hello?: string }
 export interface Cast {
   companions: Friend[];
-  met?: { agent: Agent; color: string; hairStyle?: Look['hairStyle'] };
+  met?: CastMet;
+  /** 같은 순간 같이 말 튼 나머지 (encounter.also, ADR-0031) — at 이후에만. 방은 met2 자리가 있을 때 첫 사람을 그린다 */
+  metAlso?: CastMet[];
   present: CastFigure[];
 }
 
@@ -166,11 +199,14 @@ export function castAt(act: ScheduledActivity, t: number, memory: Memory): Cast 
   const e = act.encounter;
   const friendMet = e && memory.friends.find(f => f.id === e.agentId);
   const metAgent = e && e.talked && t >= (e.at ?? -Infinity) ? agentById(e.agentId) ?? (friendMet ? agentOfFriend(friendMet) : null) : null;
-  const met = metAgent ? { agent: metAgent, color: metAgent.color, hairStyle: hairStyleOf(metAgent) } : undefined;
-  const present = keepFirst((act.presentNearby ?? []).filter(id => id !== metAgent?.id && !act.companions.includes(id)), id => id === e?.agentId)
+  const castMet = (ag: Agent): CastMet => ({ agent: ag, color: ag.color, hairStyle: hairStyleOf(ag), ...(ag.look ? { look: ag.look } : {}), ...(ag.hello ? { hello: ag.hello } : {}) });
+  const met = metAgent ? castMet(metAgent) : undefined;
+  const metAlso = metAgent ? (e?.also ?? []).map(id => agentById(id)).filter((a): a is Agent => !!a).map(castMet) : [];
+  const alsoIds = metAgent ? new Set(e?.also ?? []) : new Set<string>();
+  const present = keepFirst((act.presentNearby ?? []).filter(id => id !== metAgent?.id && !alsoIds.has(id) && !act.companions.includes(id)), id => id === e?.agentId)
     .map(id => agentById(id)).filter((a): a is Agent => !!a)
     .slice(0, PRESENT_MAX).map(a => glancing(memory, figureOf(a)));
-  return met ? { companions, met, present } : { companions, present };
+  return met ? { companions, met, ...(metAlso.length ? { metAlso } : {}), present } : { companions, present };
 }
 
 /** 만화가 기억할 인물 구성 (Comic.cast) — makeComic이 활동에서 뽑는다. 난수 없음 */

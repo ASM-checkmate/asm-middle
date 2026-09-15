@@ -168,7 +168,8 @@ const presentOf = (a: { color: string; hairStyle?: string; glance?: boolean }): 
   return { color: a.color, ...(h ? { hairStyle: h } : {}), ...(a.glance ? { glance: true } : {}) };
 };
 /** 배경 인물의 겉모습 — 머리 모양만 상대의 것, 나머지는 기본 (얼굴은 안 보인다) */
-export const presentLook = (hairStyle?: Look['hairStyle']): Look | undefined => (hairStyle ? { ...DEFAULT_LOOK, hairStyle } : undefined);
+export const presentLook = (hairStyle?: Look['hairStyle'], look?: Partial<Look>): Look | undefined =>
+  (hairStyle || look ? { ...DEFAULT_LOOK, ...look, ...(hairStyle ? { hairStyle } : {}) } : undefined);
 
 // ─── 공백 (SPEC 자율 생활과 개입) ────────────────────────────────────────────
 /** "그저께" 보다 멀면 그냥 날짜로 부른다. */

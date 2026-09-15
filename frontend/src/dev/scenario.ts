@@ -7,6 +7,8 @@ import type { BlockId, BlockPlan, Category } from '../sim/types';
 import { BLOCKS } from '../sim/blocks';
 import { dayStartIn } from '../sim/tz';
 import { placeById, tzOf } from '../sim/places';
+import { setForcedEncounters } from '../sim/agents';
+import { dayKeyIn } from '../sim/tz';
 
 export interface Scenario {
   key: string;
@@ -16,7 +18,9 @@ export interface Scenario {
   scale?: number;
   /** 캐릭터의 집 (그 도시에 산다) — 없으면 기억의 집 그대로 */
   home?: string;
-  blocks: Partial<Record<BlockId, { title: string; reason: string; emoji: string; placeId: string; category: Category; friendId?: string }>>;
+  blocks: Partial<Record<BlockId, { title: string; reason: string; emoji: string; placeId: string; category: Category; friendId?: string;
+    /** 강제 마주침 (ADR-0031): 이 사람들이 [from, to) 동안 그 자리에 있고 `at`에 말을 튼다 — 굴림 없이 친구가 된다 */
+    meet?: { agentIds: string[]; from: [number, number]; to: [number, number]; at: [number, number] } }>>;
 }
 
 export const SCENARIOS: Record<string, Scenario> = {
@@ -30,7 +34,9 @@ export const SCENARIOS: Record<string, Scenario> = {
       // 세 일정 다 민수와 — 같이 수업 듣고 그대로 광안리까지
       pm: { title: '부산대에서 민수랑 수업 듣기', reason: '오후 수업, 끝나면 같이 광안리로', emoji: '🏫', placeId: 'pnu', category: 'study', friendId: 'minsu' },
       evening: { title: '조새호에서 민수랑 조개구이', reason: '창가 자리에 광안대교', emoji: '🦪', placeId: 'josaeho', category: 'meal', friendId: 'minsu' },
-      night: { title: '삼진포차에서 민수랑 한잔', reason: '드론쇼 보고 바다 앞에서', emoji: '🍶', placeId: 'samjin-pocha', category: 'play', friendId: 'minsu' },
+      // 드론쇼(21:00)에 프랑스 관광객 둘이 옆자리에 — 21:05에 말을 트고 활동이 끝나면 둘 다 친구 (ADR-0031)
+      night: { title: '삼진포차에서 민수랑 한잔', reason: '드론쇼 보고 바다 앞에서', emoji: '🍶', placeId: 'samjin-pocha', category: 'play', friendId: 'minsu',
+        meet: { agentIds: ['louis', 'chloe'], from: [21, 0], to: [23, 30], at: [21, 5] } },
     },
   },
 };
@@ -56,6 +62,8 @@ export const markScenarioSeeded = (key: string | null) => { try { if (key) local
 export function prepScenario(): void {
   const key = scenarioParam();
   const sc = key ? SCENARIOS[key] : undefined;
+  // 강제 마주침은 모듈 상태라 매 부팅 다시 놓는다 (이미 심은 시나리오라도) — 새로고침해도 그 사람들은 거기 있다
+  if (sc) seedMeets(sc);
   // `&reset=1`: 이미 심었어도 처음부터 다시 — 표식과 저장본을 지우고 새로 심는다
   const reset = typeof location !== 'undefined' && new URLSearchParams(location.search).has('reset');
   if (!sc || (scenarioSeeded(sc.key) && !reset)) return;
@@ -76,4 +84,16 @@ export function prepScenario(): void {
       localStorage.setItem('theworld.memory.v2', JSON.stringify({ ...m, homePlaceId: sc.home }));
     }
   } catch { /* localStorage가 없으면 시나리오도 없다 */ }
+}
+
+/** 시나리오의 강제 마주침을 오늘 날짜로 놓는다 (sim/agents setForcedEncounters). 시각은 그 도시의 현지 자정 기준 */
+function seedMeets(sc: Scenario): void {
+  const tz = sc.home ? tzOf(placeById(sc.home)) : 'Asia/Seoul';
+  const dayStart = dayStartIn(Date.now(), tz);
+  const dayKey = dayKeyIn(dayStart, tz);
+  const at = ([h, m]: [number, number]) => dayStart + h * 3600_000 + m * 60_000;
+  for (const [blockId, b] of Object.entries(sc.blocks)) {
+    if (!b?.meet) continue;
+    setForcedEncounters(`${dayKey}:${blockId}`, b.meet.agentIds.map(agentId => ({ agentId, placeId: b.placeId, arriveAt: at(b.meet!.from), endAt: at(b.meet!.to), at: at(b.meet!.at) })));
+  }
 }

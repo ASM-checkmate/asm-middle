@@ -39,7 +39,7 @@ export function ActivityScreen({ phase }: { phase: Active }) {
   const cast = castAt(act, nowMs, memory);
   const friend = cast.companions[0];
   const met = cast.met?.agent ?? null;
-  const metChip: ChipFriend[] = met ? [{ id: met.id, name: met.name, color: met.color }] : [];
+  const metChip: ChipFriend[] = met ? [met, ...(cast.metAlso ?? []).map(m => m.agent)].map(a => ({ id: a.id, name: a.name, color: a.color })) : [];
   // real place: 동네 (+ city when abroad) — no implementation vocabulary in the tag
   const where = act.place.country === 'KR' ? act.place.area : `${act.place.area} · ${cityNameKo(act.place.city)}`;
 
@@ -49,13 +49,13 @@ export function ActivityScreen({ phase }: { phase: Active }) {
       {room && <RoomStage room={room} log={fullLog} seatPose={poseFor(act.option)} cast={cast} seed={act.key} shoot={{ backdrops, count: shotCount, max: MAX_SHOTS, onOpen: openCamera }} clock={{ nowMs, tz: act.tz }} />}
       <div className="act-scene"><Scene type={act.place.type} /></div>
       {/* 같은 공간에 있던 사람들 — 배경에 작게. 방은 내가 지금 보는 장면이라 얼굴을 가리지 않는다 (얼굴을 감추는 건 사진 쪽 규칙, FRIENDS_SPEC §6). 방이 있는 장소에선 RoomStage가 그린다 */}
-      {cast.present.map((p, i) => <Character key={p.id} className={`act-present act-present-${i}`} pose="idle" size={132} variant="friend" color={p.color} look={presentLook(p.hairStyle)} />)}
+      {cast.present.map((p, i) => <Character key={p.id} className={`act-present act-present-${i}`} pose="idle" size={132} variant="friend" color={p.color} look={presentLook(p.hairStyle, p.look)} />)}
       {friend && <Character className="act-friend" pose="wave" size={224} variant="friend" color={friend.color} />}
       <Character className="act-chara" pose={poseFor(act.option)} size={350} />
       {met && (
         <>
-          <Character className="act-met" pose="wave" size={190} variant="friend" color={met.color} look={presentLook(cast.met?.hairStyle)} />
-          <div className="act-met-bubble">안녕!</div>
+          <Character className="act-met" pose="wave" size={190} variant="friend" color={met.color} look={presentLook(cast.met?.hairStyle, cast.met?.look)} />
+          <div className="act-met-bubble">{cast.met?.hello ?? '안녕!'}</div>
         </>
       )}
       <div className="act-tag">

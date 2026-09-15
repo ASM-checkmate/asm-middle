@@ -3,7 +3,7 @@
 // 인물의 위치는 연속 좌표이고 걷는 시간은 거리 ÷ 속도(실제 시간)다 — 시계 배속과 무관하게, 멀면 오래 걷는다.
 // 사람끼리는 겹치지 않는다: 자리마다 누가 있는지 점유 표를 보고 빈자리로 가고, 남이 앉은 테이블의 빈 의자로 가면 합석이며,
 // 같은 존에 있는 사람과는 떠든다 (개정 1). 처음 그릴 때(화면 진입·미리보기)는 지금까지의 마지막 큐 자리에 바로 선다.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
 import { Character, type Pose } from '../character';
 import type { LogLine } from '../sim/actlog';
@@ -49,7 +49,9 @@ type Fidget = 'look' | 'stretch' | 'nod' | 'sip';
 type React_ = 'nod' | 'look' | 'wave';
 type OtherKind = 'friend' | 'met' | 'present' | 'guest';
 /** 방 안의 다른 사람 하나 — 어디 있는지(spot)와 누구인지. 점유 표·합석·떠들기가 본다 */
-interface Other { id: string; kind: OtherKind; spot: string; pos: Spot; size: number; color: string; hairStyle?: Look['hairStyle']; glance?: boolean }
+interface Other { id: string; kind: OtherKind; spot: string; pos: Spot; size: number; color: string; hairStyle?: Look['hairStyle']; glance?: boolean; look?: Partial<Look>; hello?: string }
+/** 다른 사람의 겉모습: 피부·머리색(look)에 머리 모양을 얹는다 — 둘 다 없으면 기본 */
+const lookOf = (o: { hairStyle?: Look['hairStyle']; look?: Partial<Look> }): Look | undefined => (o.hairStyle || o.look ? { ...DEFAULT_LOOK, ...o.look, ...(o.hairStyle ? { hairStyle: o.hairStyle } : {}) } : undefined);
 const reducedMotion = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 /** QA: `&life=10`이면 잔동작·산책·손님 간격이 10배 빨라진다 (dev 빌드만) */
 const lifeSpeed = (): number => { if (!import.meta.env.DEV) return 1; const v = Number(new URLSearchParams(location.search).get('life')); return v > 0 ? v : 1; };
@@ -112,8 +114,10 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
   const presentSpots = [room.ghostSeat, ...PRESENT_SPOTS.filter(s => s !== room.ghostSeat && !!room.spots[s])];
   const others: Other[] = [
     ...(friend ? [{ id: `friend:${friend.id}`, kind: 'friend' as const, spot: room.friendSeat, pos: spotOf(room.friendSeat), size: SIZE, color: friend.color }] : []),
-    ...(met ? [{ id: `met:${met.agent.id}`, kind: 'met' as const, spot: room.metSpot, pos: spotOf(room.metSpot), size: SIZE, color: met.color, hairStyle: met.hairStyle }] : []),
-    ...cast.present.slice(0, presentSpots.length).map((p, i) => ({ id: p.id, kind: 'present' as const, spot: presentSpots[i]!, pos: spotOf(presentSpots[i]!), size: PRESENT_SIZE, color: p.color, hairStyle: p.hairStyle, glance: p.glance })),
+    ...(met ? [{ id: `met:${met.agent.id}`, kind: 'met' as const, spot: room.metSpot, pos: spotOf(room.metSpot), size: SIZE, color: met.color, hairStyle: met.hairStyle, look: met.look, hello: met.hello }] : []),
+    // 같이 온 사람 (ADR-0031): 방에 met2 자리가 있을 때 첫 사람만
+    ...(met && cast.metAlso?.length && room.spots.met2 ? [{ id: `met:${cast.metAlso[0].agent.id}`, kind: 'met' as const, spot: 'met2', pos: room.spots.met2, size: SIZE, color: cast.metAlso[0].color, hairStyle: cast.metAlso[0].hairStyle, look: cast.metAlso[0].look, hello: cast.metAlso[0].hello }] : []),
+    ...cast.present.slice(0, presentSpots.length).map((p, i) => ({ id: p.id, kind: 'present' as const, spot: presentSpots[i]!, pos: spotOf(presentSpots[i]!), size: PRESENT_SIZE, color: p.color, hairStyle: p.hairStyle, glance: p.glance, look: p.look })),
     ...(guest && !cast.present.length && !guest.gone ? [{ id: 'guest', kind: 'guest' as const, spot: guest.spot, pos: spotOf(guest.spot), size: SIZE, color: guest.color }] : []),
   ];
   const taken = new Map(others.map(o => [o.spot, o]));
@@ -364,7 +368,7 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
     const lines = close ? CHAT_CLOSE : CHAT_NEW;
     // 마주 보기 + 인사는 상대가 먼저
     setHeading(h => ({ ...h, left: o.pos.x < posRef.current.x }));
-    later(250, () => { react(o.id, sitSpots.has(o.spot) ? 'nod' : 'wave', 2000); say(close ? '안녕!' : '안녕하세요', undefined, above(o)); });
+    later(250, () => { react(o.id, sitSpots.has(o.spot) ? 'nod' : 'wave', 2000); say(close ? (o.hello ?? '안녕!') : '안녕하세요', undefined, above(o)); });
     let turn = 0;
     const tick = () => later(CHAT_MS[0] + r.next() * (CHAT_MS[1] - CHAT_MS[0]), () => {
       if (!busy.current) {
@@ -448,18 +452,19 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
         const back = BACK_SPOTS.has(o.spot);
         return (
           <div key={o.id} className={`room-actor is-still is-present ${withMe ? 'is-with' : ''} ${facesMe(o)} ${reactClass(o.id)}`} style={atStyle(o.pos, PRESENT_SIZE)}>
-            <Character pose={sitSpots.has(o.spot) ? 'sit' : reacts[o.id] === 'wave' ? 'wave' : 'idle'} size={PRESENT_SIZE} variant="friend" color={o.color} look={o.hairStyle ? { ...DEFAULT_LOOK, hairStyle: o.hairStyle } : undefined} back={back && !withMe} glance={withMe || (back && o.glance)} paused={!withMe} />
+            <Character pose={sitSpots.has(o.spot) ? 'sit' : reacts[o.id] === 'wave' ? 'wave' : 'idle'} size={PRESENT_SIZE} variant="friend" color={o.color} look={lookOf(o)} back={back && !withMe} glance={withMe || (back && o.glance)} paused={!withMe} />
           </div>
         );
       })}
-      {met && (
-        <>
-          <div className="room-actor is-still is-seated" style={atStyle(spotOf(room.metSpot))}>
-            <Character pose="wave" size={SIZE} variant="friend" color={met.color} look={met.hairStyle ? { ...DEFAULT_LOOK, hairStyle: met.hairStyle } : undefined} />
+      {/* 말 튼 사람(들): met 자리, 같이 온 사람은 met2 (ADR-0031). 인사는 그 사람의 첫마디 */}
+      {others.filter(o => o.kind === 'met').map(o => (
+        <Fragment key={o.id}>
+          <div className="room-actor is-still is-seated" style={atStyle(o.pos)}>
+            <Character pose="wave" size={SIZE} variant="friend" color={o.color} look={lookOf(o)} />
           </div>
-          <div className="room-bubble is-stay" style={{ left: spotOf(room.metSpot).x, top: spotOf(room.metSpot).y - SIZE * FEET - 4, zIndex: 999 }}>안녕!</div>
-        </>
-      )}
+          <div className="room-bubble is-stay" style={{ left: o.pos.x, top: o.pos.y - SIZE * FEET - 4, zIndex: 999 }}>{o.hello ?? '안녕!'}</div>
+        </Fragment>
+      ))}
       {guest && !cast.present.length && (
         <div className={`room-actor is-guest ${guest.gone ? 'is-gone' : ''} ${guest.walking ? '' : 'is-seated'} ${guest.walking && guest.spot === room.ghostSeat ? 'face-left' : ''}`} style={atStyle(spotOf(guest.spot))}>
           {/* 들어올 땐 위로 걸으니 뒷모습, 앉으면 정면, 나갈 땐 아래로 걸으니 정면 */}

@@ -158,6 +158,7 @@ export const SAMJIN: RoomSpec = {
     friend: { x: 104, y: 372 },
     side: { x: 292, y: 410 },
     met: { x: 352, y: 452 },
+    met2: { x: 214, y: 300 },   // 같이 온 사람 (ADR-0031) — 데크 가운데, 카운터 앞
   },
   seat: 'seat', friendSeat: 'friend', metSpot: 'met', ghostSeat: 'side', door: 'door',
   strolls: [{ spot: 'rail', pose: 'idle' }, { spot: 'counter', pose: 'think' }, { spot: 'door', pose: 'idle' }],

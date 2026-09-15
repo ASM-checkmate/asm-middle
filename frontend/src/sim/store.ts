@@ -505,9 +505,10 @@ function settle(a: ScheduledActivity, book: Comic[], memory: Memory, encounters:
   let nextEncounters = { ...encounters };
   const e = a.encounter;
   // 마주침 카운트: 굴림 상대와 같은 공간의 사람 전부 (동행은 presentNearby에 없다)
-  for (const id of new Set([...(e ? [e.agentId] : []), ...(a.presentNearby ?? [])])) nextEncounters[id] = (nextEncounters[id] ?? 0) + 1;
-  // 같이 논 사람: 말을 튼 상대(새 친구든 `again`이든) + 동행
-  const played = [...(e?.talked ? [e.agentId] : []), ...a.companions.filter(id => id !== e?.agentId)];
+  for (const id of new Set([...(e ? [e.agentId, ...(e.also ?? [])] : []), ...(a.presentNearby ?? [])])) nextEncounters[id] = (nextEncounters[id] ?? 0) + 1;
+  // 같이 논 사람: 말을 튼 상대(새 친구든 `again`이든)와 같이 온 사람들(also, ADR-0031) + 동행
+  const talkedIds = e?.talked ? [e.agentId, ...(e.also ?? [])] : [];
+  const played = [...talkedIds, ...a.companions.filter(id => !talkedIds.includes(id))];
   for (const id of played) {
     const agent = agentById(id);
     let friends = nextMemory.friends;

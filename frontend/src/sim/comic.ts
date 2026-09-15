@@ -347,7 +347,9 @@ export function makeComicWith(act: ScheduledActivity, memory: Memory, shots: Use
   const place = act.place;
   const friend = memory.friends.find(f => act.companions.includes(f.id)) ?? memory.friends.find(f => f.id === act.option.friendId);
   const enc = act.encounter;
-  const other = enc ? (memory.friends.find(f => f.id === enc.agentId)?.name ?? agentById(enc.agentId)?.name ?? '누군가') : '누군가';
+  const nameOf = (id: string) => memory.friends.find(f => f.id === id)?.name ?? agentById(id)?.name;
+  // 같이 온 사람들(also, ADR-0031)은 이름을 잇는다: "루이랑 클로에"
+  const other = enc ? ([enc.agentId, ...(enc.also ?? [])].map(nameOf).filter((n): n is string => !!n).join('랑 ') || '누군가') : '누군가';
   const cameo = !friend && memory.friends.length > 0 && r.next() < 0.22 ? r.pick(memory.friends) : undefined;
   const who = friend ?? cameo;
   const friendName = who?.name ?? (memory.friends.length ? r.pick(memory.friends).name : '누군가');

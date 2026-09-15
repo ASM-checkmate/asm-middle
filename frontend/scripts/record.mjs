@@ -121,11 +121,11 @@ const OVERLAY = `(() => {
     const dx = (r.left + r.width / 2) - cx, dy = (r.top + r.height / 2) - cy, sx = r.width / w;
     const a = el.animate([
       { transform: 'translateY(' + (-(cy - st.top) - h) + 'px) rotate(-6deg)', opacity: 0 },
-      { transform: 'translateY(18px) rotate(2deg)', opacity: 1, offset: .5 },
-      { transform: 'translateY(0) rotate(0deg)', opacity: 1, offset: .64 },
-      { transform: 'translateY(0) rotate(0deg)', opacity: 1, offset: .82 },
+      { transform: 'translateY(18px) rotate(2deg)', opacity: 1, offset: .36 },
+      { transform: 'translateY(0) rotate(0deg)', opacity: 1, offset: .46 },
+      { transform: 'translateY(0) rotate(0deg)', opacity: 1, offset: .86 },
       { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sx + ')', opacity: 1 },
-    ], { duration: 3600, easing: 'cubic-bezier(.3, .9, .3, 1)', fill: 'forwards' });
+    ], { duration: 4800, easing: 'cubic-bezier(.3, .9, .3, 1)', fill: 'forwards' });   // 전체 화면으로 약 1.9초 서 있다가 첫 칸으로
     a.onfinish = () => { setTimeout(() => { el.remove(); res('dropped'); }, 100); };
   });
   return 'injected';

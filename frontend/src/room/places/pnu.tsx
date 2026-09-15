@@ -67,8 +67,13 @@ const BACK = (
       <rect x="180" y="78" width="30" height="20" fill="var(--night)" stroke="var(--ink)" strokeWidth="2" />
       {/* 깃발 */}
       <path d="M40 98 v-52 M350 98 v-52" stroke="var(--ink)" strokeWidth="2.5" />
-      <path d="M40 46 h22 l-4 7 l4 7 h-22 z" fill="var(--card)" {...INK2} /><circle cx="50" cy="53" r="3" fill="var(--coral)" />
-      <path d="M350 46 h22 l-4 7 l4 7 h-22 z" fill="var(--sky)" {...INK2} />
+      {/* 태극기: 흰 바탕 + 태극(위 빨강·아래 파랑) + 사괘 넷 */}
+      <rect x="40" y="46" width="26" height="17" fill="var(--card)" {...INK2} />
+      <path d="M53 50.5 a4 4 0 0 1 0 8 a2 2 0 0 1 0 -4 a2 2 0 0 0 0 -4 z" fill="#0047A0" />
+      <path d="M53 50.5 a4 4 0 0 0 0 8 a2 2 0 0 0 0 -4 a2 2 0 0 1 0 -4 z" fill="#CD2E3A" />
+      <g stroke="var(--ink)" strokeWidth="1.2"><path d="M43 49 h4 M43 51 h4 M43 53 h4" /><path d="M59 49 h4 M59 51 h4 M59 53 h4" /><path d="M43 56 h4 M43 58 h4 M43 60 h4" /><path d="M59 56 h4 M59 58 h4 M59 60 h4" /></g>
+      {/* 대학 깃발: 남색 바탕에 흰 원 */}
+      <path d="M350 46 h22 l-4 7 l4 7 h-22 z" fill="var(--night-2)" {...INK2} /><circle cx="358" cy="53" r="3" fill="none" stroke="var(--card)" strokeWidth="1.5" />
     </Horizon>
     {/* 계단 3단 (건물 앞) */}
     <rect x="60" y="98" width="270" height="12" fill="#E4DDCC" stroke="var(--ink)" strokeWidth="2.5" />

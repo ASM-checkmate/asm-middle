@@ -25,6 +25,24 @@ export interface Cue {
   pose?: 'idle' | 'think' | 'sit' | 'happy';
 }
 
+/**
+ * 트리거 존 (ADR-0028): 방 안의 누를 수 있는 영역. 누르면 인물이 `spot`으로 걸어가고, 도착하는 순간 `pose`를 취하며 `say`를 띄운다.
+ * 인물이 `spot` 근처(NEAR px)에 있으면 존이 빛나고 이름표가 뜬다 — "여기서 뭘 할 수 있다"는 표시.
+ */
+export interface Zone {
+  key: string;
+  /** 누를 수 있는 사각형 (방 좌표, 왼쪽 위 모서리와 크기) */
+  x: number; y: number; w: number; h: number;
+  /** 걸어가 서는 자리 (spots의 이름) */
+  spot: string;
+  /** 도착했을 때의 자세. 없으면 자리의 자세(내 자리면 활동 자세, 그 밖은 서 있기) */
+  pose?: Cue['pose'];
+  /** 도착하면 머리 위에 잠깐 뜨는 말 */
+  say?: string;
+  /** 근처에서 뜨는 이름표 */
+  label: string;
+}
+
 export interface RoomSpec {
   w: number; h: number;
   /** 뒤 배경(벽·바닥) — 절대 위치 svg들 */
@@ -37,8 +55,35 @@ export interface RoomSpec {
   strolls: { spot: string; pose: Cue['pose'] }[];
   /** 로그 줄 → 큐. 도착 줄은 '도착'으로 시작하니 prefix로 잡는다 */
   cueOf(line: LogLine): Cue | null;
+  /** 트리거 존. 없으면 내 자리와 strolls에서 만든다 (`zonesOf`) */
+  zones?: Zone[];
   /** 앉은 자리 앞(테이블 위)에 놓이는 활동 물건의 자리와 앞뒤 — 손에 든 것은 테이블에 가리니 테이블 위에 따로 놓는다 */
   seatItem: { x: number; y: number; base: number };
+}
+
+/** 자리 이름 → 이름표. 방마다 존을 손으로 안 잡아도 자리 이름만으로 존이 되게 */
+const SPOT_LABEL: Record<string, string> = {
+  seat: '내 자리', side: '옆자리', door: '입구', window: '창가', counter: '카운터', kitchen: '부엌', bed: '침대', water: '물가',
+  shelf: '책장', treadmill: '러닝머신', cooler: '정수기', mirror: '거울', escalator: '에스컬레이터', board: '안내판', easel: '이젤',
+  label: '설명판', desk: '책상', fountain: '분수', flowers: '꽃밭', path: '산책로', shore: '물가', bike: '자전거', bridge: '다리',
+  shells: '조개', kiosk: '매점',
+};
+
+/** 자리 하나를 감싸는 기본 존: 발 자리 위로 인물 한 명 크기의 상자 */
+function zoneAround(key: string, spot: Spot, pose: Cue['pose'], label: string): Zone {
+  return { key, x: spot.x - 48, y: spot.y - 74, w: 96, h: 86, spot: key, pose, label };
+}
+
+/**
+ * 방의 트리거 존. 방이 `zones`를 손으로 잡았으면 그것, 아니면 내 자리(자리의 자세)와 산책 목적지(그 자세)를 각각 존으로 만든다.
+ * 입구는 뺀다 — 문으로 가는 건 출발(`leaving`)의 몫이고, 사용자가 눌러서 나가면 안 된다.
+ */
+export function zonesOf(room: RoomSpec): Zone[] {
+  if (room.zones) return room.zones;
+  const seat = zoneAround(room.seat, room.spots[room.seat]!, undefined, SPOT_LABEL[room.seat] ?? '내 자리');
+  const strolls = room.strolls.filter(s => s.spot !== room.door && s.spot !== room.seat)
+    .map(s => zoneAround(s.spot, room.spots[s.spot]!, s.pose, SPOT_LABEL[s.spot] ?? s.spot));
+  return [seat, ...strolls];
 }
 
 /** 자세별로 테이블 위에 놓이는 물건: 그림 → 스케치북·연필, 읽기 → 책, 먹기 → 빈 접시(주먹밥은 손에 들려 보이므로 접시엔 안 올린다), 나머지는 없음 */

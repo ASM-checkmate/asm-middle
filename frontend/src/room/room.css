@@ -8,9 +8,24 @@
 .room > svg, .room-prop, .room-actor, .room-bubble { position: absolute; }
 .room-prop, .room-actor { pointer-events: none; }
 .room-prop svg { display: block; overflow: visible; }
-/* 인물: 걸을 때 transform이 1.4초 동안 미끄러진다 (자리는 sim 로그가 정하고, 걷는 시간은 실제 시간) */
+/* 다른 인물: 걸을 때 transform이 1.4초 동안 미끄러진다. 내 캐릭터(.is-me)는 RoomStage가 rAF로 매 프레임 자리를 쓰니 transition이 없다 (ADR-0028) */
 .room-actor { left: 0; top: 0; transition: transform 1.4s linear; will-change: transform; }
-.room-actor.is-still { transition: none; }
+.room-actor.is-still, .room-actor.is-me { transition: none; }
+.room-actor.is-me.is-gone { transition: opacity .35s ease; }
+/* ─── 트리거 존 (ADR-0028): 바닥·소품 위의 누를 수 있는 영역. 바닥 위·소품 아래(z 0)에 깔려 있고, 소품·인물은 pointer-events가 없어 탭이 존에 닿는다.
+   인물이 근처에 오면 빛나고 이름표가 뜬다 — 이미 거기 서 있으면 조용하다 */
+.room { cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+.room-bubble { pointer-events: none; }
+.room-zone { position: absolute; z-index: 0; border-radius: 16px; }
+.room-zone.is-near:not(.is-here) { background: var(--sun); opacity: .28; box-shadow: inset 0 0 0 3px var(--sun-2); animation: room-zone-pulse 1.4s ease-in-out infinite; }
+.room-zone-tag {
+  position: absolute; transform: translate(-50%, -100%); padding: 3px 9px; border-radius: 12px; white-space: nowrap; pointer-events: none;
+  background: var(--sun); border: var(--outline); box-shadow: var(--shadow-hard-sm);
+  font-family: var(--display); font-size: 12px; line-height: 1.2; color: var(--ink);
+  animation: room-bubble-in .3s cubic-bezier(.34, 1.56, .64, 1) both;
+}
+@keyframes room-zone-pulse { 0%, 100% { opacity: .22; } 50% { opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { .room-zone.is-near { animation: none; } }
 .room-actor .ch { display: block; }
 .room-actor.face-left .ch { transform: scaleX(-1); }
 /* 같은 공간에 있던 사람 (FRIENDS_SPEC §6 표, ADR-0022): 배경의 뒷모습 — 얼굴 없이, 살짝 흐리게. 관계가 아니라 그 순간의 사실 */

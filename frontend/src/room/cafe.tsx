@@ -2,7 +2,7 @@
 // 390×560. 뒷벽(창·메뉴판·선반) 0..96, 바닥 96..560. 카운터는 오른쪽 위, 내 테이블은 왼쪽 가운데, 옆 테이블은 오른쪽 아래, 입구는 오른쪽 아래 구석.
 // 로그 줄(sim/actlog.ts의 카페 문장)이 곧 동선이다: 도착 → 카운터에서 주문·결제 → 자리에 앉아 활동 → 두 잔째는 카운터 → 창가 구경.
 import type { Cue, RoomProp, RoomSpec, Zone } from './Room';
-import { INK, INK2, Table, chairBack, stool } from './parts';
+import { INK, INK2, Table, chairBack } from './parts';
 import type { LogLine } from '../sim/actlog';
 
 const main = Table({ rx: 62, ry: 24, cup: true });
@@ -55,8 +55,8 @@ const PROPS: RoomProp[] = [
   // 내 테이블 (왼쪽 가운데): 등받이 의자 둘 뒤에, 테이블 앞에
   chairBack(150, 368), chairBack(104, 368),
   { key: 'table', x: 128 - main.cx, y: 376 - main.cy, w: main.w, h: main.h, base: 428, node: main.node },
-  // 옆 테이블 (오른쪽 아래) + 스툴 둘
-  stool(262, 454), stool(322, 454),
+  // 옆 테이블 (오른쪽 아래) + 등받이 의자 둘 — 내 테이블처럼 테이블 뒤에, 앉으면 등판이 머리 뒤로 보인다
+  chairBack(262, 404, 'var(--coral)', 52), chairBack(322, 404, 'var(--coral)', 52),
   { key: 'side', x: 292 - side.cx, y: 416 - side.cy, w: side.w, h: side.h, base: 462, node: side.node },
   // 입구 매트 (오른쪽 아래 구석) — 인물이 그 위에 선다
   { key: 'mat', x: 292, y: 520, w: 80, h: 34, base: 519, node: (

@@ -155,9 +155,9 @@ export const stool = (x: number, y: number, color = 'var(--coral)', color2 = 'va
 });
 
 /** 등받이 의자의 등판만 — 앉은 인물 뒤에 선다 */
-export const chairBack = (x: number, y: number, fill = 'var(--rm-wood)'): RoomProp => ({
-  key: `chair-${x}-${y}`, x: x - 20, y: y - 44, w: 40, h: 44, base: y - 44,
-  node: <rect x="3" y="3" width="34" height="38" rx="9" fill={fill} {...INK} />,
+export const chairBack = (x: number, y: number, fill = 'var(--rm-wood)', w = 40): RoomProp => ({
+  key: `chair-${x}-${y}`, x: x - w / 2, y: y - 44, w, h: 44, base: y - 44,
+  node: <rect x="3" y="3" width={w - 6} height="38" rx="9" fill={fill} {...INK} />,
 });
 
 /** 긴 벤치 (공원·강변·역): 앉는 판 + 등판(뒤) + 다리. (x, y)는 앉는 판 앞 가운데 */

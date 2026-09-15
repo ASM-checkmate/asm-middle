@@ -3,7 +3,7 @@
 // 옆 테이블은 오른쪽 아래, 입구는 오른쪽 아래 구석. 식당·술집·시장이 이 방을 쓴다 (scenes MAP).
 // 로그 줄(sim/actlog.ts의 restaurant·bar·market 문장)이 곧 동선이다: 도착 → 계산대에서 주문 → 식탁 · 물은 정수기 · 반찬·한 잔 더는 계산대.
 import type { Cue, RoomProp, RoomSpec } from './Room';
-import { INK, INK2, Cup, Desk, Patterns, Rug, Sign, Steam, Table, Wall, chairBack, mat, plant, prop, stool } from './parts';
+import { INK, INK2, Cup, Desk, Patterns, Rug, Sign, Steam, Table, Wall, chairBack, mat, plant, prop } from './parts';
 import type { LogLine } from '../sim/actlog';
 
 const ID = 'rm-restaurant';
@@ -65,7 +65,7 @@ const PROPS: RoomProp[] = [
   chairBack(150, 368, 'var(--coral)'), chairBack(104, 368, 'var(--coral)'),
   { key: 'table', x: 128 - table.cx, y: 376 - table.cy, w: table.w, h: table.h, base: 428, node: table.node },
   // 옆 테이블 (오른쪽 아래) + 스툴 둘
-  stool(262, 454, 'var(--sun)', 'var(--sun-2)'), stool(322, 454, 'var(--sun)', 'var(--sun-2)'),
+  chairBack(262, 396, 'var(--sun)', 52), chairBack(322, 396, 'var(--sun)', 52),
   { key: 'side', x: 292 - side.cx, y: 416 - side.cy, w: side.w, h: side.h, base: 462, node: side.node },
   // 입구 매트 (오른쪽 아래 구석)
   mat(292, 520),

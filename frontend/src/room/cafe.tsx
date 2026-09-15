@@ -130,10 +130,10 @@ function cueOf(line: LogLine): Cue | null {
 
 /** 트리거 존 (ADR-0028): 창가 벤치·카운터·내 테이블·옆 테이블. 상자는 소품 위에 손으로 잡았다 */
 const ZONES: Zone[] = [
-  { key: 'window', x: 14, y: 90, w: 148, h: 72, spot: 'window', pose: 'think', say: '👀', label: '창밖 보기' },
-  { key: 'counter', x: 214, y: 118, w: 164, h: 130, spot: 'counter', say: '주문할게요', label: '주문하기' },
-  { key: 'seat', x: 56, y: 330, w: 144, h: 96, spot: 'seat', label: '내 자리' },
-  { key: 'side', x: 236, y: 380, w: 112, h: 92, spot: 'side', pose: 'sit', label: '옆 테이블' },
+  { key: 'window', x: 14, y: 90, w: 148, h: 72, spots: ['window', 'window2'], pose: 'think', say: '👀', label: '창밖 보기' },
+  { key: 'counter', x: 214, y: 118, w: 164, h: 130, spots: ['counter', 'counter2'], say: '주문할게요', label: '주문하기' },
+  { key: 'seat', x: 56, y: 330, w: 144, h: 96, spots: ['seat', 'friend'], label: '내 자리' },
+  { key: 'side', x: 236, y: 380, w: 112, h: 92, spots: ['side', 'side2'], pose: 'sit', label: '옆 테이블' },
 ];
 
 export const CAFE: RoomSpec = {
@@ -142,11 +142,12 @@ export const CAFE: RoomSpec = {
   props: PROPS,
   spots: {
     door: { x: 332, y: 548 },
-    counter: { x: 296, y: 268 },
+    // 자리는 의자·스툴·벤치 칸마다 하나 — 둘이 나란히 서거나 앉을 수 있게 (ADR-0028 개정 1)
+    counter: { x: 270, y: 268 }, counter2: { x: 330, y: 268 },
     seat: { x: 150, y: 372 },
     friend: { x: 104, y: 372 },
-    window: { x: 88, y: 152 },
-    side: { x: 292, y: 446 },
+    window: { x: 62, y: 152 }, window2: { x: 118, y: 152 },
+    side: { x: 262, y: 446 }, side2: { x: 322, y: 446 },
     met: { x: 352, y: 452 },
   },
   seat: 'seat', friendSeat: 'friend', metSpot: 'met', ghostSeat: 'side', door: 'door',

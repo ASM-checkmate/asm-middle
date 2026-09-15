@@ -1,13 +1,14 @@
 // ─── 방 안의 인물을 로그와 손가락으로 움직인다 (ADR-0015 · ADR-0028) ────────────────────
 // 자리는 sim이 정한다(activityLog의 줄 → 큐)지만, 사용자가 바닥이나 트리거 존을 누르면 거기로 걸어간다.
 // 인물의 위치는 연속 좌표이고 걷는 시간은 거리 ÷ 속도(실제 시간)다 — 시계 배속과 무관하게, 멀면 오래 걷는다.
-// 처음 그릴 때(화면 진입·미리보기)는 지금까지의 마지막 큐 자리에 바로 서고, 새 줄이 붙을 때만 걸어간다.
+// 사람끼리는 겹치지 않는다: 자리마다 누가 있는지 점유 표를 보고 빈자리로 가고, 남이 앉은 테이블의 빈 의자로 가면 합석이며,
+// 같은 존에 있는 사람과는 떠든다 (개정 1). 처음 그릴 때(화면 진입·미리보기)는 지금까지의 마지막 큐 자리에 바로 선다.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
 import { Character, type Pose } from '../character';
 import type { LogLine } from '../sim/actlog';
 import type { Cast } from '../sim/agents';
-import { DEFAULT_LOOK, type Friend } from '../sim/types';
+import { DEFAULT_LOOK, type Friend, type Look } from '../sim/types';
 import { rng } from '../sim/rng';
 import { Props, SeatItem, zonesOf, type Cue, type RoomSpec, type Spot, type Zone } from './Room';
 import './room.css';
@@ -21,13 +22,14 @@ const PRESENT_SPOTS = ['window', 'counter', 'side2', 'shore', 'kiosk', 'water', 
  * 그 밖(옆자리·분수·길)은 그냥 앞을 본다: 방은 내 캐릭터가 지금 보는 장면이라 얼굴을 가릴 이유가 없다.
  * 얼굴을 감추는 것은 **사진** 쪽 규칙이다 (FRIENDS_SPEC §6 — 남의 사진에 얼굴이 실리지 않게).
  */
-const BACK_SPOTS = new Set(['window', 'counter', 'kiosk', 'mirror', 'escalator', 'label', 'kitchen', 'shore', 'water']);
+const BACK_SPOTS = new Set(['window', 'window2', 'counter', 'counter2', 'kiosk', 'mirror', 'escalator', 'label', 'kitchen', 'shore', 'water']);
 const FEET = 0.91;
 const SPEED = 120;            // 걷는 속도 (px/s) — 방을 대각선으로 가로지르는 데 4초쯤. 옛 1.4초 고정과 비슷한 체감
 const MIN_WALK_MS = 320;      // 아주 가까워도 걸음 한 번은 보인다
 const DWELL_MS = 4000;
 const POSE_MS = 8000;         // 걷지 않는 큐의 자세(생각·기쁨)는 잠깐 — 지나면 자리의 자세로
 const NEAR = 64;              // 존 근처 판정: 발과 존 자리의 거리 (px)
+const BODY = 44;              // 사람끼리 이보다 가까우면 겹쳐 보인다 — 바닥을 눌러도 이만큼 비켜 선다
 // 살아 있기 (ADR-0015 개정 1): 실제 시간 기준. 잔동작 20~40초, 자리 비우기 60~180초(3~6초 머묾), 옆 손님 40~160초마다 30~60초 앉았다 감
 const FIDGET_MS: [number, number] = [20_000, 40_000];
 const STROLL_MS: [number, number] = [60_000, 180_000];
@@ -35,7 +37,16 @@ const STAY_MS: [number, number] = [3_000, 6_000];
 const GUEST_MS: [number, number] = [40_000, 160_000];
 const GUEST_STAY_MS: [number, number] = [30_000, 60_000];
 const GUEST_COLORS = ['#FFC64D', '#A9DCF5', '#8FD37E', '#FFD2C4'];
+// 떠들기 (ADR-0028 개정 1): 같은 존의 사람과 3.5~8초마다 번갈아 한마디. 친구·말 튼 사람과는 편하게, 처음 보는 사람과는 조심스럽게
+const CHAT_MS: [number, number] = [3_500, 8_000];
+const REACT_MS = 2400;
+const CHAT_CLOSE = ['ㅋㅋㅋ', '진짜?', '그래서?', '♪', '대박', '나도!', '헐', '오늘 뭐 해?', '배고파', 'ㅎㅎ', '그치?'];
+const CHAT_NEW = ['…안녕하세요', '여기 자주 오세요?', '아, 네', '저도요', 'ㅎㅎ', '좋네요', '그렇죠?', '날씨 좋죠'];
 type Fidget = 'look' | 'stretch' | 'nod' | 'sip';
+type React_ = 'nod' | 'look' | 'wave';
+type OtherKind = 'friend' | 'met' | 'present' | 'guest';
+/** 방 안의 다른 사람 하나 — 어디 있는지(spot)와 누구인지. 점유 표·합석·떠들기가 본다 */
+interface Other { id: string; kind: OtherKind; spot: string; pos: Spot; size: number; color: string; hairStyle?: Look['hairStyle']; glance?: boolean }
 const reducedMotion = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 /** QA: `&life=10`이면 잔동작·산책·손님 간격이 10배 빨라진다 (dev 빌드만) */
 const lifeSpeed = (): number => { if (!import.meta.env.DEV) return 1; const v = Number(new URLSearchParams(location.search).get('life')); return v > 0 ? v : 1; };
@@ -78,13 +89,40 @@ function restingSpot(room: RoomSpec, log: LogLine[]): { spot: string; pose?: Cue
  */
 export function RoomStage({ room, log, seatPose, cast: castProp, companions = [], seed, leaving = false }: RoomStageProps) {
   const cast: Cast = castProp ?? { companions, present: [] };
-  const rest = restingSpot(room, log);
   const zones = useMemo(() => zonesOf(room), [room]);
+  /** 앉는 자리들: 앉기 존·내 테이블 존의 자리와 옆 손님 자리 — 여기 있는 사람은 앉은 자세, 떠들 때도 일어나지 않는다 */
+  const sitSpots = useMemo(() => new Set([...zones.filter(z => z.pose === 'sit' || z.spots.includes(room.seat)).flatMap(z => z.spots), room.ghostSeat]), [zones, room]);
   const presentRef = useRef(cast.present.length);          // 옆 손님 타이머가 읽는다 — 배경 인물이 있으면 그 자리에 손님이 안 온다
   presentRef.current = cast.present.length;
-  const [pos, setPos] = useState<Spot>(room.spots[rest.spot]!);   // 발 위치 (걷는 동안은 도착점까지 rAF가 DOM에 직접 쓴다)
+  const [guest, setGuest] = useState<{ spot: string; color: string; gone: boolean; walking: boolean } | null>(null);
+
+  // ─── 다른 사람들과 점유 표 ───
+  const friend = cast.companions[0];
+  const met = cast.met;
+  // 같은 공간에 있던 사람들: 옆 손님 자리부터, 그 다음은 방에 있는 이름난 자리 (창가·카운터…) — 최대 둘
+  const presentSpots = [room.ghostSeat, ...PRESENT_SPOTS.filter(s => s !== room.ghostSeat && !!room.spots[s])];
+  const others: Other[] = [
+    ...(friend ? [{ id: `friend:${friend.id}`, kind: 'friend' as const, spot: room.friendSeat, pos: room.spots[room.friendSeat]!, size: SIZE, color: friend.color }] : []),
+    ...(met ? [{ id: `met:${met.agent.id}`, kind: 'met' as const, spot: room.metSpot, pos: room.spots[room.metSpot]!, size: SIZE, color: met.color, hairStyle: met.hairStyle }] : []),
+    ...cast.present.slice(0, presentSpots.length).map((p, i) => ({ id: p.id, kind: 'present' as const, spot: presentSpots[i]!, pos: room.spots[presentSpots[i]!]!, size: PRESENT_SIZE, color: p.color, hairStyle: p.hairStyle, glance: p.glance })),
+    ...(guest && !cast.present.length && !guest.gone ? [{ id: 'guest', kind: 'guest' as const, spot: guest.spot, pos: room.spots[guest.spot]!, size: SIZE, color: guest.color }] : []),
+  ];
+  const taken = new Map(others.map(o => [o.spot, o]));
+  const takenRef = useRef(taken);
+  takenRef.current = taken;
+  const othersRef = useRef(others);
+  othersRef.current = others;
+  /** 자리 이름을 실제로 설 자리로 — 남이 쓰면 같은 존의 빈 자리, 그것도 없으면 null(자리 없음) */
+  const resolveSpot = (name: string): string | null => {
+    if (!takenRef.current.has(name)) return name;
+    const z = zones.find(z => z.spots.includes(name));
+    return z?.spots.find(s => !takenRef.current.has(s)) ?? null;
+  };
+
+  const rest = restingSpot(room, log);
+  const [pos, setPos] = useState<Spot>(() => room.spots[resolveSpot(rest.spot) ?? rest.spot]!);   // 발 위치 (걷는 동안은 도착점까지 rAF가 DOM에 직접 쓴다)
   const posRef = useRef(pos);
-  const [at, setAt] = useState<string | null>(rest.spot);        // 이름난 자리에 서 있으면 그 이름 (바닥 아무 데나면 null)
+  const [at, setAt] = useState<string | null>(() => resolveSpot(rest.spot) ?? rest.spot);        // 이름난 자리에 서 있으면 그 이름 (바닥 아무 데나면 null)
   const atRef = useRef(at);
   atRef.current = at;
   const base = useRef(room.seat);                                  // 큐의 then·산책이 돌아오는 자리 — 사용자가 존을 고르면 그 자리
@@ -99,7 +137,7 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
   const actorRef = useRef<HTMLDivElement>(null);
   const seq = useRef(0);                              // 말풍선 키 — StrictMode가 효과를 두 번 돌려도 겹치지 않게
   const [fidget, setFidget] = useState<Fidget | null>(null);
-  const [guest, setGuest] = useState<{ spot: string; color: string; gone: boolean; walking: boolean } | null>(null);
+  const [reacts, setReacts] = useState<Record<string, React_ | null>>({});   // 다른 사람의 잠깐 반응 (끄덕·두리번·손 흔들기)
   const busy = useRef(false);                          // 걷는 중·자리 비운 중 — 잔동작·산책이 겹치지 않게
   const restingRef = useRef(false);                    // 이름난 자리에 서서 잠깐 자세도 없이 쉬는 중 — 잔동작·산책이 끼어들 수 있다
   const seatedRef = useRef(false);
@@ -126,9 +164,9 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
     cancelAnimationFrame(anim.current);
     pending.current.forEach(clearTimeout); pending.current = [];
   };
-  /** 자리(이름 또는 좌표)로 걸어간다 — 걷는 시간은 거리 ÷ 속도, 방향은 출발·도착점으로, 도착하면 after */
+  /** 자리(이름 또는 좌표)로 걸어간다 — 이름이면 빈자리로 풀고, 걷는 시간은 거리 ÷ 속도, 방향은 출발·도착점으로, 도착하면 after */
   const walkTo = (to: string | Spot, after?: () => void) => {
-    const name = typeof to === 'string' ? to : null;
+    const name = typeof to === 'string' ? (resolveSpot(to) ?? to) : null;
     const dest = name ? room.spots[name]! : (to as Spot);
     cancelAction();
     const from = { ...posRef.current };
@@ -151,6 +189,12 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
     setBubbles(b => [...b.slice(-2), { key: ++seq.current, spot: p, text, kind }]);
   };
   const show = (c: Cue, line: LogLine) => say(c.say ?? line.text, c.kind, c.at ? room.spots[c.at] : undefined);
+  /** 다른 사람의 잠깐 반응 — 끄덕·두리번은 머리만, 손 흔들기는 서 있는 사람만 자세로 */
+  const react = (id: string, r: React_, ms = REACT_MS) => {
+    setReacts(m => ({ ...m, [id]: r }));
+    timers.current.push(window.setTimeout(() => setReacts(m => (m[id] === r ? { ...m, [id]: null } : m)), ms));
+  };
+  const above = (o: Other): Spot => ({ x: o.pos.x, y: o.pos.y - o.size * FEET });
 
   // 새 줄이 붙으면 큐를 실행한다 — sim이 방의 주인이라, 사용자가 시킨 일도 끊는다
   useEffect(() => {
@@ -233,69 +277,132 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
   }, []);
 
   // ─── 사용자 입력 (ADR-0028): 존을 누르면 거기 가서 그 일을, 바닥을 누르면 거기까지 걷기 ───
-  /** 존을 눌렀다: 걸어가서 존의 자세·말. 이 자리가 이제 돌아올 곳이다 */
+  /** 존을 눌렀다: 빈자리 중 가장 가까운 곳으로 걸어가서 존의 자세·말. 다 차 있으면(손님이면 내보내고) 테이블 옆에 서서 "자리 없음" */
   const tapZone = (z: Zone) => {
     if (goneRef.current) return;
-    base.current = z.spot;
-    if (z.spot === room.ghostSeat) leaveGuest();
+    const me = posRef.current;
+    const free = z.spots.filter(s => !takenRef.current.has(s)).sort((a, b) => dist(me, room.spots[a]!) - dist(me, room.spots[b]!));
+    let spot = free[0];
+    if (!spot) {
+      const g = z.spots.find(s => takenRef.current.get(s)?.kind === 'guest');
+      if (g) { leaveGuest(); spot = g; }
+    }
+    if (!spot) {
+      const standby = { x: Math.min(room.w - SIZE * 0.35, Math.max(SIZE * 0.35, z.x + z.w / 2)), y: Math.min(room.h - 8, z.y + z.h + 28) };
+      walkTo(standby, () => { setPose(undefined); say('자리 없음…'); });
+      return;
+    }
+    base.current = spot;
     const arrive = () => { setPose(z.pose); if (z.say) say(z.say); };
-    if (atRef.current === z.spot && !busy.current) { arrive(); return; }
-    walkTo(z.spot, arrive);
+    if (atRef.current === spot && !busy.current) { arrive(); return; }
+    walkTo(spot, arrive);
   };
-  /** 바닥을 눌렀다: 화면 좌표 → 방 좌표(방이 축소돼 있어도), 바닥 범위 안으로 당겨서 걷는다. 도착하면 그냥 서 있는다 */
+  /** 바닥을 눌렀다: 화면 좌표 → 방 좌표(방이 축소돼 있어도), 바닥 범위 안으로 당기고, 누가 서 있으면 옆으로 비켜서 걷는다. 도착하면 그냥 서 있는다 */
   const tapFloor = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (goneRef.current) return;
     const r = e.currentTarget.getBoundingClientRect();
     const k = r.width / room.w;
     const floorTop = Math.min(...Object.values(room.spots).map(s => s.y));   // 벽 아래 첫 자리 행 — 그보다 위는 벽
-    const x = Math.min(room.w - SIZE * 0.35, Math.max(SIZE * 0.35, (e.clientX - r.left) / k));
+    const clampX = (x: number) => Math.min(room.w - SIZE * 0.35, Math.max(SIZE * 0.35, x));
+    let x = clampX((e.clientX - r.left) / k);
     const y = Math.min(room.h - 8, Math.max(floorTop, (e.clientY - r.top) / k));
+    const bump = othersRef.current.find(o => dist({ x, y }, o.pos) < BODY);
+    if (bump) x = clampX(x >= bump.pos.x ? bump.pos.x + BODY + 4 : bump.pos.x - BODY - 4);
     walkTo({ x, y }, () => setPose(undefined));
   };
 
+  // ─── 합석·떠들기 (ADR-0028 개정 1): 내가 선 존에 다른 사람이 있으면 서로 보고, 번갈아 한마디씩 ───
+  const zoneAt = at ? zones.find(z => z.spots.includes(at)) ?? null : null;
+  const company = zoneAt && !walking ? others.find(o => o.kind !== 'guest' && o.spot !== at && zoneAt.spots.includes(o.spot)) ?? null : null;
+  const companyId = company?.id ?? null;
+  const prevCompany = useRef<Other | null>(null);
+  useEffect(() => {
+    const prev = prevCompany.current;
+    prevCompany.current = company;
+    if (!company) {
+      // 헤어짐: 서 있던 사람은 손 흔들고, 앉은 사람은 끄덕
+      if (prev) react(prev.id, sitSpots.has(prev.spot) ? 'nod' : 'wave', 1800);
+      return;
+    }
+    const o = company;
+    const r = rng(`chat:${seed}:${o.id}`);
+    const k = lifeSpeed();
+    const ts: number[] = [];
+    const later = (ms: number, fn: () => void) => { ts.push(window.setTimeout(fn, ms / k)); };
+    const close = o.kind !== 'present';       // 친구·말 튼 사람 vs 처음 보는 사람
+    const lines = close ? CHAT_CLOSE : CHAT_NEW;
+    // 마주 보기 + 인사는 상대가 먼저
+    setHeading(h => ({ ...h, left: o.pos.x < posRef.current.x }));
+    later(250, () => { react(o.id, sitSpots.has(o.spot) ? 'nod' : 'wave', 2000); say(close ? '안녕!' : '안녕하세요', undefined, above(o)); });
+    let turn = 0;
+    const tick = () => later(CHAT_MS[0] + r.next() * (CHAT_MS[1] - CHAT_MS[0]), () => {
+      if (!busy.current) {
+        const mine = turn++ % 2 === 1;
+        const text = r.pick(lines);
+        const move: React_ = r.next() < 0.6 ? 'nod' : 'look';
+        if (mine) {
+          say(text);
+          setFidget(move); later(REACT_MS, () => setFidget(cur => (cur === move ? null : cur)));
+        } else {
+          say(text, undefined, above(o)); react(o.id, move);
+        }
+        // 가끔 둘이 같이 웃는다
+        if (close && r.next() < 0.3) later(900, () => { const both: React_ = 'nod'; react(o.id, both); setFidget('nod'); later(REACT_MS, () => setFidget(cur => (cur === 'nod' ? null : cur))); });
+      }
+      tick();
+    });
+    tick();
+    return () => ts.forEach(clearTimeout);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
+
   const me = pos;
-  const seated = !walking && at === room.seat;
+  const seated = !walking && !!at && !!zoneAt && zoneAt.spots.includes(room.seat);
   seatedRef.current = seated && !pose;
   restingRef.current = !walking && !pose && at !== null;
-  const myPose: Pose = walking ? 'walk' : (pose ?? (seated ? seatPose : 'idle'));
+  const myPose: Pose = walking ? 'walk' : (pose ?? (seated ? seatPose : at && sitSpots.has(at) ? 'sit' : 'idle'));
   // 근처의 존 하나(발과 가장 가까운 것) — 빛나고 이름표가 뜬다. 걷는 중·거기 서 있는 중엔 없다
-  const near = walking ? null : zones.map(z => ({ z, d: dist(me, room.spots[z.spot]!) })).filter(x => x.d < NEAR).sort((a, b) => a.d - b.d)[0]?.z ?? null;
-  const friend = cast.companions[0];
-  const met = cast.met;
-  // 같은 공간에 있던 사람들: 옆 손님 자리부터, 그 다음은 방에 있는 이름난 자리 (창가·카운터…) — 최대 둘
-  const presentSpots = [room.ghostSeat, ...PRESENT_SPOTS.filter(s => s !== room.ghostSeat && !!room.spots[s])];
-  const present = cast.present.slice(0, presentSpots.length).map((p, i) => ({ ...p, spot: presentSpots[i]! }));
+  const near = walking ? null : zones.map(z => ({ z, d: Math.min(...z.spots.map(s => dist(me, room.spots[s]!))) })).filter(x => x.d < NEAR).sort((a, b) => a.d - b.d)[0]?.z ?? null;
+  const nearFull = !!near && near.spots.every(s => taken.has(s));
   const atStyle = (s: Spot, size = SIZE): CSSProperties => ({ transform: `translate(${s.x - size / 2}px, ${s.y - size * FEET}px)`, zIndex: Math.round(s.y) });
+  const reactClass = (id: string) => { const r = reacts[id]; return r === 'nod' || r === 'look' ? `fidget-${r}` : ''; };
+  /** 같은 존의 사람은 나를 본다 — 내가 왼쪽이면 왼쪽으로 */
+  const facesMe = (o: Other) => (companyId === o.id ? (me.x < o.pos.x ? 'face-left' : '') : '');
 
   return (
     <div className={`room ${fidget === 'sip' ? 'is-sipping' : ''}`} style={{ width: room.w, height: room.h }} aria-hidden="true" onPointerDown={tapFloor}>
       {room.back}
       {zones.map(z => (
-        <div key={z.key} className={`room-zone ${near?.key === z.key ? 'is-near' : ''} ${at === z.spot ? 'is-here' : ''}`}
+        <div key={z.key} className={`room-zone ${near?.key === z.key ? 'is-near' : ''} ${at && z.spots.includes(at) ? 'is-here' : ''}`}
           style={{ left: z.x, top: z.y, width: z.w, height: z.h }} onPointerDown={e => { e.stopPropagation(); tapZone(z); }} />
       ))}
-      {near && at !== near.spot && (
-        <div className="room-zone-tag" style={{ left: near.x + near.w / 2, top: near.y - 4, zIndex: 997 }}>{near.label}</div>
+      {near && !(at && near.spots.includes(at)) && (
+        <div className={`room-zone-tag ${nearFull ? 'is-full' : ''}`} style={{ left: near.x + near.w / 2, top: near.y - 4, zIndex: 997 }}>{nearFull ? `${near.label} · 자리 없음` : near.label}</div>
       )}
       <Props props={room.props} />
       <div ref={actorRef} className={`room-actor is-me ${heading.left ? 'face-left' : ''} ${seated ? 'is-seated' : ''} ${gone ? 'is-gone' : ''} ${fidget && fidget !== 'sip' ? `fidget-${fidget}` : ''}`}>
-        <Character pose={myPose} size={SIZE} back={heading.back && walking} />
+        <Character pose={myPose} size={SIZE} back={heading.back && walking} glance={!!companyId} />
       </div>
       {seated && !pose && (
         <div className="room-prop" style={{ left: room.seatItem.x - 32, top: room.seatItem.y - 20, zIndex: room.seatItem.base }}><SeatItem pose={seatPose} /></div>
       )}
-      {friend && (
-        <div className="room-actor is-still is-seated" style={atStyle(room.spots[room.friendSeat]!)}>
-          <Character pose={seatPose === 'draw' || seatPose === 'read' ? seatPose : 'sit'} size={SIZE} variant="friend" color={friend.color} />
-        </div>
-      )}
-      {/* 같은 공간에 있던 사람들 (FRIENDS_SPEC §6 표): 배경에 뒷모습·작게·얼굴 없이, 살짝 흐리게. 말을 건 상대도 `at` 전엔 이 중 하나고,
-          `at`이 지나면 배경에서 빠져 met 자리에 정면으로 선다. 설렘 대상(cast의 glance)만 슬쩍 돌아본 3/4 얼굴 (AFFECTION_SPEC §4) */}
-      {present.map(p => (
-        <div key={p.id} className="room-actor is-still is-present" style={atStyle(room.spots[p.spot]!, PRESENT_SIZE)}>
-          <Character pose={p.spot === room.ghostSeat ? 'sit' : 'idle'} size={PRESENT_SIZE} variant="friend" color={p.color} look={p.hairStyle ? { ...DEFAULT_LOOK, hairStyle: p.hairStyle } : undefined} back={BACK_SPOTS.has(p.spot)} glance={BACK_SPOTS.has(p.spot) && p.glance} paused />
+      {others.filter(o => o.kind === 'friend').map(o => (
+        <div key={o.id} className={`room-actor is-still is-seated ${facesMe(o)} ${reactClass(o.id)}`} style={atStyle(o.pos)}>
+          <Character pose={seatPose === 'draw' || seatPose === 'read' ? seatPose : 'sit'} size={SIZE} variant="friend" color={o.color} glance={companyId === o.id} />
         </div>
       ))}
+      {/* 같은 공간에 있던 사람들 (FRIENDS_SPEC §6 표): 배경에 뒷모습·작게·얼굴 없이, 살짝 흐리게. 말을 건 상대도 `at` 전엔 이 중 하나고,
+          `at`이 지나면 배경에서 빠져 met 자리에 정면으로 선다. 설렘 대상(cast의 glance)만 슬쩍 돌아본 3/4 얼굴 (AFFECTION_SPEC §4).
+          내가 같은 존에 가서 떠드는 동안은 나를 돌아본 채 또렷하고, 반응한다 */}
+      {others.filter(o => o.kind === 'present').map(o => {
+        const withMe = companyId === o.id;
+        const back = BACK_SPOTS.has(o.spot);
+        return (
+          <div key={o.id} className={`room-actor is-still is-present ${withMe ? 'is-with' : ''} ${facesMe(o)} ${reactClass(o.id)}`} style={atStyle(o.pos, PRESENT_SIZE)}>
+            <Character pose={sitSpots.has(o.spot) ? 'sit' : reacts[o.id] === 'wave' ? 'wave' : 'idle'} size={PRESENT_SIZE} variant="friend" color={o.color} look={o.hairStyle ? { ...DEFAULT_LOOK, hairStyle: o.hairStyle } : undefined} back={back && !withMe} glance={withMe || (back && o.glance)} paused={!withMe} />
+          </div>
+        );
+      })}
       {met && (
         <>
           <div className="room-actor is-still is-seated" style={atStyle(room.spots[room.metSpot]!)}>
@@ -304,7 +411,7 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
           <div className="room-bubble is-stay" style={{ left: room.spots[room.metSpot]!.x, top: room.spots[room.metSpot]!.y - SIZE * FEET - 4, zIndex: 999 }}>안녕!</div>
         </>
       )}
-      {guest && !present.length && (
+      {guest && !cast.present.length && (
         <div className={`room-actor is-guest ${guest.gone ? 'is-gone' : ''} ${guest.walking ? '' : 'is-seated'} ${guest.walking && guest.spot === room.ghostSeat ? 'face-left' : ''}`} style={atStyle(room.spots[guest.spot]!)}>
           {/* 들어올 땐 위로 걸으니 뒷모습, 앉으면 정면, 나갈 땐 아래로 걸으니 정면 */}
           <Character pose={guest.walking ? 'walk' : 'sit'} size={SIZE} variant="friend" color={guest.color} back={guest.walking && guest.spot === room.ghostSeat} />

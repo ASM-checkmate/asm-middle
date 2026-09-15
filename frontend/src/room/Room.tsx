@@ -26,15 +26,16 @@ export interface Cue {
 }
 
 /**
- * 트리거 존 (ADR-0028): 방 안의 누를 수 있는 영역. 누르면 인물이 `spot`으로 걸어가고, 도착하는 순간 `pose`를 취하며 `say`를 띄운다.
- * 인물이 `spot` 근처(NEAR px)에 있으면 존이 빛나고 이름표가 뜬다 — "여기서 뭘 할 수 있다"는 표시.
+ * 트리거 존 (ADR-0028): 방 안의 누를 수 있는 영역. 누르면 인물이 `spots` 중 비어 있는 가장 가까운 자리로 걸어가고, 도착하는 순간
+ * `pose`를 취하며 `say`를 띄운다. 인물이 존 자리 근처(NEAR px)에 있으면 존이 빛나고 이름표가 뜬다 — "여기서 뭘 할 수 있다"는 표시.
+ * 자리가 여럿이면 남이 앉은 테이블의 빈 의자로 가는 게 곧 합석이고(개정 1), 같은 존에 있는 사람과는 떠든다.
  */
 export interface Zone {
   key: string;
   /** 누를 수 있는 사각형 (방 좌표, 왼쪽 위 모서리와 크기) */
   x: number; y: number; w: number; h: number;
-  /** 걸어가 서는 자리 (spots의 이름) */
-  spot: string;
+  /** 걸어가 서는 자리들 (spots의 이름, 선호 순). 의자·스툴 하나가 자리 하나 — 남이 쓰는 자리는 건너뛴다 */
+  spots: string[];
   /** 도착했을 때의 자세. 없으면 자리의 자세(내 자리면 활동 자세, 그 밖은 서 있기) */
   pose?: Cue['pose'];
   /** 도착하면 머리 위에 잠깐 뜨는 말 */
@@ -71,7 +72,7 @@ const SPOT_LABEL: Record<string, string> = {
 
 /** 자리 하나를 감싸는 기본 존: 발 자리 위로 인물 한 명 크기의 상자 */
 function zoneAround(key: string, spot: Spot, pose: Cue['pose'], label: string): Zone {
-  return { key, x: spot.x - 48, y: spot.y - 74, w: 96, h: 86, spot: key, pose, label };
+  return { key, x: spot.x - 48, y: spot.y - 74, w: 96, h: 86, spots: [key], pose, label };
 }
 
 /**
@@ -80,7 +81,8 @@ function zoneAround(key: string, spot: Spot, pose: Cue['pose'], label: string): 
  */
 export function zonesOf(room: RoomSpec): Zone[] {
   if (room.zones) return room.zones;
-  const seat = zoneAround(room.seat, room.spots[room.seat]!, undefined, SPOT_LABEL[room.seat] ?? '내 자리');
+  // 내 자리 존은 동행 의자도 품는다 — 동행이 없으면 거기 앉아도 되고, 있으면 같은 테이블의 사람이다
+  const seat = { ...zoneAround(room.seat, room.spots[room.seat]!, undefined, SPOT_LABEL[room.seat] ?? '내 자리'), spots: [room.seat, room.friendSeat] };
   const strolls = room.strolls.filter(s => s.spot !== room.door && s.spot !== room.seat)
     .map(s => zoneAround(s.spot, room.spots[s.spot]!, s.pose, SPOT_LABEL[s.spot] ?? s.spot));
   return [seat, ...strolls];

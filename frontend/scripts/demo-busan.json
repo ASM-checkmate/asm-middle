@@ -19,23 +19,23 @@
       "민수야, 오늘 광안리 놀러 갈까? 드론쇼 한다는데?"
     ],
     "mark": "1 부산대",
-    "wait": 1200
+    "wait": 1000
   },
   {
     "jump": "18:02",
     "scale": 200,
     "say": [
-      "이동은 진짜 지도 위에서. 실제 이동 시간만큼 걸린다.",
-      ""
+      "이동은 진짜 지도 위에서 하고 실제 이동 시간만큼 걸립니다.",
+      "조개구이 먹으러 조새호 가자! 여기 광안대교 뷰 너무 예쁘대, 감성 미쳤다."
     ],
-    "mark": "3 이동"
+    "mark": "2 이동"
   },
   {
     "waitUntil": {
       "expr": "!!document.querySelector('.act') && !document.querySelector('.map-scene')",
       "max": 45000
     },
-    "mark": "3 도착"
+    "mark": "2 도착"
   },
   {
     "scale": 30
@@ -45,14 +45,14 @@
       "expr": "!!document.querySelector('.room')",
       "max": 8000
     },
-    "wait": 1200
+    "wait": 800
   },
   {
     "say": [
       "",
-      "조개구이 먹으러 조새호 가자! 여기 광안대교 뷰 너무 예뻐, 감성 미쳤다."
+      "와, 여기 조개구이 너무 맛있겠다. 뷰도 너무 좋아!"
     ],
-    "mark": "4 조새호",
+    "mark": "3 조새호",
     "wait": 300
   },
   {
@@ -67,10 +67,10 @@
   },
   {
     "say": [
-      "보고 싶은 순간은 내가 찍는다. 찍은 사진은 그 자리의 그림으로 다시 그려진다.",
+      "기록에 남기고 싶은 순간, 사진을 찍는다.",
       "가리비 익는 동안 찰칵 🐚"
     ],
-    "mark": "5 창가 사진",
+    "mark": "3 창가 사진",
     "wait": 300
   },
   {
@@ -86,18 +86,18 @@
       "url": "/demo/josaeho.png",
       "cell": 0
     },
-    "wait": 1800
+    "wait": 1500
   },
   {
     "tapClick": ".cam-x",
-    "wait": 1000
+    "wait": 900
   },
   {
     "say": [
-      "가보고 싶은 가게 정보는 바로 확인. 네이버 지도·구글 맵으로.",
+      "한번 가보고 싶다면 지도에서 가게를 바로 찾아보세요.",
       ""
     ],
-    "mark": "5b 장소 지도",
+    "mark": "3 장소 지도",
     "wait": 400
   },
   {
@@ -108,19 +108,19 @@
       "expr": "window.__demoReady && window.__demoReady()",
       "max": 15000
     },
-    "wait": 3200
+    "wait": 3000
   },
   {
     "tapClick": ".ps-x",
-    "wait": 1000
+    "wait": 900
   },
   {
     "jump": "20:52",
     "say": [
-      "밤엔 광안리 포차. 드론쇼 전에 테이블에서 먼저 한 장.",
-      "치즈! 🍶"
+      "",
+      "역시 밤에는 포차를 가야지~ 드론쇼 전에 좋은 자리 찾았다."
     ],
-    "mark": "6 포차·테이블 사진",
+    "mark": "4 포차",
     "wait": 300
   },
   {
@@ -132,6 +132,14 @@
       "max": 9000
     },
     "wait": 400
+  },
+  {
+    "say": [
+      "",
+      "치즈! 🍶"
+    ],
+    "mark": "4 테이블 사진",
+    "wait": 200
   },
   {
     "click": ".room-shoot",
@@ -146,7 +154,7 @@
       "url": "/demo/pocha.png",
       "cell": 0
     },
-    "wait": 1800
+    "wait": 1500
   },
   {
     "tapClick": ".cam-x",
@@ -154,32 +162,32 @@
   },
   {
     "say": [
-      "21시, 광안리 드론쇼.",
-      "와, 드론 너무 예쁘다. 사람도 완전 많은데?"
+      "",
+      "와, 드론쇼 시작한다! 드론 너무 예쁘다. 사람도 완전 많아."
     ],
-    "mark": "7a 드론쇼",
+    "mark": "5 드론쇼",
     "wait": 300
   },
   {
     "eval": "document.querySelectorAll('.room-zone')[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
   },
   {
-    "wait": 9500
+    "wait": 9000
   },
   {
     "say": [
-      "옆자리 프랑스 여행자 둘과 친구가 된다.",
-      "친구 됐다~ 🥐"
+      "근처의 에이전트와 친구가 될 수 있습니다.",
+      "봉주르~ 우리 친구해요!"
     ],
-    "mark": "7b 친구",
-    "wait": 3500
+    "mark": "5 친구",
+    "wait": 3000
   },
   {
     "say": [
-      "드론쇼 앞에서 한 장.",
-      "이건 꼭 남겨야지"
+      "",
+      "이건 꼭 남겨야 돼"
     ],
-    "mark": "7c 드론쇼 사진",
+    "mark": "5 드론쇼 사진",
     "wait": 300
   },
   {
@@ -208,17 +216,17 @@
     "jump": "23:44",
     "scale": 200,
     "say": [
-      "집에 갈 땐 동백택시. 부산에선 부산 택시로.",
+      "택시 광고도 받을 수 있습니다.",
       ""
     ],
-    "mark": "8 택시"
+    "mark": "6 택시"
   },
   {
     "waitUntil": {
       "expr": "window.__world.getState().phase.kind === 'sleeping' && !!document.querySelector('.room')",
       "max": 40000
     },
-    "mark": "8 도착"
+    "mark": "6 도착"
   },
   {
     "scale": 30
@@ -232,29 +240,37 @@
   },
   {
     "say": [
-      "집에 들어와서 눕는다.",
-      "다녀왔습니다… 씻고 누워야지"
+      "",
+      "아, 이제 누워야겠다. 너무 잘 놀았어."
     ],
-    "mark": "9 집",
-    "wait": 5500
+    "mark": "7 집",
+    "wait": 4500
   },
   {
     "say": [
-      "자기 전, 침대에서 오늘을 돌아본다.",
-      "새 친구 둘, 사진 석 장. 오늘 좋았다 🌙"
+      "",
+      "자기 전에 SNS나 한번 봐 볼까?"
     ],
-    "mark": "10 SNS"
+    "mark": "7 SNS",
+    "wait": 300
   },
   {
     "tapClick": ".chrome-sns",
-    "wait": 1800
+    "wait": 1500
   },
   {
     "tapClick": [
       ".sns-tabs button",
       "친구"
     ],
-    "wait": 4000
+    "wait": 600
+  },
+  {
+    "say": [
+      "친구의 활동을 SNS에서 확인할 수 있습니다.",
+      ""
+    ],
+    "wait": 3200
   },
   {
     "eval": "(() => { const b = [...document.querySelectorAll('button[aria-label=\"닫기\"]')].at(-1); if (!b) return 'no close'; const r = b.getBoundingClientRect(); window.__demoTap(r.left + r.width / 2, r.top + r.height / 2); setTimeout(() => b.click(), 150); return 'sns closed'; })()",
@@ -266,7 +282,7 @@
       "",
       "나 이제 졸려. 잘게 😴"
     ],
-    "mark": "11 잠",
+    "mark": "8 잠",
     "wait": 3500
   },
   {

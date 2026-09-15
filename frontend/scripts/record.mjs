@@ -96,7 +96,7 @@ const OVERLAY = `(() => {
   window.__demoIntro = (text) => {
     let el = document.getElementById('demo-intro');
     if (!text) { if (el) { el.classList.add('is-off'); setTimeout(() => el.remove(), 450); } return; }
-    if (!el) { el = document.createElement('div'); el.id = 'demo-intro'; el.innerHTML = '<svg viewBox="30 6 140 140"><use href="#chara-face-happy" x="30" y="6" width="140" height="140"/></svg><div class="dc-bubble"></div><small>THEWORLD · DEMO</small>'; document.querySelector('.stage').appendChild(el); }
+    if (!el) { el = document.createElement('div'); el.id = 'demo-intro'; el.innerHTML = '<svg viewBox="30 6 140 140"><use href="#chara-face-happy" x="30" y="6" width="140" height="140"/></svg><div class="dc-bubble"></div><small>나들이 · DEMO</small>'; document.querySelector('.stage').appendChild(el); }
     el.querySelector('.dc-bubble').textContent = text;
   };
   // 준비 판정: 폰트, 이동 지도(타일까지), 장소 시트 지도

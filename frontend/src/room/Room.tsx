@@ -69,7 +69,7 @@ const SPOT_LABEL: Record<string, string> = {
   seat: '내 자리', side: '옆자리', door: '입구', window: '창가', counter: '카운터', kitchen: '부엌', bed: '침대', water: '물가',
   shelf: '책장', treadmill: '러닝머신', cooler: '정수기', mirror: '거울', escalator: '에스컬레이터', board: '안내판', easel: '이젤',
   label: '설명판', desk: '책상', fountain: '분수', flowers: '꽃밭', path: '산책로', shore: '물가', bike: '자전거', bridge: '다리',
-  shells: '조개', kiosk: '매점',
+  shells: '조개', kiosk: '매점', rail: '난간', front: '건물 앞',
 };
 
 /** 자리 하나를 감싸는 기본 존: 발 자리 위로 인물 한 명 크기의 상자 */

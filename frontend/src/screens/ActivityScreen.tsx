@@ -6,7 +6,7 @@ import { backdropsFor } from '../sim/backdrops';
 import { Character } from '../character';
 import { Button, CompanionChip, JetlagChip, ProgressBar, type ChipFriend } from '../ui';
 import { Scene, sceneTypeFor } from '../scenes';
-import { roomFor, RoomStage } from '../room';
+import { roomForPlace, RoomStage } from '../room';
 import { activityLog } from '../sim/actlog';
 import { hhmmIn } from '../sim/tz';
 import { castAt } from '../sim/agents';
@@ -25,8 +25,8 @@ export function ActivityScreen({ phase }: { phase: Active }) {
   const nowMs = act.arriveAt + (act.endAt - act.arriveAt) * Math.min(1, Math.max(0, progress));
   const fullLog = activityLog(act, nowMs);
   const log = fullLog.slice(-4);
-  // 2.5D 방(ADR-0015)이 있는 장소면 캐릭터가 방 안을 돌아다닌다 — 로그 줄이 곧 동선. 없으면 옛 정면 무대
-  const room = roomFor(sceneTypeFor(act.place.type));
+  // 2.5D 방(ADR-0015)이 있는 장소면 캐릭터가 방 안을 돌아다닌다 — 로그 줄이 곧 동선. 장소별 방(개정 4)이 먼저, 없으면 유형 방. 없으면 옛 정면 무대
+  const room = roomForPlace(act.place);
   // 사진 (ADR-0029): 활동 중에만 찍을 수 있다 — 앨범은 endAt에 한 번 만들어져 굳는다. 오버레이는 Home이 띄운다.
   // 방이 있으면 📷 칩은 방의 트리거 존 위에 뜬다(RoomStage shoot, 개정 2). 방 없는 장소만 아래 패널의 버튼 — 배경마다 하나, 없으면 SVG 무대로
   const openCamera = useWorld(s => s.openCamera);

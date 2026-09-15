@@ -65,7 +65,10 @@ export function prepScenario(): void {
     try { indexedDB.deleteDatabase('theworld-media'); } catch { /* 없으면 없는 대로 */ }
     const tz = sc.home ? tzOf(placeById(sc.home)) : 'Asia/Seoul';
     const now = Date.now();
-    const start = dayStartIn(now, tz) + sc.startAt[0] * 3600_000 + sc.startAt[1] * 60_000;
+    // `&at=19:40`: 시작 시각을 덮는다 — 저녁·밤 블록의 방을 바로 본다 (QA)
+    const atRaw = new URLSearchParams(location.search).get('at');
+    const at = atRaw && /^\d{1,2}:\d{2}$/.test(atRaw) ? atRaw.split(':').map(Number) as [number, number] : sc.startAt;
+    const start = dayStartIn(now, tz) + at[0] * 3600_000 + at[1] * 60_000;
     localStorage.setItem('theworld.clock.v1', JSON.stringify({ anchorReal: now, anchorSim: start, scale: sc.scale ?? 1 }));
     for (const k of ['theworld.world.v5', 'theworld.world.v4', 'theworld.days.v3', 'theworld.book.v1', 'theworld.seen.v3']) localStorage.removeItem(k);
     if (sc.home) {

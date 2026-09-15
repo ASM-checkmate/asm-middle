@@ -13,7 +13,7 @@ import type { TimetableWorld } from '../dev/preview';
 import { Character, type Pose } from '../character';
 import { Bubble, Button, Chip, CompanionChip, Glyph, JetlagChip, type ChipFriend } from '../ui';
 import { Scene, sceneTypeFor } from '../scenes';
-import { roomFor, RoomStage } from '../room';
+import { roomForPlace, RoomStage } from '../room';
 import { CATEGORY_FILL, Ring, type RingSeg } from './Ring';
 import { blockRange, bookIntent, dayTitle, progressLabel, shortTitle, transitNote, vehicleName } from './util';
 import './sketch.css';
@@ -175,7 +175,7 @@ export function TimetableScreen({ phase, asSheet, onClose, world, leaving }: { p
   /** waiting somewhere other than home (the previous activity's place) → that place's scene instead of the yard */
   const away = phase.at.type !== 'home' && phase.at.id !== memory.homePlaceId;
   // 2.5D 방(ADR-0015 개정 2)이 있는 장소에서 기다리면 정면 무대 대신 방 — 캐릭터는 자리에 앉아 기다리고, 출발하면 문으로 나간다
-  const room = away ? roomFor(sceneTypeFor(phase.at.type)) : undefined;
+  const room = away ? roomForPlace(phase.at) : undefined;
   const openComic = (id: string) => { bookIntent.comicId = id; setBookOpen(true); };
 
   // ── block info column ──

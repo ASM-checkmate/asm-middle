@@ -421,10 +421,10 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
       {near && !(at && near.spots.includes(at)) && (
         <div className={`room-zone-tag ${nearFull ? 'is-full' : ''}`} style={{ left: near.x + near.w / 2, top: near.y - 4, zIndex: 997 }}>{nearFull ? `${near.label} · 자리 없음` : near.label}</div>
       )}
-      {/* 사진 (ADR-0029 개정 2·3): 존에 서 있으면 그 위에 📷 칩 — 이름표와 같은 자리(이름표는 서 있을 땐 안 뜬다). 누르면 그 배경으로 카메라.
+      {/* 사진 (ADR-0029 개정 2·3): 존에 서 있으면 그 위에 📷 칩 — 이름표와 같은 자리(이름표는 서 있을 땐 안 뜬다), 말풍선(z 998·999)보다 위. 누르면 그 배경으로 카메라.
           pointerdown을 막아 바닥 탭·존 탭이 안 먹게. 방 루트가 aria-hidden이라 보조기기엔 안 잡힌다 — 카메라는 크롬의 앨범에서도 연다 */}
       {shoot && zoneAt && !walking && !gone && (shoot.backdrops.length === 0 || chipBackdrops.length > 0) && (
-        <div className={`room-zone-shoot ${shoot.count >= shoot.max ? 'is-full' : ''}`} style={{ left: zoneAt.x + zoneAt.w / 2, top: zoneAt.y - 4, zIndex: 997 }} onPointerDown={e => e.stopPropagation()}>
+        <div className={`room-zone-shoot ${shoot.count >= shoot.max ? 'is-full' : ''}`} style={{ left: zoneAt.x + zoneAt.w / 2, top: zoneAt.y - 4, zIndex: 1000 }} onPointerDown={e => e.stopPropagation()}>
           {(shoot.backdrops.length ? chipBackdrops : [null]).map((b, i) => (
             <Button key={b?.id ?? 'stage'} tone="coral" small className="room-shoot" onClick={() => shoot.onOpen(b?.id ?? null)} ariaLabel={`${b ? `${b.spot}에서 ` : ''}사진 찍기 (${shoot.count}/${shoot.max})`}>
               📷 {b ? b.spot : '사진 찍기'}{i === 0 && <i className="room-shoot-n num">{shoot.count}/{shoot.max}</i>}

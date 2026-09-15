@@ -76,6 +76,9 @@
 /* 방이 있는 장소에선 옛 정면 무대·큰 캐릭터를 쓰지 않는다 */
 .act.has-room .act-scene, .act.has-room .act-chara, .act.has-room .act-friend, .act.has-room .act-met, .act.has-room .act-met-bubble, .act.has-room .act-ghost { display: none; }
 .act.has-room { background: var(--paper); }
+/* 방이 있으면 동행·새 친구 칩은 오른쪽 위(장소 태그 줄 높이)로 — 방 위쪽에 뜨는 📷 존 칩(난간·건물 앞)을 가리지 않게 */
+.act.has-room .act-with, .act.has-room .act-metchip { left: auto; right: 16px; top: calc(74px + var(--safe-top)); }
+.act.has-room .act-with ~ .act-metchip { top: calc(118px + var(--safe-top)); }
 /* ─── 살아 있기 (ADR-0015 개정 1): 로그와 무관하게 20~40초마다 잔동작, 1~3분마다 자리 비우기 ───
    잔동작은 .room-actor에 2.4초짜리 클래스로 붙는다 — 캐릭터 자체의 자세 애니메이션(character.css)을 잠깐 덮어쓴다 */
 .room-actor.fidget-look .ch-head { animation: room-look 2.4s ease-in-out both !important; }

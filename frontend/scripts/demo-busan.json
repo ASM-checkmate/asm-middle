@@ -82,6 +82,16 @@
     "wait": 400
   },
   {
+    "eval": "document.querySelectorAll('.room-zone')[2].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 9000
+    },
+    "wait": 400
+  },
+  {
     "click": ".room-shoot",
     "wait": 2200
   },
@@ -130,6 +140,16 @@
     "wait": 300
   },
   {
+    "eval": "document.querySelectorAll('.room-zone')[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 9000
+    },
+    "wait": 400
+  },
+  {
     "click": ".room-shoot",
     "wait": 2200
   },
@@ -152,6 +172,13 @@
   {
     "eval": "document.querySelectorAll('.room-zone')[2].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))",
     "wait": 4200
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 9000
+    },
+    "wait": 400
   },
   {
     "click": ".room-shoot",

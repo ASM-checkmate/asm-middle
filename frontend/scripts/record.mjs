@@ -62,8 +62,8 @@ const OVERLAY = `(() => {
     #demo-tap { position: fixed; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; background: rgba(255,106,72,.45); border: 3px solid #FF6A48; z-index: 10000; pointer-events: none; opacity: 0; transform: scale(.4); }
     #demo-tap.is-on { animation: demo-tap .55s ease-out both; }
     @keyframes demo-tap { 0% { opacity: 1; transform: scale(.4); } 100% { opacity: 0; transform: scale(1.4); } }
-    #demo-intro { position: absolute; inset: 0; z-index: 900; background: #FFF6E6; display: grid; place-items: center; align-content: center; gap: 22px; opacity: 0; transition: opacity .4s ease; }
-    #demo-intro.is-on { opacity: 1; }
+    #demo-intro { position: absolute; inset: 0; z-index: 900; background: #FFF6E6; display: grid; place-items: center; align-content: center; gap: 22px; opacity: 1; }
+    #demo-intro.is-off { opacity: 0; transition: opacity .4s ease; }
     #demo-intro svg { width: 300px; height: 300px; animation: demo-bob 1.6s ease-in-out infinite; }
     @keyframes demo-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
     #demo-intro .dc-bubble { position: relative; margin: 0 28px; background: #FFFFFF; border: 2px solid #2A2118; border-radius: 22px; padding: 16px 20px; box-shadow: 4px 4px 0 #2A2118; font-family: 'Jua', 'Noto Sans KR', sans-serif; font-size: 24px; line-height: 1.35; color: #2A2118; text-align: center; word-break: keep-all; }
@@ -95,9 +95,9 @@ const OVERLAY = `(() => {
   window.__demoTap = (x, y) => { tap.style.left = x + 'px'; tap.style.top = y + 'px'; tap.classList.remove('is-on'); void tap.offsetWidth; tap.classList.add('is-on'); };
   window.__demoIntro = (text) => {
     let el = document.getElementById('demo-intro');
-    if (!text) { if (el) { el.classList.remove('is-on'); setTimeout(() => el.remove(), 450); } return; }
+    if (!text) { if (el) { el.classList.add('is-off'); setTimeout(() => el.remove(), 450); } return; }
     if (!el) { el = document.createElement('div'); el.id = 'demo-intro'; el.innerHTML = '<svg viewBox="30 6 140 140"><use href="#chara-face-happy" x="30" y="6" width="140" height="140"/></svg><div class="dc-bubble"></div><small>THEWORLD · DEMO</small>'; document.querySelector('.stage').appendChild(el); }
-    el.querySelector('.dc-bubble').textContent = text; void el.offsetWidth; el.classList.add('is-on');
+    el.querySelector('.dc-bubble').textContent = text;
   };
   // 준비 판정: 폰트, 이동 지도(타일까지), 장소 시트 지도
   window.__demoReady = () => {
@@ -231,7 +231,7 @@ try {
     }
     if (s.scale) { await ev(`window.__world.getState().setScale(${Number(s.scale)})`); }
     if (s.hold) { await voiceDone(); await holdUntil(s.hold.expr ?? s.hold, s.hold.max ?? 15000); }
-    if (s.intro !== undefined) { await voiceDone(); await ev(`window.__demoIntro(${JSON.stringify(s.intro)})`); await sleep(450); if (holding) { holding = false; lastKeptWall = Date.now(); } speak([s._tts?.[1]]); }
+    if (s.intro !== undefined) { await voiceDone(); await ev(`window.__demoIntro(${JSON.stringify(s.intro)})`); await sleep(700); if (holding) { holding = false; lastKeptWall = Date.now(); } speak([s._tts?.[1]]); }
     if (s.introOff) { await voiceDone(); await sleep(400); await ev(`window.__demoIntro('')`); await sleep(500); }
     if (s.say) {
       await voiceDone();

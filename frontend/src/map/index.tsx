@@ -518,7 +518,7 @@ class Scene {
     if (t >= this.actJ.arriveAt || ph.totalProgress >= 1) { this.arrive(); return; }
     const card = this.hooks.card();
     if (now >= this.nextSplitAt) {
-      this.nextSplitAt = now + 250;
+      this.nextSplitAt = now + 250 / Math.max(1, this.timeScale / 30);   // 배속이 높으면 그만큼 자주 — 지나온 길이 탈것을 따라오지 않게
       this.routes?.update(this.legIndex, p);
       card?.setProgress(ph.totalProgress);
       this.checkStations(p);

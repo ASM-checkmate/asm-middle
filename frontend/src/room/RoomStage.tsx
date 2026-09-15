@@ -127,6 +127,8 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
   atRef.current = at;
   const base = useRef(room.seat);                                  // 큐의 then·산책이 돌아오는 자리 — 사용자가 존을 고르면 그 자리
   const [pose, setPose] = useState<Cue['pose'] | undefined>(rest.pose);
+  const poseRef = useRef(pose);
+  poseRef.current = pose;
   const [walking, setWalking] = useState(false);
   const [heading, setHeading] = useState<{ back: boolean; left: boolean }>({ back: false, left: false });
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
@@ -150,14 +152,17 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
     timers.current.push(window.setTimeout(() => setGuest(g => g && { ...g, gone: true }), 1600));
     timers.current.push(window.setTimeout(() => setGuest(null), 2100));
   };
-  /** 인물 div의 자리를 DOM에 직접 쓴다 — 걷는 동안 매 프레임 React를 돌리지 않으려고. z-index는 바닥 접점 행 */
+  const lying = pose === 'lie';
+  const lyingRef = useRef(lying);
+  lyingRef.current = lying;
+  /** 인물 div의 자리를 DOM에 직접 쓴다 — 걷는 동안 매 프레임 React를 돌리지 않으려고. z-index는 바닥 접점 행 (옆으로 누우면 방석 앞으로) */
   const place = (p: Spot) => {
     const el = actorRef.current;
     if (!el) return;
     el.style.transform = `translate(${p.x - SIZE / 2}px, ${p.y - SIZE * FEET}px)`;
-    el.style.zIndex = String(Math.round(p.y));
+    el.style.zIndex = String(Math.round(p.y) + (lyingRef.current ? 24 : 0));
   };
-  useLayoutEffect(() => { place(pos); }, [pos]);
+  useLayoutEffect(() => { place(pos); }, [pos, lying]);
 
   /** 지금 행동(걷기와 그 뒤의 머물기)을 끊는다 — 다음 행동이 그 자리에서 이어진다 */
   const cancelAction = () => {
@@ -294,7 +299,11 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
     }
     base.current = spot;
     const arrive = () => { setPose(z.pose); if (z.say) say(z.say); };
-    if (atRef.current === spot && !busy.current) { arrive(); return; }
+    if (atRef.current === spot && !busy.current) {
+      // 이미 거기: alt가 있으면 자세를 번갈아 (소파 앉기 ↔ 눕기, 침대 자기 ↔ 뒹굴기)
+      if (z.alt && poseRef.current === z.pose) { setPose(z.alt.pose); if (z.alt.say) say(z.alt.say); } else arrive();
+      return;
+    }
     walkTo(spot, arrive);
   };
   /** 바닥을 눌렀다: 화면 좌표 → 방 좌표(방이 축소돼 있어도), 바닥 범위 안으로 당기고, 누가 서 있으면 옆으로 비켜서 걷는다. 도착하면 그냥 서 있는다 */
@@ -360,7 +369,7 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
   const seated = !walking && !!at && !!zoneAt && zoneAt.spots.includes(room.seat);
   seatedRef.current = seated && !pose;
   restingRef.current = !walking && !pose && at !== null;
-  const myPose: Pose = walking ? 'walk' : (pose ?? (seated ? seatPose : at && sitSpots.has(at) ? 'sit' : 'idle'));
+  const myPose: Pose = walking ? 'walk' : pose === 'lie' ? 'sit' : (pose ?? (seated ? seatPose : at && sitSpots.has(at) ? 'sit' : 'idle'));
   // 근처의 존 하나(발과 가장 가까운 것) — 빛나고 이름표가 뜬다. 걷는 중·거기 서 있는 중엔 없다
   const near = walking ? null : zones.map(z => ({ z, d: Math.min(...z.spots.map(s => dist(me, room.spots[s]!))) })).filter(x => x.d < NEAR).sort((a, b) => a.d - b.d)[0]?.z ?? null;
   const nearFull = !!near && near.spots.every(s => taken.has(s));
@@ -380,7 +389,7 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
         <div className={`room-zone-tag ${nearFull ? 'is-full' : ''}`} style={{ left: near.x + near.w / 2, top: near.y - 4, zIndex: 997 }}>{nearFull ? `${near.label} · 자리 없음` : near.label}</div>
       )}
       <Props props={room.props} />
-      <div ref={actorRef} className={`room-actor is-me ${heading.left ? 'face-left' : ''} ${seated ? 'is-seated' : ''} ${gone ? 'is-gone' : ''} ${fidget && fidget !== 'sip' ? `fidget-${fidget}` : ''}`}>
+      <div ref={actorRef} className={`room-actor is-me ${heading.left && pose !== 'sleep' ? 'face-left' : ''} ${seated ? 'is-seated' : ''} ${lying && !walking ? 'is-lying' : ''} ${gone ? 'is-gone' : ''} ${fidget && fidget !== 'sip' ? `fidget-${fidget}` : ''}`}>
         <Character pose={myPose} size={SIZE} back={heading.back && walking} glance={!!companyId} />
       </div>
       {seated && !pose && (

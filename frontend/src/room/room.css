@@ -29,6 +29,8 @@
 @media (prefers-reduced-motion: reduce) { .room-zone.is-near { animation: none; } }
 .room-actor .ch { display: block; }
 .room-actor.face-left .ch { transform: scaleX(-1); }
+/* 옆으로 눕기 (ADR-0028 개정 2): 그림을 왼쪽으로 눕혀 머리가 왼쪽 팔걸이에, 몸이 방석 위에 오게. 좌우 뒤집기(face-left)는 무시한다 */
+.room-actor.is-lying .ch, .room-actor.is-lying.face-left .ch { transform: translate(-12px, 36px) rotate(-90deg); transform-origin: 50% 50%; }
 /* 같은 공간에 있던 사람 (FRIENDS_SPEC §6 표, ADR-0022): 배경의 뒷모습 — 얼굴 없이, 살짝 흐리게. 관계가 아니라 그 순간의 사실.
    내가 같은 존에 가서 떠드는 동안(.is-with)은 또렷하게 (ADR-0028 개정 1) */
 .room-actor.is-present .ch { opacity: .8; }

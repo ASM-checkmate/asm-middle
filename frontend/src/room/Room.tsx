@@ -21,8 +21,8 @@ export interface Cue {
   say?: string;
   /** 표시 종류: 돈·마찰·음표 */
   kind?: 'money' | 'fx' | 'notes';
-  /** 그 자리에서의 자세 (기본: 자리의 자세) */
-  pose?: 'idle' | 'think' | 'sit' | 'happy';
+  /** 그 자리에서의 자세 (기본: 자리의 자세). sleep은 침대처럼 이불 밑에 누워 자는 것, lie는 소파처럼 옆으로 눕는 것(그림을 눕힌다) */
+  pose?: 'idle' | 'think' | 'sit' | 'happy' | 'sleep' | 'lie';
 }
 
 /**
@@ -42,6 +42,8 @@ export interface Zone {
   say?: string;
   /** 근처에서 뜨는 이름표 */
   label: string;
+  /** 이미 거기 있을 때 다시 누르면 바뀌는 자세 (소파: 앉기 ↔ 눕기, 침대: 자기 ↔ 뒹굴기). 또 누르면 원래 자세로 */
+  alt?: { pose?: Cue['pose']; say?: string };
 }
 
 export interface RoomSpec {

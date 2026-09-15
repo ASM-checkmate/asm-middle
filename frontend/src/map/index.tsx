@@ -555,7 +555,8 @@ class Scene {
       this.cam = this.target;
     }
     const tgt = s.leg.mode === 'plane' ? this.planeCenter(pos, s) : this.approach ? this.approachCenter(pos, s) : pos;
-    this.camPos = lerpLngLat(this.camPos, tgt, lerpK(dt, this.tau));
+    // 배속이 높으면(데모·QA) 카메라가 그만큼 빨리 따라붙는다 — 30배속까지는 원래 여유(tau), 그 위로는 비례해 줄여 인물이 가운데에 남는다
+    this.camPos = lerpLngLat(this.camPos, tgt, lerpK(dt, this.tau / Math.max(1, this.timeScale / 30)));
     if (s.leg.mode === 'plane' && !this.planeApproach && !easing) {
       // Hold the *framing* constant, not the zoom number: 2^zoom / cos(lat) is the globe's apparent scale (camera.ts).
       const z = planeZoomAtLat(this.planeZEq, this.camPos.lat, this.planeShort);

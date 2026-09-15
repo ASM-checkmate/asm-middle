@@ -59,20 +59,19 @@ export function ActivityScreen({ phase }: { phase: Active }) {
           <div className="act-met-bubble">{cast.met?.hello ?? '안녕!'}</div>
         </>
       )}
-      {/* 장소 태그: 가게면 눌러서 지도로 본다 (ADR-0031 PlaceSheet). 집·친구 집은 그냥 태그 */}
-      {act.place.type === 'home' || act.place.type === 'friend_home' ? (
+      {/* 장소 태그 + 옆의 동그란 지도 버튼 (ADR-0031 PlaceSheet — 가게일 때만; 집·친구 집은 태그뿐) */}
+      <div className="act-tagrow">
         <div className="act-tag">
           {act.place.emoji} {act.place.name}
           <small>{where}</small>
           {phase.jetlag && <JetlagChip sticker />}
         </div>
-      ) : (
-        <button type="button" className="act-tag is-link" onClick={() => openPlace(act.place.id)} aria-label={`${act.place.name} 위치 보기`}>
-          {act.place.emoji} {act.place.name}
-          <small>{where} <i className="act-tag-pin" aria-hidden="true">📍 지도</i></small>
-          {phase.jetlag && <JetlagChip sticker />}
-        </button>
-      )}
+        {act.place.type !== 'home' && act.place.type !== 'friend_home' && (
+          <button type="button" className="act-map-btn" onClick={() => openPlace(act.place.id)} aria-label={`${act.place.name} 지도에서 보기`}>
+            <svg viewBox="0 0 40 48" width="18" height="22" aria-hidden="true"><path d="M20 45C12 34 5 27 5 18a15 15 0 0 1 30 0c0 9-7 16-15 27z" fill="var(--coral)" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round" /><circle cx="20" cy="18" r="6" fill="var(--paper)" stroke="var(--ink)" strokeWidth="2" /></svg>
+          </button>
+        )}
+      </div>
       {!!companions.length && (
         <CompanionChip className="act-with" friends={companions} />
       )}

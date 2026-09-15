@@ -344,9 +344,14 @@
   font-family: var(--display); font-size: 15px; line-height: 1.25; box-shadow: var(--shadow-hard-sm);
 }
 .act-tag small { display: block; font-family: var(--mono); font-size: 11px; color: var(--ink-2); letter-spacing: .02em; }
-/* 눌러서 지도로 보는 태그 (ADR-0031): 버튼 리셋 + 📍 힌트 */
-button.act-tag { text-align: left; color: var(--ink); cursor: pointer; font: inherit; font-family: var(--display); }
-.act-tag-pin { font-style: normal; color: var(--coral); margin-left: 4px; }
+/* 태그 줄: 태그 + 옆의 동그란 지도 버튼 (ADR-0031). 태그의 절대 위치를 줄이 대신 가진다 */
+.act-tagrow { position: absolute; left: 16px; top: calc(74px + var(--safe-top)); z-index: 4; display: flex; align-items: center; gap: 8px; }
+.act-tagrow .act-tag { position: static; }
+.act-map-btn {
+  flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  background: var(--card); border: var(--outline); box-shadow: var(--shadow-hard-sm); color: var(--ink);
+}
+.act-map-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
 /* 😴 시차 적응 중 hangs off the tag's top-right corner, clear of the place name */
 .act-tag .jetlag--sticker { top: -21px; right: -20px; }
 /* 활동 로그 (ADR-0001 — 과정의 관찰): 왼쪽 좁은 컬럼에 타임스탬프 줄이 쌓인다.

@@ -50,12 +50,12 @@ export function PlaceSheet({ placeId, onClose }: { placeId: string; onClose: () 
           </div>
           <button type="button" className="ps-x" onClick={onClose} aria-label="닫기">✕</button>
         </div>
-        {/* 가로 지도 + 옆에 링크 둘 — 시트를 낮게 (오너 2026-09-15: 세로로 긴 지도는 별로) */}
+        {/* 가로 띠 지도, 그 아래 링크 둘 나란히 — 시트를 낮게 */}
         <div className="ps-body">
           <a className="ps-map" ref={box} href={naverMapUrl(place)} target="_blank" rel="noopener" aria-label={`${place.name} 지도 — 네이버 지도에서 열기`} />
           <div className="ps-links">
-            <Button tone="coral" small onClick={() => window.open(naverMapUrl(place), '_blank', 'noopener')}>네이버 지도</Button>
-            <Button small onClick={() => window.open(googleMapUrl(place), '_blank', 'noopener')}>구글 맵</Button>
+            <Button tone="coral" small onClick={() => window.open(naverMapUrl(place), '_blank', 'noopener')}>네이버 지도에서 보기</Button>
+            <Button small onClick={() => window.open(googleMapUrl(place), '_blank', 'noopener')}>구글 맵에서 보기</Button>
           </div>
         </div>
         <p className="ps-note">실제 가게예요. 링크는 이름과 동네로 찾아요 — 같은 이름이 여럿이면 동네를 확인해 주세요.</p>

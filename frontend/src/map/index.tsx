@@ -872,7 +872,7 @@ export function MapScene({ act, onArrive, onReady }: MapSceneProps) {
       {createPortal(
         <Rider
           mode={rider.mode} size={RIDER_SIZE[rider.mode]} facing={rider.facing} moving={rider.moving} boarding={rider.boarding}
-          friend={companions.length > 0} friendColor={companions[0]?.color} sleeping={rider.sleeping} doors={rider.doors} night={rider.night}
+          friend={companions.length > 0} friendColor={companions[0]?.color} sleeping={rider.sleeping} doors={rider.doors} night={rider.night} taxi={!!act.ride}
         />,
         dom.rider,
       )}

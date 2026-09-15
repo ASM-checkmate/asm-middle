@@ -9,6 +9,8 @@ import { C, INK, INK3, Wheel, rr, sine } from './shapes';
 export interface CostumeProps {
   friend: boolean;
   night: boolean;
+  /** 제휴 택시(ADR-0031 동백택시): 차 코스튬이 흰 택시 + 지붕 등 + 동백꽃 스티커가 된다 */
+  taxi: boolean;
   sleeping: boolean;
   waving: boolean;
   /** Unique prefix for ids (several riders may share a page). Unused today — kept for future clipPaths. */
@@ -68,7 +70,7 @@ export function Walk({ friend }: CostumeProps) {
 }
 
 // ── car ──────────────────────────────────────────────────────────────────────
-export function Car({ friend, night }: CostumeProps) {
+export function Car({ friend, night, taxi }: CostumeProps) {
   return (
     <>
       <ellipse className="mv-shadow" cx="120" cy="192" rx="56" ry="5" {...SHADOW} />
@@ -81,11 +83,15 @@ export function Car({ friend, night }: CostumeProps) {
           {friend && <use href="#chara-face-friend" x="34" y="16" width="80" height="80" />}
           <use href="#chara-face-3q" x="88" y="4" width="96" height="96" />
         </g>
-        <path d="M26 178 Q10 178 10 162 L10 142 Q10 126 30 124 L58 124 L80 96 Q86 88 100 88 L164 88 Q178 88 186 98 L206 124 L214 124 Q230 126 230 142 L230 162 Q230 178 214 178 Z" fill={C.coral} {...INK} />
+        {/* 택시 지붕 등: 차체보다 먼저 그려 지붕 뒤에 서 있다 */}
+        {taxi && <><rect x="116" y="70" width="40" height="20" rx="5" fill={C.sun} {...INK3} /><text x="136" y="85" textAnchor="middle" fontSize="11" fontFamily="var(--display)" fill={C.ink}>TAXI</text></>}
+        <path d="M26 178 Q10 178 10 162 L10 142 Q10 126 30 124 L58 124 L80 96 Q86 88 100 88 L164 88 Q178 88 186 98 L206 124 L214 124 Q230 126 230 142 L230 162 Q230 178 214 178 Z" fill={taxi ? C.paper : C.coral} {...INK} />
         <path d="M84 122 L98 96 Q100 92 106 92 L160 92 Q166 92 170 98 L188 122 Z" fill={C.paper} {...INK3} />
-        <rect x="118" y="102" width="36" height="24" rx="9" fill={C.coral} />
+        <rect x="118" y="102" width="36" height="24" rx="9" fill={taxi ? C.paper : C.coral} />
         <path d="M126 122 L142 92 L154 92 L138 122 Z" fill={C.sky} opacity=".75" />
         <path d="M150 124 V174 M140 142 h8" fill="none" {...INK3} />
+        {/* 택시: 옆구리 띠 + 문의 동백꽃 스티커 */}
+        {taxi && <><path d="M12 150 h216" stroke={C.coral} strokeWidth="6" opacity=".85" /><g transform="translate(104 156)"><circle r="9" fill="#E0323F" stroke={C.ink} strokeWidth="1.5" /><circle r="3.5" fill={C.sun} /></g></>}
         <ellipse cx="170" cy="90" rx="9" ry="6" fill={C.skin} {...INK3} />
         <circle cx="226" cy="140" r="7" fill={C.sun} fillOpacity={night ? 1 : 0.55} {...INK3} />
         <Wheel cx={68} cy={172} r={20} />

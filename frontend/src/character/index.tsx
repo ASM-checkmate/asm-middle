@@ -28,6 +28,7 @@ export interface RiderProps {
   // ── optional extras (the map may ignore them) ──
   friendColor?: string;          // friend accent (`--friend`), default mint
   night?: boolean;               // car headlight at 100 % (18:00–06:00)
+  taxi?: boolean;                // 제휴 택시 — 차 코스튬을 택시로 (ADR-0031)
   sleeping?: boolean;            // plane: #chara-face-sleep + a floating "z" (p 0.40–0.75)
   doors?: 'open' | 'closed';     // subway doors (information; survives reduced motion)
   altScale?: number;             // plane `--alt-scale` 0.55–1 (inherits from the marker root when omitted)
@@ -62,7 +63,7 @@ const COSTUME: Record<TransportMode, (p: CostumeProps) => React.JSX.Element> = {
  */
 export function Rider({
   mode, size, facing = 'right', tilt, moving = true, boarding = false, friend = false,
-  className, style, friendColor, night = false, sleeping = false, doors = 'closed', altScale, lineColor,
+  className, style, friendColor, night = false, sleeping = false, doors = 'closed', altScale, lineColor, taxi = false,
 }: RiderProps) {
   const box = riderBox(mode, size, friend);
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
@@ -109,7 +110,7 @@ export function Rider({
     <div className={cls} style={rootStyle} data-mode={mode} data-facing={facing}>
       <div className="mv-tilt">
         <svg className="mv-svg" viewBox={box.viewBox} width={box.width} height={box.height} role="img" aria-label={`${LABEL[mode]} 타고 이동 중`}>
-          <Costume friend={friend} night={night} sleeping={sleeping} waving={waving} uid={uid} />
+          <Costume friend={friend} night={night} taxi={taxi} sleeping={sleeping} waving={waving} uid={uid} />
         </svg>
       </div>
     </div>

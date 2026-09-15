@@ -123,12 +123,12 @@ const subCandidates = (mode: TransportMode, act: ScheduledActivity, onboard: Onb
 };
 
 /** 22 px mode glyph: ink outline, sun fill (walk is the character's silhouette). */
-export function ModeGlyph({ mode, size = 22 }: { mode: TransportMode; size?: number }) {
+export function ModeGlyph({ mode, size = 22, taxi = false }: { mode: TransportMode; size?: number; taxi?: boolean }) {
   const s = { stroke: '#2A2118', strokeWidth: 2, strokeLinejoin: 'round' as const, strokeLinecap: 'round' as const };
   let body: ReactNode;
   switch (mode) {
     case 'walk': body = <><circle cx="12" cy="7" r="4.5" fill="#FFD9B8" {...s} /><path d="M8 20l2.5-8h3L16 20" fill="#FFC64D" {...s} /></>; break;
-    case 'car': body = <><path d="M3 15v-3l3-5h12l3 5v3z" fill="#FFC64D" {...s} /><circle cx="7.5" cy="16.5" r="2.5" fill="#FFF6E6" {...s} /><circle cx="16.5" cy="16.5" r="2.5" fill="#FFF6E6" {...s} /></>; break;
+    case 'car': body = <>{taxi && <rect x="9" y="3" width="6" height="3" rx="1" fill="#FFC64D" {...s} />}<path d="M3 15v-3l3-5h12l3 5v3z" fill={taxi ? '#FFF6E6' : '#FFC64D'} {...s} /><circle cx="7.5" cy="16.5" r="2.5" fill="#FFF6E6" {...s} /><circle cx="16.5" cy="16.5" r="2.5" fill="#FFF6E6" {...s} /></>; break;
     case 'plane': body = <path d="M3 13l8-2 4-7h3l-2 7 6 2v2l-6 1-1 5h-2l-2-5-8 1z" fill="#FFC64D" {...s} />; break;
     case 'boat': body = <><path d="M3 14h18l-3 5H6z" fill="#FFC64D" {...s} /><path d="M12 4v10M12 5l6 6h-6" fill="#FFF6E6" {...s} /></>; break;
     case 'train': body = <><rect x="5" y="4" width="14" height="13" rx="3" fill="#FFC64D" {...s} /><rect x="8" y="7" width="8" height="4" rx="1" fill="#FFF6E6" {...s} /><path d="M8 21l1-3M16 21l-1-3" {...s} /></>; break;
@@ -253,7 +253,7 @@ export function MoveCard({ act, journey, legIndex, ticks = [], companions = [], 
   return (
     <div className="mc" ref={root} role="status" aria-live="polite">
       <div className="mc-row1">
-        <ModeGlyph mode={mode} />
+        <ModeGlyph mode={mode} taxi={!!act.ride} />
         <div className="mc-to">{act.place.name}{toParticle(act.place.name)}</div>
         {companions.length > 0 && (
           <span className="mc-with">
@@ -272,7 +272,7 @@ export function MoveCard({ act, journey, legIndex, ticks = [], companions = [], 
       <div className="mc-track" ref={track}>
         <div className="mc-fill" ref={fill} style={{ background: FILL_COLOR[mode] }} data-mode={mode} />
         {isRail(mode) && ticks.map((f, i) => <i key={i} className="mc-tick" style={{ left: `${(f * 100).toFixed(1)}%` }} />)}
-        <div className="mc-knob" ref={knob}><ModeGlyph mode={mode} size={10} /></div>
+        <div className="mc-knob" ref={knob}><ModeGlyph mode={mode} size={10} taxi={!!act.ride} /></div>
       </div>
     </div>
   );

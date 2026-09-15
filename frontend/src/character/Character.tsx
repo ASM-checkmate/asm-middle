@@ -9,6 +9,7 @@ import type { Look } from '../sim/types';
 import { lookVars, useOwnerLook } from './look';
 
 export type Pose = 'idle' | 'walk' | 'sit' | 'sleep' | 'wave' | 'draw' | 'happy' | 'eat' | 'read' | 'think';
+export type Food = 'onigiri' | 'scallop';
 
 export interface CharacterProps {
   pose?: Pose;
@@ -25,6 +26,8 @@ export interface CharacterProps {
   glance?: boolean;
   /** 겉모습 (ADR-0019). 없으면 'me'는 OwnerLookContext(내 캐릭터), 'friend'는 기본 */
   look?: Look;
+  /** 먹기 자세에서 손에 든 것 — 기본 주먹밥. 조개구이집은 가리비 (방이 정한다, RoomSpec.food) */
+  food?: Food;
 }
 
 const FACE: Record<Pose, Face> = {
@@ -43,7 +46,7 @@ const LABEL: Record<Pose, string> = {
   draw: '그림 그리는 캐릭터', happy: '기뻐하는 캐릭터', eat: '먹는 캐릭터', read: '책 읽는 캐릭터', think: '생각하는 캐릭터',
 };
 
-export function Character({ pose = 'idle', size = 240, variant = 'me', color, className, style, paused, back: backProp = false, glance = false, look: lookProp }: CharacterProps) {
+export function Character({ pose = 'idle', size = 240, variant = 'me', color, className, style, paused, back: backProp = false, glance = false, look: lookProp, food }: CharacterProps) {
   const back = backProp && !glance;
   const owner = useOwnerLook();
   const look = lookProp ?? (variant === 'me' ? owner : undefined);
@@ -81,7 +84,7 @@ export function Character({ pose = 'idle', size = 240, variant = 'me', color, cl
             </g>
           </g>
           {armsFront && arms}
-          {pose === 'eat' && <Onigiri />}
+          {pose === 'eat' && (food === 'scallop' ? <Scallop /> : <Onigiri />)}
         </g>
       </g>
       <g className="ch-fx">
@@ -145,6 +148,19 @@ function Onigiri() {
     <g className="ch-food">
       <path d="M100 118 C110 118 118 134 121 142 Q122 149 114 149 H86 Q78 149 79 142 C82 134 90 118 100 118 Z" fill={C.paper} {...INK} />
       <path d="M92 140 h16 v9 H92 z" fill={C.night} />
+    </g>
+  );
+}
+
+/** 가리비 한 점 — 껍데기 위 관자, 젓가락으로 집었다 (조개구이집) */
+function Scallop() {
+  return (
+    <g className="ch-food">
+      <path d="M100 150 l-14 -30" fill="none" stroke={C.night} strokeWidth="3" strokeLinecap="round" />
+      <path d="M100 150 l-6 -32" fill="none" stroke={C.night} strokeWidth="3" strokeLinecap="round" />
+      <path d="M84 126 a16 12 0 0 1 32 0 l-3 6 h-26 z" fill="#FFD2C4" {...INK} />
+      <path d="M90 126 v-8 M96 124 v-9 M102 124 v-9 M108 126 v-8" stroke={C.ink} strokeWidth="1.5" opacity=".5" />
+      <ellipse cx="100" cy="126" rx="8" ry="5" fill={C.sun} stroke={C.ink} strokeWidth="2" />
     </g>
   );
 }

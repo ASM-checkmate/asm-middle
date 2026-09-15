@@ -59,7 +59,7 @@ const PROPS: RoomProp[] = [
         <ellipse cx="0" cy="0" rx="28" ry="10" fill="var(--coral)" opacity=".85" />
         <path d="M-24 -3 h48 M-26 1 h52 M-22 5 h44" stroke="var(--night)" strokeWidth="1.5" opacity=".7" />
         <Scallop x={-14} y={-6} r={0.8} /><Scallop x={4} y={-8} r={0.8} /><Scallop x={16} y={-2} r={0.8} />
-        {/* 잔 (활동 물건 — 빈 접시 등 — 은 seatItem 자리, 그릴 왼쪽 앞) */}
+        {/* 잔 */}
         <Cup x={50} y={2} fill="var(--mint)" />
       </g>
     </>
@@ -124,7 +124,8 @@ export const JOSAEHO: RoomSpec = {
   },
   seat: 'seat', friendSeat: 'friend', metSpot: 'met', ghostSeat: 'side', door: 'door',
   strolls: [{ spot: 'water', pose: 'idle' }, { spot: 'counter', pose: 'think' }, { spot: 'door', pose: 'idle' }],
-  seatItem: { x: 92, y: 384, base: 433 },   // 그릴을 안 가리게 왼쪽 앞
+  // seatItem 없음: 그릴 위에 가리비가 이미 있다 — 빈 접시를 또 놓지 않는다. 먹는 건 손에 든 가리비
+  food: 'scallop',
   zones: ZONES,
   cueOf,
 };

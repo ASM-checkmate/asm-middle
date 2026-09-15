@@ -84,11 +84,12 @@ export default function App() {
     const pose = (q.get('pose') ?? 'idle') as Pose;
     const variant = q.get('variant') === 'friend' ? 'friend' : 'me';
     const color = q.get('color') ?? undefined;
+    const food = q.get('food') === 'scallop' ? 'scallop' : undefined;   // `&food=scallop` — 먹기 자세의 손에 든 것
     return (
       <OwnerLookContext.Provider value={ownerLook ?? DEFAULT_LOOK}>
         <CharacterDefs />
         <div style={{ background: 'transparent', width: 800, height: 800 }}>
-          <Character pose={pose} size={800} variant={variant} color={color} paused />
+          <Character pose={pose} size={800} variant={variant} color={color} food={food} paused />
         </div>
       </OwnerLookContext.Provider>
     );

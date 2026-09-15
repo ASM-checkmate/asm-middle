@@ -434,7 +434,7 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
       )}
       <Props props={room.props} />
       <div ref={actorRef} className={`room-actor is-me ${heading.left && pose !== 'sleep' ? 'face-left' : ''} ${seated ? 'is-seated' : ''} ${lying && !walking ? 'is-lying' : ''} ${gone ? 'is-gone' : ''} ${fidget && fidget !== 'sip' ? `fidget-${fidget}` : ''}`}>
-        <Character pose={myPose} size={SIZE} back={heading.back && walking} glance={!!companyId} />
+        <Character pose={myPose} size={SIZE} back={heading.back && walking} glance={!!companyId} food={room.food} />
       </div>
       {seated && !pose && room.seatItem && (
         <div className="room-prop" style={{ left: room.seatItem.x - 32, top: room.seatItem.y - 20, zIndex: room.seatItem.base }}><SeatItem pose={seatPose} /></div>

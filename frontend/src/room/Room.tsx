@@ -2,6 +2,7 @@
 // 방 하나 = 벽(뒤) + 바닥(평면) + 소품 목록 + 자리(spot) 목록 + 로그 줄 → 큐(cue) 표. 소품과 인물은 바닥 접점 행(y)으로 앞뒤가 정해진다.
 import type { ReactNode } from 'react';
 import type { LogLine } from '../sim/actlog';
+import type { Food } from '../character';
 
 /** 방 안의 한 자리 — 인물의 발이 놓이는 점 (방 좌표, px) */
 export interface Spot { x: number; y: number }
@@ -69,6 +70,8 @@ export interface RoomSpec {
   /** 앉은 자리 앞(테이블 위)에 놓이는 활동 물건의 자리와 앞뒤 — 손에 든 것은 테이블에 가리니 테이블 위에 따로 놓는다 */
   /** 없으면 활동 물건을 안 그린다 — 테이블이 없는 자리(벤치)에선 손에 든 책과 겹친다 */
   seatItem?: { x: number; y: number; base: number };
+  /** 먹기 자세에서 손에 드는 것 — 없으면 주먹밥 (조개구이집은 가리비) */
+  food?: Food;
 }
 
 /** 자리 이름 → 이름표. 방마다 존을 손으로 안 잡아도 자리 이름만으로 존이 되게 */

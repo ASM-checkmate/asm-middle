@@ -3,7 +3,7 @@
 import { useEffect, useId, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { TransportMode } from '../sim/types';
-import { Character } from './Character';
+import { Character, type Food } from './Character';
 import type { CharacterProps, Pose } from './Character';
 import { CharacterDefs } from './defs';
 import { Boat, Car, Plane, Subway, Train, Walk } from './costumes';
@@ -13,7 +13,7 @@ import './character.css';
 
 export { Character, CharacterDefs };
 export { OwnerLookContext, lookVars, SKIN, HAIR, TOP } from './look';
-export type { CharacterProps, Pose };
+export type { CharacterProps, Food, Pose };
 
 export interface RiderProps {
   mode: TransportMode;

@@ -67,7 +67,8 @@ export interface RoomSpec {
   /** 시간 이벤트 (드론쇼 등). 활동 화면이 시계를 주면 RoomStage가 켠다 */
   events?: RoomEvent[];
   /** 앉은 자리 앞(테이블 위)에 놓이는 활동 물건의 자리와 앞뒤 — 손에 든 것은 테이블에 가리니 테이블 위에 따로 놓는다 */
-  seatItem: { x: number; y: number; base: number };
+  /** 없으면 활동 물건을 안 그린다 — 테이블이 없는 자리(벤치)에선 손에 든 책과 겹친다 */
+  seatItem?: { x: number; y: number; base: number };
 }
 
 /** 자리 이름 → 이름표. 방마다 존을 손으로 안 잡아도 자리 이름만으로 존이 되게 */

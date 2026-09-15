@@ -112,7 +112,7 @@ export const PNU: RoomSpec = {
   },
   seat: 'seat', friendSeat: 'friend', metSpot: 'met', ghostSeat: 'side', door: 'door',
   strolls: [{ spot: 'front', pose: 'idle' }, { spot: 'label', pose: 'think' }, { spot: 'door', pose: 'idle' }],
-  seatItem: { x: 150, y: 380, base: 429 },
+  // seatItem 없음: 벤치엔 테이블이 없다 — 책은 손에 들고 읽는다 (테이블 위 물건을 그리면 손의 책과 겹친다)
   zones: ZONES,
   cueOf,
 };

@@ -2,7 +2,7 @@
 // 셔터 뒤: 단순 합성본(크게) + 캐릭터 투명 PNG를 서버에 보내고, 배경 화풍으로 캐릭터를 다시 그린 새 media id를 받아 샷·앨범의 참조를
 // 바꾼다(store.replaceShotId). 그동안 샷은 gen 'pending'(폴라로이드 현상 중), 실패하면 'plain' — 단순 합성본이 그대로 사진이다.
 // 서버가 없거나 사용자가 없으면(오프라인) 그냥 plain. 폰 캐시에 없는 새 id는 PhotoImg가 GET /api/media/{id}로 받는다.
-import { api } from './api';
+import { api, currentUser } from './api';
 import { useWorld } from './store';
 import type { Look, ShotPose } from './types';
 import { bakeComposite, bakeFigure, type BakeInput } from '../photo/bake';
@@ -38,6 +38,8 @@ const b64 = (blob: Blob): Promise<Pic> => new Promise((res, rej) => {
  */
 export async function requestShotGen(shotId: string, input: BakeInput, meta: ShotGenMeta): Promise<string | null> {
   const st = useWorld.getState();
+  // 서버 사용자가 없으면(오프라인으로 시작) 생성이 없다 — 바로 plain, 콘솔에 이유
+  if (!currentUser()) { console.info(`shotgen: 로그인한 사용자가 없어 생성을 건너뛴다 (${shotId})`); st.setShotGen(shotId, 'plain'); return null; }
   st.setShotGen(shotId, 'pending');
   try {
     // AI 배경이 있으면 배경 원본 + 캐릭터 + 자리(%)만 (합성본 없이 — A/B에서 더 자연스러웠다). SVG 무대면 합성본이 앵커

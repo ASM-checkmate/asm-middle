@@ -293,8 +293,7 @@ export function CameraOverlay({ act, nowMs, backdropId, preview, onClose }: Came
           // 서버 생성(gen): pending이면 현상이 안 끝나고 계속 흔들리는 뿌연 상태, done이면 생성된 픽셀(PhotoImg)이 떠오른다
           const gen = shot?.gen;
           return (
-            <li key={shot?.shotId ?? `empty-${i}`} className={`cam-cell ${shot ? 'has-shot' : 'is-empty'} ${isFresh ? 'is-fresh' : ''} ${gen === 'pending' ? 'is-pending' : gen === 'done' ? 'is-done' : ''} ${(isFresh || gen === 'pending') && shake ? 'is-shake' : ''}`}
-              style={isFresh ? { ['--dev' as string]: `${Math.max(1.2, 5 - shake * 0.5)}s` } : undefined}
+            <li key={shot?.shotId ?? `empty-${i}`} className={`cam-cell ${shot ? 'has-shot' : 'is-empty'} ${gen === 'pending' ? 'is-pending' : gen === 'done' ? 'is-done' : gen === 'plain' && isFresh ? 'is-plain' : ''} ${(isFresh || gen === 'pending') && shake ? 'is-shake' : ''}`}
               onPointerDown={isFresh || gen === 'pending' ? onShakeDown : undefined} onPointerMove={isFresh || gen === 'pending' ? onShakeMove : undefined} onPointerUp={onShakeUp} onPointerCancel={onShakeUp}
               aria-label={shot ? `${i + 1}번째 사진` : '빈 칸'}>
               <div className="cam-thumb">
@@ -305,7 +304,8 @@ export function CameraOverlay({ act, nowMs, backdropId, preview, onClose }: Came
                   : <span className="cam-empty" aria-hidden="true">{i + 1}</span>}
                 {shot?.shotId && <button type="button" className="cam-del" aria-label="이 사진 지우기" onClick={() => remove(shot.shotId!)}>✕</button>}
               </div>
-              <small className="cam-by">{shot ? `${hhmmIn(shot.at, act.tz)}${gen === 'pending' ? ' · 현상 중' : ''}` : '아직'}</small>
+              {/* plain = 서버 생성이 없었다(오프라인·로그인 안 함·실패) — 단순 합성본이 그대로 사진 */}
+              <small className="cam-by">{shot ? `${hhmmIn(shot.at, act.tz)}${gen === 'pending' ? ' · 현상 중' : gen === 'plain' ? ' · 합성만' : gen === 'done' ? ' · 생성됨' : ''}` : '아직'}</small>
             </li>
           );
         })}

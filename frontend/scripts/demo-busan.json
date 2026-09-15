@@ -1,6 +1,6 @@
 [
   {
-    "goto": "http://localhost:5173/?scenario=busan&reset=1",
+    "goto": "http://localhost:5173/?scenario=busan&reset=1&day=2026-09-15",
     "load": 7000,
     "mark": "0 인트로"
   },

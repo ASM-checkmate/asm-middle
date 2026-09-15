@@ -54,6 +54,11 @@ export function scenarioPlans(sc: Scenario): Partial<Record<BlockId, BlockPlan>>
 }
 
 const SEEDED_KEY = 'theworld.scenario.v1';
+/** `&day=YYYY-MM-DD`: 시나리오를 그 날짜로 산다 — 마찰 굴림(rollFriction)이 날짜에 묶여 있어 데모를 같은 날로 고정할 때 (녹화). 없으면 오늘 */
+function scenarioDayStart(now: number, tz: string): number {
+  const d = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('day') : null;
+  return dayStartIn(d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T12:00:00Z`).getTime() : now, tz);
+}
 export const scenarioParam = (): string | null => (typeof location !== 'undefined' ? new URLSearchParams(location.search).get('scenario') : null);
 export const scenarioSeeded = (key: string): boolean => { try { return localStorage.getItem(SEEDED_KEY) === key; } catch { return false; } };
 export const markScenarioSeeded = (key: string | null) => { try { if (key) localStorage.setItem(SEEDED_KEY, key); else localStorage.removeItem(SEEDED_KEY); } catch { /* ignore */ } };
@@ -76,7 +81,7 @@ export function prepScenario(): void {
     // `&at=19:40`: 시작 시각을 덮는다 — 저녁·밤 블록의 방을 바로 본다 (QA)
     const atRaw = new URLSearchParams(location.search).get('at');
     const at = atRaw && /^\d{1,2}:\d{2}$/.test(atRaw) ? atRaw.split(':').map(Number) as [number, number] : sc.startAt;
-    const start = dayStartIn(now, tz) + at[0] * 3600_000 + at[1] * 60_000;
+    const start = scenarioDayStart(now, tz) + at[0] * 3600_000 + at[1] * 60_000;
     localStorage.setItem('theworld.clock.v1', JSON.stringify({ anchorReal: now, anchorSim: start, scale: sc.scale ?? 1 }));
     for (const k of ['theworld.world.v5', 'theworld.world.v4', 'theworld.days.v3', 'theworld.book.v1', 'theworld.seen.v3']) localStorage.removeItem(k);
     if (sc.home) {
@@ -89,7 +94,7 @@ export function prepScenario(): void {
 /** 시나리오의 강제 마주침을 오늘 날짜로 놓는다 (sim/agents setForcedEncounters). 시각은 그 도시의 현지 자정 기준 */
 function seedMeets(sc: Scenario): void {
   const tz = sc.home ? tzOf(placeById(sc.home)) : 'Asia/Seoul';
-  const dayStart = dayStartIn(Date.now(), tz);
+  const dayStart = scenarioDayStart(Date.now(), tz);
   const dayKey = dayKeyIn(dayStart, tz);
   const at = ([h, m]: [number, number]) => dayStart + h * 3600_000 + m * 60_000;
   for (const [blockId, b] of Object.entries(sc.blocks)) {

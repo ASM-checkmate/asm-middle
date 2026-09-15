@@ -16,7 +16,7 @@
   {
     "say": [
       "능동적으로 살아가는 에이전트들의 세계. 내 캐릭터는 오늘도 제 하루를 산다.",
-      "오후 수업… 민수랑 같이 들으니까 덜 졸려 📖"
+      "민수야, 오늘 광안리 놀러 갈까? 드론쇼 한다는데?"
     ],
     "mark": "1 부산대",
     "wait": 1200
@@ -26,7 +26,7 @@
     "scale": 200,
     "say": [
       "이동은 진짜 지도 위에서. 실제 이동 시간만큼 걸린다.",
-      "광안리까지 민수랑 같이. 배고파…"
+      ""
     ],
     "mark": "3 이동"
   },
@@ -50,7 +50,7 @@
   {
     "say": [
       "가보고 싶은 가게 정보는 바로 확인. 네이버 지도·구글 맵으로.",
-      "조새호, 창가 자리 있대. 광안대교 보이는 자리!"
+      "조개구이 먹으러 조새호 가자! 여기 광안대교 뷰 너무 예뻐, 감성 미쳤다."
     ],
     "mark": "4 조새호",
     "wait": 600
@@ -111,67 +111,16 @@
     "wait": 1000
   },
   {
-    "jump": "20:57",
+    "jump": "20:52",
     "say": [
-      "21시, 광안리 드론쇼.",
-      "하늘에 하트! 옆자리 분들도 보러 왔나 봐"
-    ],
-    "mark": "6a 포차·드론쇼",
-    "wait": 800
-  },
-  {
-    "click": ".room-zone",
-    "wait": 14000
-  },
-  {
-    "say": [
-      "옆자리 프랑스 여행자 둘과 친구가 된다.",
-      "봉주르! 루이랑 클로에래. 우리 친구 됐다 🥐"
-    ],
-    "mark": "6b 친구",
-    "wait": 4500
-  },
-  {
-    "say": [
-      "드론쇼 앞에서 한 장.",
-      "이건 꼭 남겨야지"
-    ],
-    "mark": "7a 드론쇼 사진",
-    "wait": 300
-  },
-  {
-    "eval": "document.querySelectorAll('.room-zone')[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
-  },
-  {
-    "waitUntil": {
-      "expr": "!!document.querySelector('.room-shoot')",
-      "max": 9000
-    },
-    "wait": 400
-  },
-  {
-    "click": ".room-shoot",
-    "wait": 2200
-  },
-  {
-    "click": ".cam-shutter",
-    "wait": 2400
-  },
-  {
-    "tapClick": ".cam-x",
-    "wait": 900
-  },
-  {
-    "say": [
-      "테이블에서도 한 장.",
+      "밤엔 광안리 포차. 드론쇼 전에 테이블에서 먼저 한 장.",
       "민수랑도 찍어야지 🍶"
     ],
-    "mark": "7b 테이블 사진",
+    "mark": "6 포차·테이블 사진",
     "wait": 300
   },
   {
-    "eval": "document.querySelectorAll('.room-zone')[2].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))",
-    "wait": 4200
+    "eval": "document.querySelectorAll('.room-zone')[2].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
   },
   {
     "waitUntil": {
@@ -191,20 +140,72 @@
   {
     "dropPhoto": {
       "url": "/demo/pocha.png",
-      "cell": 1
+      "cell": 0
     },
+    "wait": 1800
+  },
+  {
+    "tapClick": ".cam-x",
+    "wait": 900
+  },
+  {
+    "say": [
+      "21시, 광안리 드론쇼.",
+      "와, 드론 너무 예쁘다. 사람도 완전 많은데?"
+    ],
+    "mark": "7a 드론쇼",
+    "wait": 300
+  },
+  {
+    "eval": "document.querySelectorAll('.room-zone')[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
+  },
+  {
+    "wait": 9500
+  },
+  {
+    "say": [
+      "옆자리 프랑스 여행자 둘과 친구가 된다.",
+      "친구 됐다~ 🥐"
+    ],
+    "mark": "7b 친구",
+    "wait": 3500
+  },
+  {
+    "say": [
+      "드론쇼 앞에서 한 장.",
+      "이건 꼭 남겨야지"
+    ],
+    "mark": "7c 드론쇼 사진",
+    "wait": 300
+  },
+  {
+    "eval": "document.querySelectorAll('.room-zone')[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 9000
+    },
+    "wait": 400
+  },
+  {
+    "click": ".room-shoot",
+    "wait": 2200
+  },
+  {
+    "click": ".cam-shutter",
     "wait": 2600
   },
   {
     "tapClick": ".cam-x",
-    "wait": 1000
+    "wait": 900
   },
   {
     "jump": "23:44",
     "scale": 200,
     "say": [
       "집에 갈 땐 동백택시. 부산에선 부산 택시로.",
-      "택시 잡았다. 민수 잘 가~ 🚕"
+      ""
     ],
     "mark": "8 택시"
   },

@@ -37,7 +37,7 @@ const PROPS: RoomProp[] = [
     </>
   ) },
   // 셀프 바 (왼쪽 가운데): 물통 + 잔 + 반찬통
-  prop('water', 60, 214, 72, 90, (
+  prop('water', 60, 384, 72, 90, (
     <>
       <rect x="4" y="44" width="64" height="44" rx="6" fill="var(--rm-wood)" {...INK} />
       <rect x="4" y="44" width="64" height="8" fill="var(--rm-wood-2)" />
@@ -46,11 +46,11 @@ const PROPS: RoomProp[] = [
       <path d="M36 28 h9 l-1 12 h-7 z M48 28 h9 l-1 12 h-7 z" fill="var(--sky-2)" {...INK2} />
       <rect x="34" y="14" width="26" height="12" rx="3" fill="var(--mint)" {...INK2} />
     </>
-  ), { base: 212 }),
+  ), { base: 382 }),
   plant(34, 544, 'var(--mint)'),
-  // 내 자리 (왼쪽 가운데): 창가 벤치 등판 하나가 둘을 감싼다, 앞에 둥근 스테인리스 테이블 + 그릴
-  chairBack(127, 368, 'var(--rm-wood)', 110),
-  { key: 'table', x: 128 - table.cx, y: 380 - table.cy, w: table.w, h: table.h, base: 432, node: (
+  // 내 자리 (창가 — 통유리창 바로 아래): 창가 벤치 등판 하나가 둘을 감싼다, 앞에 둥근 스테인리스 테이블 + 그릴
+  chairBack(127, 210, 'var(--rm-wood)', 110),
+  { key: 'table', x: 128 - table.cx, y: 222 - table.cy, w: table.w, h: table.h, base: 274, node: (
     <>
       {table.node}
       <g transform={`translate(${table.cx} ${table.cy})`}>
@@ -81,7 +81,7 @@ const BACK = (
       </linearGradient>
     </defs>
     <rect x="0" y="96" width="390" height="464" fill={`url(#${ID}-tile)`} />
-    <Rug cx={128} cy={400} rx={116} ry={54} fill="var(--coral-2)" line="var(--coral)" />
+    <Rug cx={128} cy={244} rx={116} ry={54} fill="var(--coral-2)" line="var(--coral)" />
     {/* 창 너머: 노을 하늘 · 바다 · 모래 */}
     <rect x="0" y="0" width="390" height="98" fill={`url(#${ID}-dusk)`} />
     <circle cx="300" cy="34" r="12" fill="var(--sun)" opacity=".9" />
@@ -103,9 +103,9 @@ const BACK = (
 );
 
 const ZONES: Zone[] = [
-  { key: 'water', x: 14, y: 130, w: 100, h: 130, spots: ['water'], say: '💧', label: '셀프 바' },
+  { key: 'water', x: 14, y: 300, w: 100, h: 130, spots: ['water'], say: '💧', label: '셀프 바' },
   { key: 'counter', x: 214, y: 118, w: 164, h: 130, spots: ['counter'], say: '조개 추가요', label: '주문하기' },
-  { key: 'seat', x: 56, y: 330, w: 144, h: 100, spots: ['seat', 'friend'], label: '창가 자리' },
+  { key: 'seat', x: 56, y: 166, w: 144, h: 106, spots: ['seat', 'friend'], label: '창가 자리' },
   { key: 'side', x: 236, y: 380, w: 112, h: 92, spots: ['side'], pose: 'sit', label: '옆 테이블' },
 ];
 
@@ -116,9 +116,9 @@ export const JOSAEHO: RoomSpec = {
   spots: {
     door: { x: 332, y: 548 },
     counter: { x: 296, y: 268 },
-    water: { x: 60, y: 256 },
-    seat: { x: 150, y: 372 },
-    friend: { x: 104, y: 372 },
+    water: { x: 60, y: 426 },
+    seat: { x: 150, y: 214 },
+    friend: { x: 104, y: 214 },
     side: { x: 292, y: 410 },
     met: { x: 352, y: 452 },
   },

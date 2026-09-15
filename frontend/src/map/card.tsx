@@ -119,7 +119,10 @@ const subCandidates = (mode: TransportMode, act: ScheduledActivity, onboard: Onb
   const a = arrivalPhrase(mode, act);
   const ob = onboardPhrase(mode, onboard);
   if (ob) return [`${ob} · ${a}`, ob];
-  return [`${MODE_PHRASE[mode]} · ${a}`, `${MODE_SHORT[mode]} · ${a}`, a];
+  // 제휴 택시(ADR-0031)면 '차' 대신 그 택시 이름으로
+  const phrase = act.ride && mode === 'car' ? `${act.ride.name} 타고 가는 중` : MODE_PHRASE[mode];
+  const short = act.ride && mode === 'car' ? '택시 타고' : MODE_SHORT[mode];
+  return [`${phrase} · ${a}`, `${short} · ${a}`, a];
 };
 
 /** 22 px mode glyph: ink outline, sun fill (walk is the character's silhouette). */

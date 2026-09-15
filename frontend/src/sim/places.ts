@@ -101,6 +101,11 @@ export const PLACES: Place[] = [
   P('gamcheon-village', '감천문화마을', 'museum', 129.0107, 35.0975, '감천동', 'busan', 'KR', '🎨'),
   P('jagalchi-market', '자갈치시장', 'market', 129.0308, 35.0966, '남포동', 'busan', 'KR', '🦑'),
   P('momos-coffee', '모모스커피', 'cafe', 129.0900, 35.2066, '온천동', 'busan', 'KR', '☕'),
+  // 부산 데모 시나리오 (ADR-0029 `?scenario=busan`): AI 배경이 있는 네 곳 — public/backdrops/manifest.json이 placeId로 가리킨다
+  P('busan-home', '부산 집', 'home', 129.0845, 35.2310, '장전동', 'busan', 'KR', '🏠'),
+  P('pnu', '부산대학교', 'school', 129.0817, 35.2333, '장전동', 'busan', 'KR', '🏫'),
+  P('josaeho', '조새호', 'restaurant', 129.1195, 35.1535, '광안동', 'busan', 'KR', '🦪'),
+  P('samjin-pocha', '삼진포차', 'bar', 129.1183, 35.1545, '광안동', 'busan', 'KR', '🍶'),
   P('paradise-busan', '파라다이스 호텔 부산', 'hotel', 129.1655, 35.1592, '해운대', 'busan', 'KR', '🏨'),
 
   // ── 강릉 ──────────────────────────────────────────────────────────────────

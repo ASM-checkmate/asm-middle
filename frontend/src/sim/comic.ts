@@ -1,12 +1,14 @@
-import type { BlockId, Comic, ComicPanel, Memory, PanelFlaw, PlaceType, ScheduledActivity, ShotWin, TransportMode, UserShot, WorryKey } from './types';
+import type { BlockId, Comic, ComicPanel, Memory, PlaceType, ScheduledActivity, TransportMode, UserShot, WorryKey } from './types';
 import { splitDayKey } from './types';
 import { rng } from './rng';
 import type { FrictionKind } from './friction';
 import { cityNameKo, placeById } from './places';
 import { agentById, comicCastOf } from './agents';
 import { blockSlotIn } from './blocks';
+import { MAX_SHOTS } from './shots';
+import { backdropsFor } from './backdrops';
 
-// Rule-based 4-panel comic writer. Grounded in the real place type + what happened. (LLM later; keep signature.)
+// Rule-based album writer (한때 4컷 만화, ADR-0029부터 사진 1~3장). Grounded in the real place type + what happened. (LLM later; keep signature.)
 // Every caption ≤ 28 Korean characters so it fits a panel. Placeholders: {place} {area} {friend} {mode} {act} {like} {name}
 
 interface Script { arrive: string[]; doing: string[]; twist: string[]; twistFriend: string[]; end: string[] }
@@ -325,28 +327,22 @@ function activityStem(title: string, placeName: string, area: string, city: stri
   return s;
 }
 
-/**
- * 에이전트가 대충 찍은 컷의 열화 (ADR-0004 오너 결정 14: 거의 항상 하나 이상). 후보별 독립 확률이고,
- * 90 % 굴림이 성공했는데 하나도 안 뽑혔으면 임의로 하나를 강제한다. 시드는 `fill:${act.key}` — 기존
- * `comic:`/`shot:` 시드의 next() 호출 순서를 건드리면 저장된 만화·comic-preview 검사 재현이 전부 바뀐다.
- */
-const FLAW_CHANCE: [PanelFlaw, number][] = [['dark', 0.45], ['blur', 0.40], ['overzoom', 0.35], ['cut', 0.35], ['tilt', 0.45]];
-const FLAW_KEEP = 0.9;
-/** 열화 값: overzoom ×1.75, cut ±40~60px, tilt ±14~22° — dark/blur는 플래그만 (CSS가 그린다). */
-const OVERZOOM = 1.75;
-const CUT_PX: [number, number] = [40, 60];
-const TILT_DEG: [number, number] = [14, 22];
 
 /**
- * 4컷 만화. 창 i(활동 시간 4등분, sim/shots.ts)에 사용자 샷이 있으면 그 컷은 **사용자가 찍은 그대로**
- * (by user, crop % 단위, 촬영 시각, 열화 없음), 없으면 에이전트가 채운 열화 컷(by agent).
- * 옛 호출(shots 생략)은 전부 에이전트 컷이다. 한 줄에 작은따옴표 둘 + 한글을 두지 말 것 — comic-preview의 28자 스캔에 걸린다.
+ * 앨범 한 장(ADR-0029): 사용자가 찍은 사진(최대 3)이 곧 컷이다 — 찍은 순서, 찍은 시각, 찍을 때의 배경·자리·자세 그대로(by user).
+ * 한 장도 없으면 에이전트가 단순 합성 한 장을 남긴다(by agent — 배경이 있으면 첫 배경의 기본 자리, 없으면 SVG 무대). 열화는 없다.
+ * 캡션은 옛 4비트(도착·하는 중·트위스트·마무리) 대본에서 컷의 시각에 맞는 줄 — `comic:` 시드의 next() 순서는 그대로라 저장된 앨범의 줄이 안 바뀐다.
+ * 한 줄에 작은따옴표 둘 + 한글을 두지 말 것 — comic-preview의 28자 스캔에 걸린다.
  *
  * @param act 끝난 활동
  * @param memory 캐릭터 메모리 (이름·친구·취향·고민)
- * @param shots 창별 사용자 샷 (`shotsFor(shots, act.key)`)
+ * @param shots 이 활동의 사용자 샷 (`shotsFor(shots, act.key)` — 찍은 순서)
  */
-export function makeComic(act: ScheduledActivity, memory: Memory, shots: Partial<Record<ShotWin, UserShot>> = {}): Comic {
+export const makeComic = (act: ScheduledActivity, memory: Memory, shots: UserShot[] = []): Comic => makeComicWith(act, memory, shots).comic;
+
+/** 앨범과 함께 뽑힌 캡션 넷(비트별) — comic-preview 검사가 본다 (컷이 1~3장이라 앨범만으로는 대본 전체를 못 본다) */
+export type Captions = Record<ComicPanel['beat'], string>;
+export function makeComicWith(act: ScheduledActivity, memory: Memory, shots: UserShot[] = []): { comic: Comic; captions: Captions } {
   const r = rng(`comic:${act.key}`);
   const place = act.place;
   const friend = memory.friends.find(f => act.companions.includes(f.id)) ?? memory.friends.find(f => f.id === act.option.friendId);
@@ -417,71 +413,41 @@ export function makeComic(act: ScheduledActivity, memory: Memory, shots: Partial
     : abroad && r.next() < 0.5 ? (flavor && r.next() < 0.55 ? flavor.end : FOREIGN_END)
     : script.end;
 
-  // Composition rule: panel 1 is always a solo arrival — the door prop owns the right edge of the arrive panel
-  // (where the friend would stand), so a friend there gets hidden behind it. The friend walks in from panel 2,
-  // and gets a little more screen time in the closing panel instead.
-  // ── 질감 (ADR-0001): 컷마다 시각·화각·크롭을 다르게 준다. 정중앙 전신 네 컷은 "그린 그림"으로 읽힌다. ──
-  const sr = rng(`shot:${act.key}`);
+  // ── 컷 (ADR-0029): 캡션 넷은 옛 순서 그대로 뽑아 두고(시드 보존), 컷은 사용자 샷이 정한다 ──
+  const captions: Captions = { arrive: fit(r.pick(arriveSrc)), doing: fit(r.pick(script.doing)), twist: fit(r.pick(twistSrc)), end: fit(r.pick(endSrc)) };
   const span = Math.max(1, act.endAt - act.arriveAt);
-  const AT = [0.05, 0.35, 0.65, 0.95];
-  /** 1컷 와이드 → 2·4컷 보통 → 3컷(트위스트) 하드 푸시인. */
-  const SCALE = [0.82, 1.14, 1.72, 1.05];
-  /** 만화 여섯 개에 하나쯤 잘 안 찍힌 컷이 있다. */
-  const blurAt = sr.next() < 0.17 ? sr.int(0, 3) : -1;
-  const shot = (i: number) => ({
-    t: act.arriveAt + span * AT[i],
-    crop: {
-      scale: SCALE[i] * (0.94 + sr.next() * 0.12),
-      x: Math.round((sr.next() - 0.5) * (i === 2 ? 34 : 14)),
-      y: Math.round((sr.next() - 0.5) * (i === 2 ? 22 : 10)),
-      rot: Math.round((sr.next() - 0.5) * (i === blurAt ? 24 : 5) * 10) / 10,
-    },
-    blur: i === blurAt ? true : undefined,
-  });
-  const BLUR_CAPTION = '이건 잘 안 찍혔다';
-  const panels: ComicPanel[] = [
-    { beat: 'arrive', caption: fit(r.pick(arriveSrc)), bg: bg[0], withFriend: false, ...shot(0) },
-    { beat: 'doing', caption: fit(r.pick(script.doing)), bg: bg[1], withFriend: !!friend, ...shot(1) },
-    // 만남이 성사된 컷과 그 뒤에는 상대가 옆에 서 있다 (동행이 없어도)
-    { beat: 'twist', caption: fit(r.pick(twistSrc)), bg: bg[2], withFriend: !!who || !!met || !!again, ...shot(2) },
-    { beat: 'end', caption: fit(r.pick(endSrc)), bg: bg[3], withFriend: !!met || (!!friend && r.next() < 0.8), ...shot(3) },
-  ];
-  // ── 누가 찍었나 (ADR-0004): 사용자 컷은 그대로, 에이전트 컷은 새 시드로 열화 — 위 r/sr 소비는 이미 끝났다 ──
-  const fr = rng(`fill:${act.key}`);
-  const sign = () => (fr.next() < 0.5 ? -1 : 1);
-  const between = ([lo, hi]: [number, number]) => lo + fr.next() * (hi - lo);
-  let userCount = 0;
-  panels.forEach((p, i) => {
-    const mine = shots[i as ShotWin];
-    // 열화 굴림(종류와 크기 모두)은 사용자 샷 유무와 무관하게 컷마다 같은 순서로 소비한다 — 그래야 같은 활동이면 같은 열화가 나온다
-    // (사용자 컷에서 굴림을 건너뛰면 뒤 컷의 next()가 밀려 종류·크기가 전부 어긋난다). 10 %는 제대로 찍힌 컷, 나머지는 후보별
-    // 독립 굴림 — 하나도 안 걸리면 하나를 강제한다
-    const flawed = fr.next() < FLAW_KEEP;
-    let flaws: PanelFlaw[] = FLAW_CHANCE.filter(([, chance]) => fr.next() < chance).map(([kind]) => kind);
-    if (!flawed) flaws = [];
-    else if (!flaws.length) flaws = [fr.pick(FLAW_CHANCE)[0]];
-    // 크기 굴림도 사용자 컷 분기 **앞에서** 뽑는다 (버리더라도 소비는 한다). 호출 순서(부호 → 크기)는 전과 같아 샷 없는 만화의 값은 그대로다
-    const cut = flaws.includes('cut') ? { dx: sign() * Math.round(between(CUT_PX)), dy: sign() * Math.round(between(CUT_PX)) } : null;
-    const tilt = flaws.includes('tilt') ? Math.round(sign() * between(TILT_DEG) * 10) / 10 : null;
-    if (mine) {
-      // 사용자가 찍은 그대로: crop % 단위, 촬영 시각, 흐림·열화 없음 — 캡션은 그대로 둔다 (BLUR_CAPTION 치환 대상이 아니다)
-      userCount++;
-      p.by = 'user'; p.unit = 'pct'; p.t = mine.at; p.crop = { ...mine.crop }; p.blur = undefined;
-      // 찍는 순간 구운 픽셀의 id (ADR-0024) — 굽기가 실패한 샷엔 없다. 굴림(rng)은 건드리지 않는다
-      if (mine.shotId) p.shotId = mine.shotId;
-      return;
-    }
-    p.by = 'agent'; p.unit = 'px';
-    if (!flaws.length) return;
-    p.flaws = flaws;
-    if (flaws.includes('overzoom')) p.crop.scale = Math.round(p.crop.scale * OVERZOOM * 100) / 100;
-    if (cut) { p.crop.x += cut.dx; p.crop.y += cut.dy; }
-    if (tilt !== null) p.crop.rot = tilt;
-  });
-  for (const p of panels) if (p.blur) p.caption = BLUR_CAPTION;
-  const twistLine = panels[2].caption.replace(/[.!…]+$/, '');
+  /** 컷의 시각 → 비트: 앞 1/4 도착, 중간 하는 중, 뒤 1/4 마무리. 트위스트는 세 장 중 가운데(가장 큰 일)에 */
+  const beatAt = (t: number, i: number, n: number): ComicPanel['beat'] => {
+    if (n >= 3 && i === 1) return 'twist';
+    if (n === 1) return 'twist';
+    const q = (t - act.arriveAt) / span;
+    return q < 0.25 ? 'arrive' : q < 0.75 ? 'doing' : 'end';
+  };
+  const mine = shots.slice(0, MAX_SHOTS);
+  const backdrops = backdropsFor(place.id);
+  const spotOf = (id: string | undefined) => backdrops.find(b => b.id === id)?.spot;
+  const panels: ComicPanel[] = mine.length
+    ? mine.map((m, i) => {
+      const beat = beatAt(m.at, i, mine.length);
+      const p: ComicPanel = { beat, caption: captions[beat], bg: bg[i], withFriend: !!friend, t: m.at, crop: { ...m.crop }, by: 'user', unit: 'pct' };
+      if (m.backdrop) { p.backdrop = m.backdrop; const spot = spotOf(m.backdrop); if (spot) p.spot = spot; }
+      if (m.me) p.me = { ...m.me };
+      if (m.friend) p.friend = { ...m.friend };
+      // 찍는 순간 구운 픽셀의 id (ADR-0024) — 굽기가 실패한 샷엔 없다
+      if (m.shotId) p.shotId = m.shotId;
+      return p;
+    })
+    : [(() => {
+      // 안 찍은 날: 에이전트가 한 장 — 배경이 있으면 첫 배경의 기본 자리(단순 합성), 없으면 SVG 무대. 활동 한가운데 시각
+      const b = backdrops[0];
+      const p: ComicPanel = { beat: 'twist', caption: captions.twist, bg: bg[2], withFriend: !!friend, t: act.arriveAt + span * 0.5, crop: { scale: 1, x: 0, y: 0, rot: 0 }, by: 'agent', unit: 'pct' };
+      if (b) { p.backdrop = b.id; p.spot = b.spot; p.me = { ...b.me, ...(b.sit ? { pose: 'sit' as const } : {}) }; if (friend && b.friend) p.friend = { ...b.friend, ...(b.sit ? { pose: 'sit' as const } : {}) }; }
+      return p;
+    })()];
+  const userCount = mine.length;
+  const twistLine = captions.twist.replace(/[.!…]+$/, '');
   const title = place.type === 'home' ? '집에서 생긴 일' : abroad ? `${city} ${place.name}에서 생긴 일` : `${place.name}에서 생긴 일`;
-  return {
+  const comic: Comic = {
     id: `c:${act.key}`, blockId: act.blockIds[0], dateKey: splitDayKey(act.dayKey).dateKey, title,
     placeName: place.name, placeType: type, createdAt: act.endAt, panels,
     summary: `${place.type === 'home' ? '집' : place.name}에서 ${act_}, ${twistLine}.`,
@@ -496,4 +462,5 @@ export function makeComic(act: ScheduledActivity, memory: Memory, shots: Partial
     // 찍힐 때의 인물 구성 (ADR-0026): 컷을 나중에 구울 때(ADR-0024 결정 2) 활동이 없어도 같은 그림 — 난수는 안 쓴다 (위 시드 순서 불변)
     cast: comicCastOf(act, memory),
   };
+  return { comic, captions };
 }

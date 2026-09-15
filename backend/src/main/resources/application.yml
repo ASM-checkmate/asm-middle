@@ -53,6 +53,11 @@ theworld:
     max-bytes: 4194304
   media:
     dir: ${MEDIA_DIR:./data/media}   # 구운 컷·낙서 파일 (ADR-0020). H2 파일과 같은 data/ 아래
+  gemini:
+    api-key: ${GEMINI_API_KEY:}        # ADR-0029 — 컷 화풍 생성·배경 생성. 비어 있으면 생성 경로는 503
+    endpoint: ${GEMINI_ENDPOINT:https://generativelanguage.googleapis.com/v1beta/models}
+    image-model: ${GEMINI_IMAGE_MODEL:gemini-3.1-flash-image}
+    timeout-ms: ${GEMINI_TIMEOUT_MS:90000}
 
 ---
 # prod: PostgreSQL. `SPRING_PROFILES_ACTIVE=prod DATABASE_URL=jdbc:postgresql://host/db DB_USER=… DB_PASSWORD=…`

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ActivityOption, Anchor, BlockId, BlockPlan, Category, Friend, Comic, DayKey, DaySummaryItem, Gender, Journey, LlmDayPlan, LlmPlans, Look, Memory, Phase, Place, RemoteCache, ScheduledActivity, ShotWin, UserShot, Visibility } from './types';
+import type { ActivityOption, Anchor, BlockId, BlockPlan, Category, Friend, Comic, DayKey, DaySummaryItem, Gender, Journey, LlmDayPlan, LlmPlans, Look, Memory, Phase, Place, RemoteCache, ScheduledActivity, ShotFigure, UserShot, Visibility } from './types';
 import { isLook, splitDayKey } from './types';
 import type { WorryKey } from './types';
 import { BLOCK_ORDER, CATEGORIES, blockEndAt, blockSlotIn, blockStartAt, categoryDef } from './blocks';
@@ -10,7 +10,7 @@ import { optionsFromCards, suggestOptions, withStayDays } from './suggest';
 import { AGENTS, agentActivityAt, agentById, agentNames, agentOfFriend, appendLearned, companionCtx, friendOf, isRemoteId, learnedLine, remoteAgents, setRemoteCache, type Agent } from './agents';
 import { appearanceOf, arrivedKeys, emptyRemote, friendOfRemote, mergeRemote, pendingSlots, pruneRemote, publishWindow, remoteFriendIds, remoteHomeId, timelineSig, validRemote } from './remote';
 import { makeComic } from './comic';
-import { shotsFor, trimShots } from './shots';
+import { MAX_SHOTS, shotsFor, trimShots } from './shots';
 import { buildTimeline, currentDayKey, currentPlaceAt, emptyPlans, isBlockEditable, isBlockFree, phaseAt, returnDueAt, tzAt, type Days, type Encounters, type JourneyCache, type Plans } from './timeline';
 import { estimateJourney, journeyKey } from './journey';
 import { rng } from './rng';
@@ -175,16 +175,19 @@ const validDays = (raw: unknown): Days => {
 };
 /** 캔버스가 만든 dataURL만 받는다 (SketchOverlay: `canvas.toDataURL('image/png')`). */
 const isSketch = (v: unknown): v is string => typeof v === 'string' && v.startsWith('data:image/');
-const isWin = (v: unknown): v is ShotWin => v === 0 || v === 1 || v === 2 || v === 3;
-/** 저장된 샷 검증 — 모양이 어긋난 항목은 버린다 (사용자 컷은 만화에 그대로 들어가므로 숫자여야 한다). shotId는 32자 hex일 때만 남긴다 (ADR-0024) */
+const isFigure = (v: unknown): v is ShotFigure => { const f = v as Partial<ShotFigure> | null; return !!f && Number.isFinite(f.x) && Number.isFinite(f.y) && Number.isFinite(f.scale) && (f.pose === undefined || typeof f.pose === 'string'); };
+/** 저장된 샷 검증 — 모양이 어긋난 항목은 버린다 (사용자 컷은 앨범에 그대로 들어가므로 숫자여야 한다). shotId는 32자 hex일 때만 남긴다 (ADR-0024).
+ *  옛 저장본의 `win`(ADR-0004의 4창)은 떼어 낸다 — 컷 순서는 이제 `at`이다 */
 const validShots = (raw: unknown): UserShot[] => {
   if (!Array.isArray(raw)) return [];
-  return (raw as Partial<UserShot>[]).filter((x): x is UserShot => {
+  return (raw as (Partial<UserShot> & { win?: unknown })[]).filter((x): x is UserShot => {
     const c = x?.crop;
-    return !!x && typeof x.actKey === 'string' && isWin(x.win) && Number.isFinite(x.at)
+    return !!x && typeof x.actKey === 'string' && Number.isFinite(x.at)
       && !!c && Number.isFinite(c.scale) && Number.isFinite(c.x) && Number.isFinite(c.y) && Number.isFinite(c.rot)
-      && (c.pitch === undefined || Number.isFinite(c.pitch)) && (c.light === undefined || Number.isFinite(c.light)) && (c.dof === undefined || Number.isFinite(c.dof)) && (c.focus === undefined || c.focus === 'near' || c.focus === 'far');
-  }).map(x => (x.shotId === undefined || isShotId(x.shotId) ? x : (({ shotId: _drop, ...rest }) => rest)(x)));
+      && (c.pitch === undefined || Number.isFinite(c.pitch)) && (c.light === undefined || Number.isFinite(c.light)) && (c.dof === undefined || Number.isFinite(c.dof)) && (c.focus === undefined || c.focus === 'near' || c.focus === 'far')
+      && (x.backdrop === undefined || typeof x.backdrop === 'string') && (x.me === undefined || isFigure(x.me)) && (x.friend === undefined || isFigure(x.friend))
+      && (x.gen === undefined || x.gen === 'plain' || x.gen === 'pending' || x.gen === 'done');
+  }).map(x => { const { win: _win, ...rest } = x as UserShot & { win?: unknown }; return rest.shotId === undefined || isShotId(rest.shotId) ? rest : (({ shotId: _drop, ...r }) => r)(rest); });
 };
 const persistedOf = (w: World): Persisted => ({ v: 5, days: w.days, anchor: w.anchor, journeys: w.journeys, regen: w.regen, encounters: w.encounters, requests: w.requests, calls: w.calls, messages: w.messages, dueCalls: w.dueCalls, shots: w.shots, llmPlans: w.llmPlans, ...(w.remote ? { remote: w.remote } : {}), ...(w.agentPost ? { agentPost: w.agentPost } : {}), ...(w.agentLikes ? { agentLikes: w.agentLikes } : {}) });
 const horizonFor = (t: number) => t + HORIZON_MS;
@@ -584,7 +587,8 @@ export interface WorldState {
   /** 그림 캔버스 오버레이가 열린 블록 (없으면 null) */
   sketchOpen: BlockId | null;
   /** 카메라 오버레이가 열려 있나 */
-  cameraOpen: boolean;
+  /** 카메라 오버레이 (ADR-0029): 열려 있으면 어느 배경으로 (null = SVG 무대). 트리거 존 버튼이 배경 id를 넣어 연다 */
+  camera: { backdrop: string | null } | null;
   /** false until the user has written their memory once (onboarding); the seed memory is in use meanwhile */
   onboarded: boolean;
   /** = days[today] */
@@ -692,9 +696,18 @@ export interface WorldState {
    */
   resolvePostDraft: (draftId: string, outcome: 'posted' | 'discarded', postId?: string) => void;
   setSketchOpen: (id: BlockId | null) => void;
-  setCameraOpen: (open: boolean) => void;
+  openCamera: (backdrop?: string | null) => void;
+  /** dev 시나리오(dev/scenario.ts): 오늘 블록 계획을 통째로 덮어 심는다 — 사용자가 확정한 카드로 */
+  seedPlans: (patch: Partial<Record<BlockId, BlockPlan>>, home?: string) => void;
+  closeCamera: () => void;
   /** 한 장 찍는다. 같은 actKey+win은 교체(뒤가 이김). 활동 종료 전(now < endAt)에만 — 만화는 endAt에 한 번 만들어진다. */
   addShot: (shot: UserShot) => void;
+  /** 찍은 사진 한 장 지우기 (활동이 끝나기 전에만) */
+  removeShot: (shotId: string) => void;
+  /** 서버 화풍 생성 상태 (ADR-0029) — 샷과, 이미 앨범에 옮겨진 컷의 shotId 픽셀은 그대로 두고 상태만 */
+  setShotGen: (shotId: string, gen: NonNullable<UserShot['gen']>) => void;
+  /** 서버가 화풍을 맞춰 다시 그린 컷(ADR-0029): 샷과 앨범의 참조를 새 media id로 바꾸고 gen을 done으로. 옛 id의 픽셀은 그대로 둔다 */
+  replaceShotId: (oldId: string, newId: string) => void;
   /**
    * 굽기가 실패한 샷의 shotId를 뗀다 (ADR-0024: 픽셀이 없으면 옛 경로로 그린다). 그 사이 다시 찍었으면(다른 id) 건드리지 않는다.
    * 활동이 끝난 뒤에 실패했으면 만화가 이미 그 id를 컷에 옮겼다 — 책의 컷에서도 뗀다 (화면이 다음 열람 때 다시 굽는다)
@@ -1250,7 +1263,7 @@ export const useWorld = create<WorldState>((set, get) => {
     clock, now, anchor: w.anchor, days: w.days, today, tz: initialPhase.tz, memory, agents: [...remoteAgents(), ...AGENTS], encounters, status: initialStatus, requests: w.requests, calls: w.calls, activeCall: null, onboarded,
     messages: w.messages, dueCalls: w.dueCalls, chatOpen: false, chatSeen: load<number>(CHAT_SEEN_KEY, now), llmTier: getTier(), tripBusy: null, llmPlans: w.llmPlans, planBusy: false, say: null,
     backend: sync0.backend, sync: sync0.sync, remote: w.remote ?? null,
-    shots: w.shots, sketchOpen: null, cameraOpen: false, agentPost: agentPost0, agentLikes: agentLikes0,
+    shots: w.shots, sketchOpen: null, camera: null, agentPost: agentPost0, agentLikes: agentLikes0,
     plans: w.days[today], journeys: w.journeys, regen: w.regen, book,
     timeline: first.timeline,
     phase: initialPhase,
@@ -1436,17 +1449,58 @@ export const useWorld = create<WorldState>((set, get) => {
       setPlans({ ...s.plans, [id]: { ...p, sketch: undefined, status: p.options.length ? 'proposed' : 'empty' } });
     },
     setSketchOpen: (id) => set({ sketchOpen: id }),
-    setCameraOpen: (open) => set({ cameraOpen: open }),
+    openCamera: (backdrop = null) => set({ camera: { backdrop } }),
+    seedPlans: (patch, home) => {
+      const s = get();
+      // 시나리오의 집: 캐릭터가 그 도시에 산다 — 기억의 집과 지금 서 있는 자리(anchor)를 같이 옮긴다 (이동이 서울에서 시작하면 하루가 밀린다)
+      if (home && home !== s.memory.homePlaceId) {
+        const tz = tzOf(placeById(home));
+        set({ memory: { ...s.memory, homePlaceId: home }, anchor: { ...s.anchor, placeId: home, tz } });
+      }
+      setPlans({ ...get().plans, ...patch } as Plans);
+    },
+    closeCamera: () => set({ camera: null }),
     addShot: (shot) => {
       const s = get();
       const act = s.timeline.find(a => a.key === shot.actKey);
-      // 만화는 endAt에 한 번 만들어져 앨범에 고정된다 (settle) — 그 뒤의 샷은 반영될 곳이 없다
-      if (!act || s.now >= act.endAt || !isWin(shot.win)) return;
-      const rest = s.shots.filter(x => !(x.actKey === shot.actKey && x.win === shot.win));   // 재촬영: 뒤가 이긴다
+      // 앨범은 endAt에 한 번 만들어져 고정된다 (settle) — 그 뒤의 샷은 반영될 곳이 없다
+      if (!act || s.now >= act.endAt) return;
       // shotId는 모양이 맞을 때만 (validShots와 같은 규칙) — 나머지는 옛 경로
       const clean: UserShot = isShotId(shot.shotId) ? shot : (({ shotId: _drop, ...r }) => r)(shot);
+      const same = clean.shotId ? s.shots.some(x => x.actKey === clean.actKey && x.shotId === clean.shotId) : false;
+      // 활동당 최대 3장 (MAX_SHOTS) — 같은 id를 다시 넣는 건 교체라 세지 않는다
+      if (!same && shotsFor(s.shots, clean.actKey).length >= MAX_SHOTS) return;
+      const rest = same ? s.shots.filter(x => !(x.actKey === clean.actKey && x.shotId === clean.shotId)) : s.shots;
       set({ shots: trimShots([...rest, clean], s.anchor.t) });
       persist();
+    },
+    removeShot: (shotId) => {
+      const s = get();
+      const shot = s.shots.find(x => x.shotId === shotId);
+      const act = shot && s.timeline.find(a => a.key === shot.actKey);
+      if (!shot || !act || s.now >= act.endAt) return;
+      set({ shots: s.shots.filter(x => x.shotId !== shotId) });
+      persist();
+    },
+    setShotGen: (shotId, gen) => {
+      const s = get();
+      if (!s.shots.some(x => x.shotId === shotId && x.gen !== gen)) return;
+      set({ shots: s.shots.map(x => (x.shotId === shotId ? { ...x, gen } : x)) });
+      persist();
+    },
+    replaceShotId: (oldId, newId) => {
+      const s = get();
+      if (!isShotId(oldId) || !isShotId(newId) || oldId === newId) return;
+      if (s.shots.some(x => x.shotId === oldId)) {
+        set({ shots: s.shots.map(x => (x.shotId === oldId ? { ...x, shotId: newId, gen: 'done' as const } : x)) });
+        persist();
+      }
+      // 활동이 끝나 앨범에 옮겨졌으면 거기서도 (dropShotId와 같은 길)
+      if (!s.book.some(c => c.panels.some(p => p.shotId === oldId))) return;
+      const book = s.book.map(c => (c.panels.some(p => p.shotId === oldId) ? { ...c, panels: c.panels.map(p => (p.shotId === oldId ? { ...p, shotId: newId } : p)) } : c));
+      for (const [key, cached] of comicCache) { const next = book.find(c => c.id === cached.id); if (next && next !== cached) comicCache.set(key, next); }
+      set({ book });
+      save(BOOK_KEY, book);
     },
     dropShotId: (shotId) => {
       const s = get();
@@ -1828,7 +1882,7 @@ export const useWorld = create<WorldState>((set, get) => {
     resetDay: () => {
       const s = get();
       const c = resetClock(); saveClock(c);
-      remove(WORLD_KEY); remove(DAYS_KEY_V3); remove(SEEN_KEY);
+      remove(WORLD_KEY); remove(DAYS_KEY_V3); remove(SEEN_KEY); remove('theworld.scenario.v1');   // dev 시나리오 표식도 (dev/scenario.ts)
       comicCache.clear();
       const t = simNow(c);
       const anchor = freshAnchor(t, s.memory);
@@ -1837,7 +1891,7 @@ export const useWorld = create<WorldState>((set, get) => {
       const remote = s.remote ? { ...s.remote, slots: {} } : null;
       setRemoteCache(remote, { meId: s.sync.userId, homeCity: homeCityOf(s.memory) });
       publishedSig = null;
-      set({ clock: c, anchor, days: {}, regen: {}, llmPlans: {}, today: dayKeyIn(t, anchor.tz), tz: anchor.tz, plans: emptyPlans(), timeline: [], summary: null, gap: null, requests: [], calls: [], activeCall: null, selectedBlock: null, messages: [], dueCalls: [], chatOpen: false, say: null, shots: [], sketchOpen: null, cameraOpen: false, remote, agentPost: emptyAgentPost(), agentLikes: emptyAgentLikes() });
+      set({ clock: c, anchor, days: {}, regen: {}, llmPlans: {}, today: dayKeyIn(t, anchor.tz), tz: anchor.tz, plans: emptyPlans(), timeline: [], summary: null, gap: null, requests: [], calls: [], activeCall: null, selectedBlock: null, messages: [], dueCalls: [], chatOpen: false, say: null, shots: [], sketchOpen: null, camera: null, remote, agentPost: emptyAgentPost(), agentLikes: emptyAgentLikes() });
       useSns.getState().setDraft(null);
       recompute(t);
     },

@@ -161,6 +161,18 @@ export function castLayout({ w, h }: Size, cast: Cast): CastLayout {
   if (n >= 2) { const s = 0.32 * w; out.present.push(box(s, w - 0.01 * w - s, h - 0.35 * h + 0.09 * s)); }
   return out;
 }
+/** AI 배경 상자의 배율 (camera.css `.cam-bg img { width: 124% }`) — 카메라의 배경 이동 한도 ±12 %와 같다 */
+export const BD_OVER = 1.24;
+/** 배경(AI 그림) 이동 한도 %: 상자 여유만큼 */
+export const BD_PAN_MAX = 12;
+/**
+ * 배경 위 인물의 상자 (ADR-0029 ShotFigure): 폭 = scale × 프레임 너비(정사각 상자, viewBox 200), 발(viewBox y 182/200 = 91 %)이
+ * (x %, y %)에 닿는다 — camera.css `.cam-me`의 인라인 자리와 같은 식
+ */
+export function figureBox({ w, h }: Size, f: { x: number; y: number; scale: number }): Box {
+  const size = f.scale * w;
+  return { x: (f.x / 100) * w - size / 2, y: (f.y / 100) * h - 0.91 * size, w: size, h: size };
+}
 /** camera.css `.cam-present { opacity: .85 }` */
 export const PRESENT_OPACITY = 0.85;
 

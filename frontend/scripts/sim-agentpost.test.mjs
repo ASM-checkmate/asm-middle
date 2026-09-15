@@ -197,8 +197,8 @@ S().jumpTo(at(9, 1));
 const actAm = S().timeline.find(a => a.key === `${TODAY}:am`);
 check('오전 활동이 공원에 있고 동행은 하나', !!actAm && actAm.place.id === park.id && actAm.companions.join() === 'hana', JSON.stringify(actAm && [actAm.place.id, actAm.companions]));
 const crop = { scale: 1.1, x: 2, y: -3, rot: 4 };
-S().addShot({ actKey: actAm.key, win: 0, at: at(9, 40), crop, shotId: A });
-S().addShot({ actKey: actAm.key, win: 2, at: at(10, 50), crop, shotId: C });
+S().addShot({ actKey: actAm.key, at: at(9, 40), crop, shotId: A });
+S().addShot({ actKey: actAm.key, at: at(10, 50), crop, shotId: C });
 await M.putLocal(A, webp(1), 'shot'); await M.putLocal(C, webp(3), 'shot');
 await M.flushUploads(); await sleep(20);
 check('사용자 컷 두 장이 서버에 올라갔다', M.isUploaded(A) && M.isUploaded(C) && puts('shot').length === 2, JSON.stringify([M.isUploaded(A), puts().length]));
@@ -208,9 +208,10 @@ S().jumpTo(at(12, 30));
 S().tick();
 const comicAmS = S().book.find(c => c.id === `c:${actAm.key}`);
 const comicMo = S().book.find(c => c.id === `c:${TODAY}:morning`);
-check('점심에 오전·아침 만화가 있고 사용자 컷은 shotId를 들고 있다', !!comicAmS && !!comicMo && comicAmS.panels[0].shotId === A && comicAmS.panels[0].by === 'user' && comicAmS.panels[2].shotId === C, JSON.stringify(comicAmS?.panels.map(p => [p.by, p.shotId])));
+check('점심에 오전·아침 앨범이 있고 사용자 컷은 shotId를 들고 있다 (사진 2장)', !!comicAmS && !!comicMo && comicAmS.panels.length === 2 && comicAmS.panels[0].shotId === A && comicAmS.panels[0].by === 'user' && comicAmS.panels[1].shotId === C, JSON.stringify(comicAmS?.panels.map(p => [p.by, p.shotId])));
 const MO = hex('1');
-S().patchPanelShot(comicAmS.id, 1, B); S().patchPanelShot(comicMo.id, 0, MO);
+// 아침은 안 찍었다 — 에이전트 한 장을 화면이 구워 적는다 (B는 다른 앨범의 컷 자리가 없으니 아침에 붙인다)
+S().patchPanelShot(comicMo.id, 0, MO);
 await M.putLocal(B, webp(2), 'shot'); await M.putLocal(MO, webp(4), 'shot');
 await M.flushUploads(); await sleep(20);
 check('식당에서는 창이 아니다 — 아무것도 안 한다', S().phase.kind === 'active' && S().phase.act.place.id === rest.id && S().agentPost.pending === undefined && S().requests.length === 0 && posts().length === 0, JSON.stringify([S().phase.kind, S().agentPost]));
@@ -226,7 +227,7 @@ const req = S().requests.find(r => r.kind === 'post');
 const draft = N().draft;
 check('고민(관심 있는 사람)이 있어 채팅으로 묻는다 — kind post, 이유 + 캡션', !!req && req.line.startsWith('민수 이거 볼 텐데, 이 컷 괜찮아? — "') && req.choices.map(c => c.id).join() === 'post,edit' && req.choices[0].isDefault === true, JSON.stringify(req));
 check('마감은 15분 뒤, refId는 초안 id, 카드로 뜬다', req?.dueAt === T_PM + ASK_DUE_MS && req.refId === draft?.id && pendingOf(S().requests, S().now)[0]?.id === req.id, JSON.stringify([req?.dueAt - T_PM, req?.refId, draft?.id]));
-check('useSns.draft가 채워졌다 — 사용자 컷 A·C 포함 4장, 동행 하나, dueAt', !!draft && draft.cuts.length === 4 && draft.cuts.some(c => c.shotId === A && c.by === 'user') && draft.cuts.some(c => c.shotId === C) && draft.companions.join() === 'hana' && draft.dueAt === req.dueAt, JSON.stringify(draft));
+check('useSns.draft가 채워졌다 — 사용자 컷 A·C 포함 3장(오전 2 + 아침 1), 동행 하나, dueAt', !!draft && draft.cuts.length === 3 && draft.cuts.some(c => c.shotId === A && c.by === 'user') && draft.cuts.some(c => c.shotId === C) && draft.companions.join() === 'hana' && draft.dueAt === req.dueAt, JSON.stringify(draft));
 check('world.agentPost: pending(asked) · 이번 주 1번 · 저장됨', S().agentPost.pending?.asked === true && S().agentPost.pending.draftId === draft.id && S().agentPost.asks.count === 1 && S().agentPost.asks.week === weekKeyOf(DATE) && JSON.parse(storage.get('theworld.world.v5')).agentPost.pending.draft.id === draft.id, JSON.stringify(S().agentPost));
 check('아직 올리지 않았다, 안 읽은 줄 +1 (쪽지)', posts().length === 0 && unreadCount(buildThread(S().messages, S().requests, S().calls, S().now), S().chatSeen) === seen0 + 1, '');
 S().tick(); S().jumpBy(5 * MIN); S().tick();
@@ -251,10 +252,13 @@ S().jumpTo(at2(15, 0)); S().tick(); await sleep(10);
 const DAY2 = S().today;
 const done2 = S().timeline.filter(a => a.dayKey === DAY2 && a.endAt <= S().now);
 S().jumpTo(done2[done2.length - 1].endAt + 1000); S().jumpTo(at2(15, 0));
+S().jumpTo(done2[done2.length - 2].endAt + 1000); S().jumpTo(at2(15, 0));
 const comic2 = S().book.find(c => c.id === `c:${done2[done2.length - 1].key}`);
-check('날이 바뀌었고 끝난 활동의 만화가 있다', DAY2 !== TODAY && done2.length >= 2 && !!comic2, JSON.stringify([DAY2, done2.length]));
+const comic2a = S().book.find(c => c.id === `c:${done2[done2.length - 2].key}`);
+check('날이 바뀌었고 끝난 활동의 앨범이 있다', DAY2 !== TODAY && done2.length >= 2 && !!comic2 && !!comic2a, JSON.stringify([DAY2, done2.length]));
 const X1 = hex('2'), X2 = hex('3');
-S().patchPanelShot(comic2.id, 0, X1); S().patchPanelShot(comic2.id, 1, X2);
+// 앨범은 활동당 한 장 — 앞 활동에 X1, 뒤 활동에 X2 (컷 순서는 시각순)
+S().patchPanelShot(comic2a.id, 0, X1); S().patchPanelShot(comic2.id, 0, X2);
 server.mediaStatus = 500;
 await M.putLocal(X1, webp(5), 'shot'); await M.putLocal(X2, webp(6), 'shot');
 await M.flushUploads(); await sleep(20);
@@ -276,13 +280,18 @@ const prepDay = async (h, m, ids, opts = {}) => {
   S().jumpTo(dayStart + opts.days * 86400_000 + h * 3600_000 + m * MIN); S().tick(); await sleep(10);
   const day = S().today;
   const done = S().timeline.filter(a => a.dayKey === day && a.endAt <= S().now);
-  let comic = S().book.find(c => c.id === `c:${done[done.length - 1].key}`);
-  if (!comic) {   // 창이 아니라 엔진이 정산하지 않았다 — 만화 구간을 지나 책에 싣는다
-    const target = S().now;
-    S().jumpTo(done[done.length - 1].endAt + 1000); S().jumpTo(target);
-    comic = S().book.find(c => c.id === `c:${done[done.length - 1].key}`);
-  }
-  ids.forEach((id, i) => S().patchPanelShot(comic.id, i, id));
+  // 앨범은 활동당 한 장(안 찍은 날, ADR-0029)이라 id 하나에 끝난 활동 하나씩 — 늦게 끝난 활동부터 거꾸로 (컷 순서는 시각순이라 ids 순서가 그대로)
+  const acts = done.slice(-ids.length);
+  const comics = acts.map(a => {
+    let comic = S().book.find(c => c.id === `c:${a.key}`);
+    if (!comic) {   // 창이 아니라 엔진이 정산하지 않았다 — 앨범 구간을 지나 책에 싣는다
+      const target = S().now;
+      S().jumpTo(a.endAt + 1000); S().jumpTo(target);
+      comic = S().book.find(c => c.id === `c:${a.key}`);
+    }
+    return comic;
+  });
+  ids.forEach((id, i) => S().patchPanelShot(comics[i].id, 0, id));
   for (const [i, id] of ids.entries()) await M.putLocal(id, webp(10 + i), 'shot');
   await checkHealth();   // 앞 검사에서 500을 받아 backend가 down일 수 있다 — 살려서 줄을 비운다
   await M.flushUploads(); await sleep(20);

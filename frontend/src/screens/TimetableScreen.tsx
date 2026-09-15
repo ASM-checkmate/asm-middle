@@ -379,7 +379,7 @@ export function TimetableScreen({ phase, asSheet, onClose, world, leaving }: { p
         </div>
         <div className="tt-head" style={{ marginTop: 6 }}>
           <span>{when(shown)}</span>
-          {todayComic && <button type="button" className="tt-link" onClick={() => openComic(todayComic.id)}>만화 다시 보기 ›</button>}
+          {todayComic && <button type="button" className="tt-link" onClick={() => openComic(todayComic.id)}>앨범 다시 보기 ›</button>}
         </div>
       </>
     ) : (

@@ -1,7 +1,8 @@
 import type { Phase } from '../sim/types';
 import { useWorld } from '../sim/store';
 import { cityNameKo } from '../sim/places';
-import { shotsFor } from '../sim/shots';
+import { MAX_SHOTS, shotsFor } from '../sim/shots';
+import { backdropsFor } from '../sim/backdrops';
 import { Character } from '../character';
 import { Button, CompanionChip, JetlagChip, ProgressBar, type ChipFriend } from '../ui';
 import { Scene, sceneTypeFor } from '../scenes';
@@ -26,11 +27,14 @@ export function ActivityScreen({ phase }: { phase: Active }) {
   const log = fullLog.slice(-4);
   // 2.5D 방(ADR-0015)이 있는 장소면 캐릭터가 방 안을 돌아다닌다 — 로그 줄이 곧 동선. 없으면 옛 정면 무대
   const room = roomFor(sceneTypeFor(act.place.type));
-  // 사진 (ADR-0004): 활동 중에만 찍을 수 있다 — 만화는 endAt에 한 번 만들어져 앨범에 굳는다. 오버레이는 Home이 띄운다.
-  const setCameraOpen = useWorld(s => s.setCameraOpen);
+  // 사진 (ADR-0029): 활동 중에만 찍을 수 있다 — 앨범은 endAt에 한 번 만들어져 굳는다. 오버레이는 Home이 띄운다.
+  // 배경(AI 그림)이 있는 장소면 자리마다 버튼 하나 — 트리거 존 버튼이 붙기 전의 임시 자리. 없으면 SVG 무대로 찍기
+  const openCamera = useWorld(s => s.openCamera);
   const shots = useWorld(s => s.shots);
   const memory = useWorld(s => s.memory);
-  const shotCount = Object.keys(shotsFor(shots, act.key)).length;
+  const shotCount = shotsFor(shots, act.key).length;
+  const backdrops = backdropsFor(act.place.id);
+  const full = shotCount >= MAX_SHOTS;
   // 지금 이 순간의 인물 구성 (ADR-0026) — 방·카메라·만화가 같은 규칙으로 그린다
   const cast = castAt(act, nowMs, memory);
   const friend = cast.companions[0];
@@ -80,9 +84,17 @@ export function ActivityScreen({ phase }: { phase: Active }) {
         <div>
           <b>{progressLabel(act.option, act.place)}</b>
           {/* lock 문구 자리: 지켜보기만 하던 활동 중에 유일하게 손댈 수 있는 것 — 사진 */}
-          <Button tone="coral" small className="act-shoot" onClick={() => setCameraOpen(true)} ariaLabel={`사진 찍기 (${shotCount}/4)`}>
-            📷 사진 찍기 <i className={`act-shoot-n ${shotCount >= 4 ? 'is-full' : ''}`}>{shotCount}/4</i>
-          </Button>
+          <div className="act-shoots">
+            {backdrops.length ? backdrops.map((b, i) => (
+              <Button key={b.id} tone="coral" small className="act-shoot" onClick={() => openCamera(b.id)} ariaLabel={`${b.spot}에서 찍기 (${shotCount}/${MAX_SHOTS})`}>
+                📷 {b.spot} {i === 0 && <i className={`act-shoot-n ${full ? 'is-full' : ''}`}>{shotCount}/{MAX_SHOTS}</i>}
+              </Button>
+            )) : (
+              <Button tone="coral" small className="act-shoot" onClick={() => openCamera(null)} ariaLabel={`사진 찍기 (${shotCount}/${MAX_SHOTS})`}>
+                📷 사진 찍기 <i className={`act-shoot-n ${full ? 'is-full' : ''}`}>{shotCount}/{MAX_SHOTS}</i>
+              </Button>
+            )}
+          </div>
         </div>
         <div className="act-t num">{fmtRemain(remainingMin)}<small>남음</small></div>
         <ProgressBar className="act-bar" value={progress} color="var(--mint)" />

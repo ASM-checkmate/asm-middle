@@ -74,8 +74,8 @@ export function Home() {
   const dismissSay = useWorld(s => s.dismissSay);
   const sketchOpen = useWorld(s => s.sketchOpen);
   const setSketchOpen = useWorld(s => s.setSketchOpen);
-  const cameraOpen = useWorld(s => s.cameraOpen);
-  const setCameraOpen = useWorld(s => s.setCameraOpen);
+  const camera = useWorld(s => s.camera);
+  const closeCameraStore = useWorld(s => s.closeCamera);
   const schedule = useWorld(s => s.timeline);
   const bookOpen = useWorld(s => s.bookOpen);
   const scale = useWorld(s => s.clock.scale);
@@ -152,11 +152,11 @@ export function Home() {
   movingKeyRef.current = phase.kind === 'moving' ? phase.act.key : null;
   const screen = SCREEN_OF[phase.kind];
 
-  // ── 카메라 (ADR-0004 오너 결정 7): 활동 중에만 뜬다. 활동이 끝나 만화로 넘어가면 접는다 — 만화는 endAt에 한 번 굳어
-  //    (store.addShot 가드) 더 찍을 곳이 없고, 스토어 플래그가 남아 다음 활동에서 저절로 열리면 안 된다 ──
-  const camPhase = phase.kind === 'active' && (cameraOpen || previewCam) ? phase : null;
-  useEffect(() => { if (cameraOpen && phase.kind !== 'active') setCameraOpen(false); }, [cameraOpen, phase.kind, setCameraOpen]);
-  const closeCamera = () => { setCameraOpen(false); setPreviewCam(false); };
+  // ── 카메라 (ADR-0029): 활동 중에만 뜬다. 활동이 끝나 앨범으로 넘어가면 접는다 — 앨범은 endAt에 한 번 굳어
+  //    (store.addShot 가드) 더 찍을 곳이 없고, 스토어 플래그가 남아 다음 활동에서 저절로 열리면 안 된다. 배경은 연 쪽(트리거 존 버튼)이 정한다 ──
+  const camPhase = phase.kind === 'active' && (camera || previewCam) ? phase : null;
+  useEffect(() => { if (camera && phase.kind !== 'active') closeCameraStore(); }, [camera, phase.kind, closeCameraStore]);
+  const closeCamera = () => { closeCameraStore(); setPreviewCam(false); };
 
   // ── transitions: keep the previous screen mounted as a "ghost" while it animates out ──
   // The ghost is derived during render (not in an effect) so the leaving screen never unmounts for a frame;
@@ -245,7 +245,7 @@ export function Home() {
       {/* 그려서 알려줘 (ADR-0004): 시간표 시트(z 45) 위. 카드 분기의 "✎ 카드 대신 그려서 알려줄래" / 그림 카드의 "다시 그리기"가 연다 */}
       {sketchOpen && <SketchOverlay blockId={sketchOpen} onClose={() => setSketchOpen(null)} />}
       {/* 카메라: nowMs는 ActivityScreen과 같은 식으로 progress에서 되짚는다 — 화면은 스토어의 now를 따로 안 읽는다. preview면 샷은 오버레이 로컬 */}
-      {camPhase && <CameraOverlay act={camPhase.act} progress={camPhase.progress} nowMs={camPhase.act.arriveAt + (camPhase.act.endAt - camPhase.act.arriveAt) * Math.min(1, Math.max(0, camPhase.progress))} companions={camPhase.companions} encounter={camPhase.encounter} preview={isPreview} onClose={closeCamera} />}
+      {camPhase && <CameraOverlay key={camera?.backdrop ?? 'stage'} act={camPhase.act} nowMs={camPhase.act.arriveAt + (camPhase.act.endAt - camPhase.act.arriveAt) * Math.min(1, Math.max(0, camPhase.progress))} backdropId={camera?.backdrop ?? null} preview={isPreview} onClose={closeCamera} />}
       {/* 쪽지: 시트·그림·카메라가 떠 있지 않고 혼잣말이 (보이는 채로) 지나가는 중도 아닐 때만, 한 번에 하나 (ADR-0001 §1) */}
       {pendingReq && !summaryItems?.length && !ttOpen && !showBook && !snsOpen && !sketchOpen && !camPhase && !sayVisible && <RequestCard req={pendingReq} tz={phase.tz} />}
       {summaryItems && summaryItems.length > 0 && <SummarySheet items={summaryItems} gap={summaryGap} tz={phase.tz} untold={untold} missed={summaryGap ? calls.filter(c => c.dir === 'in' && c.result !== 'answered' && c.at >= summaryGap.from && c.at <= summaryGap.to) : []} onClose={closeSummary} />}

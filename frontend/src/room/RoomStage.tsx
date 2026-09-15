@@ -91,7 +91,7 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
 
   /** 자리로 걸어간다 — 방향은 출발·도착 자리로, 도착하면 자리의 자세 */
   const walkTo = (to: string, after?: () => void) => {
-    const from = room.spots[spotRef.current]!, dest = room.spots[to]!;
+    const from = room.spots[spotRef.current] ?? room.spots[room.seat]!, dest = room.spots[to] ?? room.spots[room.seat]!;
     setHeading({ back: dest.y < from.y - 30, left: dest.x < from.x - 10 });
     setStill(false); setWalking(true); setSpot(to); busy.current = true; setFidget(null);
     timers.current.push(window.setTimeout(() => { setWalking(false); setHeading(h => ({ ...h, back: false })); busy.current = false; after?.(); }, WALK_MS));
@@ -182,7 +182,9 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const me = room.spots[spot]!;
+  // 없는 자리(옛 큐가 가리키는 이름·아직 안 그린 방의 자리)는 앉는 자리로 — 한 자리 때문에 화면 전체가 죽지 않게
+  const spotOf = (name: string): Spot => room.spots[name] ?? room.spots[room.seat]!;
+  const me = spotOf(spot);
   const seated = !walking && spot === room.seat;
   seatedRef.current = seated && !pose;
   const myPose: Pose = walking ? 'walk' : (pose ?? (seated ? seatPose : 'idle'));
@@ -204,27 +206,27 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
         <div className="room-prop" style={{ left: room.seatItem.x - 32, top: room.seatItem.y - 20, zIndex: room.seatItem.base }}><SeatItem pose={seatPose} /></div>
       )}
       {friend && (
-        <div className="room-actor is-still is-seated" style={at(room.spots[room.friendSeat]!)}>
+        <div className="room-actor is-still is-seated" style={at(spotOf(room.friendSeat))}>
           <Character pose={seatPose === 'draw' || seatPose === 'read' ? seatPose : 'sit'} size={SIZE} variant="friend" color={friend.color} />
         </div>
       )}
       {/* 같은 공간에 있던 사람들 (FRIENDS_SPEC §6 표): 배경에 뒷모습·작게·얼굴 없이, 살짝 흐리게. 말을 건 상대도 `at` 전엔 이 중 하나고,
           `at`이 지나면 배경에서 빠져 met 자리에 정면으로 선다. 설렘 대상(cast의 glance)만 슬쩍 돌아본 3/4 얼굴 (AFFECTION_SPEC §4) */}
       {present.map(p => (
-        <div key={p.id} className="room-actor is-still is-present" style={at(room.spots[p.spot]!, PRESENT_SIZE)}>
+        <div key={p.id} className="room-actor is-still is-present" style={at(spotOf(p.spot), PRESENT_SIZE)}>
           <Character pose={p.spot === room.ghostSeat ? 'sit' : 'idle'} size={PRESENT_SIZE} variant="friend" color={p.color} look={p.hairStyle ? { ...DEFAULT_LOOK, hairStyle: p.hairStyle } : undefined} back={BACK_SPOTS.has(p.spot)} glance={BACK_SPOTS.has(p.spot) && p.glance} paused />
         </div>
       ))}
       {met && (
         <>
-          <div className="room-actor is-still is-seated" style={at(room.spots[room.metSpot]!)}>
+          <div className="room-actor is-still is-seated" style={at(spotOf(room.metSpot))}>
             <Character pose="wave" size={SIZE} variant="friend" color={met.color} look={met.hairStyle ? { ...DEFAULT_LOOK, hairStyle: met.hairStyle } : undefined} />
           </div>
-          <div className="room-bubble is-stay" style={{ left: room.spots[room.metSpot]!.x, top: room.spots[room.metSpot]!.y - SIZE * FEET - 4, zIndex: 999 }}>안녕!</div>
+          <div className="room-bubble is-stay" style={{ left: spotOf(room.metSpot).x, top: spotOf(room.metSpot).y - SIZE * FEET - 4, zIndex: 999 }}>안녕!</div>
         </>
       )}
       {guest && !present.length && (
-        <div className={`room-actor is-guest ${guest.gone ? 'is-gone' : ''} ${guest.walking ? '' : 'is-seated'} ${guest.walking && guest.spot === room.ghostSeat ? 'face-left' : ''}`} style={at(room.spots[guest.spot]!)}>
+        <div className={`room-actor is-guest ${guest.gone ? 'is-gone' : ''} ${guest.walking ? '' : 'is-seated'} ${guest.walking && guest.spot === room.ghostSeat ? 'face-left' : ''}`} style={at(spotOf(guest.spot))}>
           {/* 들어올 땐 위로 걸으니 뒷모습, 앉으면 정면, 나갈 땐 아래로 걸으니 정면 */}
           <Character pose={guest.walking ? 'walk' : 'sit'} size={SIZE} variant="friend" color={guest.color} back={guest.walking && guest.spot === room.ghostSeat} />
         </div>

@@ -74,7 +74,7 @@ export function TopChrome({ now, tz, label, tone = 'ink', onBook, hideBook, onTi
         </button>
       )}
       {!hideBook && (
-        <button type="button" className="chrome-book" onClick={onBook} aria-label="book 열기">
+        <button type="button" className="chrome-book" onClick={onBook} aria-label="앨범 열기">
           <Glyph name="book" size={24} />
         </button>
       )}

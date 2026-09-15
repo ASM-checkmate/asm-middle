@@ -1,5 +1,5 @@
-// 사진 harness (ADR-0004 오너 결정 7·14, sim/shots.ts · sim/comic.ts · sim/store.ts addShot) — 창 계산, 저장·교체·
-// resetDay, 만화가 사용자 컷을 그대로 쓰고 에이전트 컷은 거의 항상 열화되는지, 기존 시드 재현이 안 바뀌는지.
+// 사진 harness (ADR-0029, sim/shots.ts · sim/comic.ts · sim/store.ts addShot/removeShot) — 순서·상한 3장, 저장·교체·지우기·
+// resetDay, 앨범이 사용자 컷을 찍은 그대로 싣고 안 찍으면 에이전트 한 장, 열화가 없는지, 캡션 시드가 샷 유무와 무관한지.
 // Usage: node scripts/sim-shots.test.mjs   (exit 1 on any failed check)
 import './ts-hooks.mjs';
 
@@ -20,25 +20,22 @@ const fails = [];
 let n = 0;
 const check = (name, ok, detail = '') => { n++; console.log(`${ok ? '  ok ' : ' FAIL'} ${name}${ok ? '' : '  ← ' + detail}`); if (!ok) fails.push(name); };
 const sameCrop = (a, b) => ['scale', 'x', 'y', 'rot'].every(k => a[k] === b[k]);
+const ID = ch => ch.repeat(16);
 
 // ── 순수 함수 ─────────────────────────────────────────────────────────────────
-console.log('\n── 창 ──');
-const { WIN_LABEL, shotsFor, trimShots, winAt, winStarts, winState } = await import('../src/sim/shots.ts');
-check('창 이름 4개', WIN_LABEL.length === 4 && WIN_LABEL[0] === '도착', JSON.stringify(WIN_LABEL));
-check('winAt: 4등분', [winAt(0), winAt(0.24), winAt(0.25), winAt(0.5), winAt(0.74), winAt(0.75), winAt(0.99)].join() === '0,0,1,2,2,3,3', [winAt(0), winAt(0.24), winAt(0.25), winAt(0.5), winAt(0.74), winAt(0.75), winAt(0.99)].join());
-check('winAt: 밖은 잘린다', winAt(1) === 3 && winAt(-0.5) === 0 && winAt(7) === 3, '');
-const ws = winStarts({ arriveAt: 1000, endAt: 5000 });
-check('winStarts: [arriveAt, +25%, +50%, +75%]', ws.join() === '1000,2000,3000,4000', ws.join());
-check('winState', winState(0, 2) === 'past' && winState(2, 2) === 'now' && winState(3, 2) === 'future', '');
+console.log('\n── shots ──');
+const { MAX_SHOTS, shotsFor, trimShots } = await import('../src/sim/shots.ts');
+check('최대 3장', MAX_SHOTS === 3, String(MAX_SHOTS));
 const crop = (scale, x = 0, y = 0, rot = 0) => ({ scale, x, y, rot });
 const pile = [
-  { actKey: 'a', win: 1, at: 10, crop: crop(1.1) },
-  { actKey: 'b', win: 1, at: 11, crop: crop(1.2) },
-  { actKey: 'a', win: 3, at: 12, crop: crop(1.3) },
-  { actKey: 'a', win: 1, at: 13, crop: crop(1.4) },   // 재촬영 — 뒤가 이긴다
+  { actKey: 'a', at: 12, crop: crop(1.3), shotId: ID('a3') },
+  { actKey: 'b', at: 11, crop: crop(1.2), shotId: ID('b1') },
+  { actKey: 'a', at: 10, crop: crop(1.1), shotId: ID('a1') },
+  { actKey: 'a', at: 13, crop: crop(1.4), shotId: ID('a1') },   // 같은 id — 교체 (뒤가 이긴다)
+  { actKey: 'a', at: 9, crop: crop(1.0) },                      // id 없는 옛 샷도 순서에 든다
 ];
-const byWin = shotsFor(pile, 'a');
-check('shotsFor: 활동의 샷을 창별로, 같은 창은 뒤가 이긴다', byWin[1]?.crop.scale === 1.4 && byWin[3]?.crop.scale === 1.3 && byWin[0] === undefined && byWin[2] === undefined, JSON.stringify(byWin));
+const mine = shotsFor(pile, 'a');
+check('shotsFor: 활동의 샷을 찍은 순서로, 같은 id는 뒤가 이긴다', mine.map(s => s.at).join() === '9,12,13' && mine[2].crop.scale === 1.4, JSON.stringify(mine));
 check('trimShots: 오래된 건 버린다', trimShots(pile, 12).length === 2, String(trimShots(pile, 12).length));
 
 // ── 로드 검증 (옛/깨진 저장본) ────────────────────────────────────────────────
@@ -50,10 +47,12 @@ storage.set('theworld.world.v5', JSON.stringify({
   v: 5,
   days: { [TODAY]: { am: { blockId: 'am', category: 'play', options: [], chosenId: null, chosenBy: null, status: 'sketched', sketch: 'javascript:alert(1)' } } },
   shots: [
-    { actKey: 'old', win: 1, at: T0, crop: crop(1.2, 3, -4, 5), shotId: 'a1'.repeat(16) },   // 구운 컷 (ADR-0020) — 32자 hex
-    { actKey: 'old2', win: 2, at: T0, crop: crop(1.1), shotId: 'not-a-media-id' },          // id 모양이 틀리면 id만 뗀다
-    { actKey: 'bad', win: 9, at: T0, crop: crop(1) },
-    { actKey: 'bad2', win: 0, at: T0, crop: { scale: 'x' } },
+    { actKey: 'old', win: 1, at: T0, crop: crop(1.2, 3, -4, 5), shotId: ID('a1') },   // 옛 4창 샷 — win은 떼고 산다
+    { actKey: 'old2', at: T0, crop: crop(1.1), shotId: 'not-a-media-id' },           // id 모양이 틀리면 id만 뗀다
+    { actKey: 'new', at: T0, crop: crop(1), backdrop: 'busan:x', me: { x: 40, y: 80, scale: 0.5, pose: 'sit' }, friend: { x: 60, y: 80, scale: 0.5 }, gen: 'plain', shotId: ID('c3') },
+    { actKey: 'bad', at: T0, crop: crop(1), me: { x: 'a' } },
+    { actKey: 'bad2', at: T0, crop: { scale: 'x' } },
+    { actKey: 'bad3', at: T0, crop: crop(1), gen: 'weird' },
     null, 'junk',
   ],
 }));
@@ -62,8 +61,9 @@ const { useWorld } = await import('../src/sim/store.ts');
 const { makeComic } = await import('../src/sim/comic.ts');
 const { placeById } = await import('../src/sim/places.ts');
 const S = () => useWorld.getState();
-check('모양이 어긋난 샷은 버린다', S().shots.length === 2 && S().shots[0].actKey === 'old' && S().shots[1].actKey === 'old2', JSON.stringify(S().shots));
-check('shotId: 32자 hex는 남고, 틀린 모양은 키째 떼고 샷은 산다', S().shots[0].shotId === 'a1'.repeat(16) && !('shotId' in S().shots[1]), JSON.stringify(S().shots));
+check('모양이 어긋난 샷은 버린다', S().shots.length === 3 && S().shots.map(s => s.actKey).join() === 'old,old2,new', JSON.stringify(S().shots));
+check('옛 win은 떼어 낸다, shotId는 32자 hex만', !('win' in S().shots[0]) && S().shots[0].shotId === ID('a1') && !('shotId' in S().shots[1]), JSON.stringify(S().shots));
+check('배경·자리·자세·gen이 그대로 산다', S().shots[2].backdrop === 'busan:x' && S().shots[2].me.pose === 'sit' && S().shots[2].friend.x === 60 && S().shots[2].gen === 'plain', JSON.stringify(S().shots[2]));
 check('dataURL이 아닌 그림은 지우고 카드 상태로 되돌린다', S().plans.am.sketch === undefined && S().plans.am.status === 'empty', JSON.stringify([S().plans.am.sketch, S().plans.am.status]));
 useWorld.setState({ shots: [] });
 
@@ -81,96 +81,99 @@ const act = S().timeline.find(a => a.dayKey === S().today && a.blockIds[0] === '
 check('오전 활동이 잡힌다', !!act, JSON.stringify(S().timeline.map(a => a.key)));
 if (act) {
   const span = act.endAt - act.arriveAt;
-  const shot = (win, at, c) => ({ actKey: act.key, win, at, crop: c });
-  // 아직 이동 중 — 그래도 활동 종료 전이면 받는다 (카메라 버튼 노출은 화면이 active로 제한한다)
+  const shot = (at, c, extra = {}) => ({ actKey: act.key, at, crop: c, me: { x: 50, y: 78, scale: 0.84, pose: 'idle' }, gen: 'plain', ...extra });
   S().jumpTo(act.arriveAt + span * 0.3);
-  check('활동 중이다 (창 1)', S().phase.kind === 'active' && winAt(S().phase.progress) === 1, `${S().phase.kind} ${S().phase.progress}`);
-  const c1 = crop(1.4, -12, 8, -6);
-  S().addShot(shot(1, S().now, c1));
-  check('한 장 저장된다', S().shots.length === 1 && S().shots[0].win === 1 && sameCrop(S().shots[0].crop, c1), JSON.stringify(S().shots));
+  check('활동 중이다', S().phase.kind === 'active', S().phase.kind);
+  const c1 = crop(1.4, -12, 8, 0);
+  const [A, B, C, D] = [ID('a1'), ID('b2'), ID('c3'), ID('d4')];
+  S().addShot(shot(S().now, c1, { shotId: A }));
+  check('한 장 저장된다', S().shots.length === 1 && S().shots[0].shotId === A && sameCrop(S().shots[0].crop, c1), JSON.stringify(S().shots));
   check('저장본에 실린다', JSON.parse(storage.get('theworld.world.v5')).shots?.length === 1, storage.get('theworld.world.v5')?.slice(0, 40));
-  const c1b = crop(1.9, 4, -3, 11);
-  const ID1 = 'b2'.repeat(16), ID2 = 'c3'.repeat(16), IDX = 'd4'.repeat(16);
-  S().addShot({ ...shot(1, S().now + 2 * MIN, c1b), shotId: ID1 });
-  check('같은 창을 다시 찍으면 교체된다 (뒤가 이김)', S().shots.length === 1 && sameCrop(S().shots[0].crop, c1b), JSON.stringify(S().shots));
-  check('addShot: shotId가 남고 저장본에도 실린다 (ADR-0020)', S().shots[0].shotId === ID1 && JSON.parse(storage.get('theworld.world.v5')).shots[0].shotId === ID1, JSON.stringify(S().shots));
+  const c1b = crop(1.9, 4, -3, 0);
+  S().addShot(shot(S().now + 2 * MIN, c1b, { shotId: A, me: { x: 30, y: 90, scale: 0.5, pose: 'sit' } }));
+  check('같은 id를 다시 넣으면 교체된다 (뒤가 이김)', S().shots.length === 1 && sameCrop(S().shots[0].crop, c1b) && S().shots[0].me.pose === 'sit', JSON.stringify(S().shots));
+  S().addShot(shot(S().now, crop(1), { shotId: 'bad id' }));
+  check('addShot: 모양이 틀린 shotId는 떼고 받는다', S().shots.length === 2 && !('shotId' in S().shots[1]), JSON.stringify(S().shots));
+  useWorld.setState({ shots: S().shots.filter(x => x.shotId) });
   S().jumpTo(act.arriveAt + span * 0.6);
-  check('창 2로 넘어갔다', winAt(S().phase.progress) === 2, String(S().phase.progress));
-  const c2 = { ...crop(1.0, 0, 0, 0), pitch: 10, light: 0.7, dof: 0.5, focus: 'far' };   // 각도·조도·심도·초점 (선택 필드)
-  // 굽기가 실패한 컷: id를 떼면 옛 경로(crop 재렌더) — 샷 자체는 남는다
-  S().addShot({ ...shot(2, S().now, c2), shotId: IDX });
-  S().dropShotId(IDX);
-  check('dropShotId: 샷은 남고 id만 떼며 저장한다', S().shots.length === 2 && S().shots.find(x => x.win === 2) && !('shotId' in S().shots.find(x => x.win === 2)) && !JSON.stringify(JSON.parse(storage.get('theworld.world.v5')).shots).includes(IDX), JSON.stringify(S().shots));
-  S().dropShotId('e5'.repeat(16));
-  check('dropShotId: 모르는 id는 아무것도 안 한다', S().shots.length === 2, '');
-  S().addShot({ ...shot(2, S().now, c2), shotId: 'bad id' });
-  check('addShot: 모양이 틀린 shotId는 떼고 받는다', S().shots.length === 2 && !('shotId' in S().shots.find(x => x.win === 2)), JSON.stringify(S().shots));
-  S().addShot({ ...shot(2, S().now, c2), shotId: ID2 });
-  check('다른 창은 추가된다', S().shots.length === 2 && S().shots.find(x => x.win === 2)?.shotId === ID2, String(S().shots.length));
-  check('각도·조도·심도가 저장된다', S().shots.find(x => x.win === 2)?.crop.pitch === 10 && JSON.parse(storage.get('theworld.world.v5')).shots.find(x => x.win === 2)?.crop.dof === 0.5, JSON.stringify(S().shots));
-  check('창 밖 번호는 무시된다', (S().addShot(shot(5, S().now, c2)), S().shots.length === 2), String(S().shots.length));
-  check('모르는 활동은 무시된다', (S().addShot({ ...shot(0, S().now, c2), actKey: 'nope' }), S().shots.length === 2), String(S().shots.length));
+  const c2 = crop(1.0, 0, 0, 0);
+  S().addShot(shot(S().now, c2, { shotId: B, backdrop: 'busan:x' }));
+  S().addShot(shot(S().now + MIN, c2, { shotId: C }));
+  check('세 장까지 쌓인다', S().shots.length === 3 && S().shots.map(x => x.shotId).join() === [A, B, C].join(), String(S().shots.length));
+  S().addShot(shot(S().now + 2 * MIN, c2, { shotId: D }));
+  check('넷째는 무시된다 (MAX_SHOTS)', S().shots.length === 3 && !S().shots.some(x => x.shotId === D), String(S().shots.length));
+  S().addShot(shot(S().now + 3 * MIN, c2, { shotId: C, me: { x: 70, y: 70, scale: 0.6 } }));
+  check('꽉 차도 같은 id 교체는 된다', S().shots.length === 3 && S().shots.find(x => x.shotId === C)?.me.x === 70, JSON.stringify(S().shots));
+  S().removeShot(C);
+  check('removeShot: 지우면 자리가 빈다 (저장본도)', S().shots.length === 2 && !JSON.stringify(JSON.parse(storage.get('theworld.world.v5')).shots).includes(C), String(S().shots.length));
+  S().removeShot(ID('e5'));
+  check('removeShot: 모르는 id는 아무것도 안 한다', S().shots.length === 2, '');
+  S().addShot(shot(S().now + 4 * MIN, c2, { shotId: C }));
+  S().setShotGen(C, 'pending');
+  check('setShotGen: 상태만 바뀐다', S().shots.find(x => x.shotId === C)?.gen === 'pending' && JSON.parse(storage.get('theworld.world.v5')).shots.find(x => x.shotId === C)?.gen === 'pending', JSON.stringify(S().shots));
+  // 굽기가 실패한 컷: id를 떼면 옛 경로(다시 그리기) — 샷 자체는 남는다
+  S().dropShotId(B);
+  check('dropShotId: 샷은 남고 id만 뗀다', S().shots.length === 3 && S().shots.filter(x => x.shotId).length === 2 && !JSON.stringify(JSON.parse(storage.get('theworld.world.v5')).shots).includes(B), JSON.stringify(S().shots));
+  check('모르는 활동은 무시된다', (S().addShot({ ...shot(S().now, c2), actKey: 'nope' }), S().shots.length === 3), String(S().shots.length));
 
-  // 끝나면 만화가 한 번 만들어져 고정된다
+  // 끝나면 앨범이 한 번 만들어져 고정된다
   S().jumpTo(act.endAt + 1000);
-  check('활동 종료 뒤엔 못 찍는다', (S().addShot(shot(3, S().now, c2)), S().shots.length === 2), String(S().shots.length));
+  check('활동 종료 뒤엔 못 찍는다', (S().addShot(shot(S().now, c2, { shotId: D })), S().shots.length === 3), String(S().shots.length));
   const comic = S().phase.kind === 'comic' ? S().phase.comic : S().book.find(c => c.id === `c:${act.key}`);
-  check('만화가 나왔다', !!comic && comic.panels.length === 4, S().phase.kind);
+  check('앨범이 나왔다 — 사진 3장', !!comic && comic.panels.length === 3, `${S().phase.kind} ${comic?.panels.length}`);
   if (comic) {
-    const [p0, p1, p2, p3] = comic.panels;
-    check('사용자 컷: by user · % 단위 · crop 그대로 · 촬영 시각', p1.by === 'user' && p1.unit === 'pct' && sameCrop(p1.crop, c1b) && p1.t === S().shots[0].at, JSON.stringify(p1));
-    check('각도·조도·심도·초점도 컷에 그대로 실린다', p2.by === 'user' && p2.crop.pitch === 10 && p2.crop.light === 0.7 && p2.crop.dof === 0.5 && p2.crop.focus === 'far', JSON.stringify(p2.crop));
-    check('사용자 컷: 흐림·열화 없음', p1.blur === undefined && p1.flaws === undefined && p2.blur === undefined && p2.flaws === undefined, JSON.stringify([p1.blur, p1.flaws, p2.blur, p2.flaws]));
-    check('사용자 컷 캡션은 "잘 안 찍혔다"로 바뀌지 않는다', p1.caption !== '이건 잘 안 찍혔다' && p2.caption !== '이건 잘 안 찍혔다', p1.caption);
-    check('에이전트 컷: by agent · px 단위', p0.by === 'agent' && p0.unit === 'px' && p3.by === 'agent' && p3.unit === 'px', JSON.stringify([p0.by, p0.unit, p3.by, p3.unit]));
-    check('작성자 수: 내가 2장, 에이전트 2장', comic.shots?.user === 2 && comic.shots?.agent === 2, JSON.stringify(comic.shots));
-    check('앨범에 그 만화가 고정된다', S().book.some(c => c.id === `c:${act.key}` && c.shots?.user === 2), '');
-    const again = makeComic(act, S().memory, {});
-    check('샷이 있어도 캡션은 같다 (기존 시드 순서 불변)', again.panels.every((p, i) => p.caption === comic.panels[i].caption), JSON.stringify([again.panels.map(p => p.caption), comic.panels.map(p => p.caption)]));
-    check('샷 없이 만들면 전부 에이전트 컷', again.shots?.user === 0 && again.panels.every(p => p.by === 'agent'), JSON.stringify(again.shots));
-    check('에이전트 컷의 열화는 샷 유무와 무관하게 같다', again.panels[0].flaws?.join() === p0.flaws?.join() && again.panels[3].flaws?.join() === p3.flaws?.join(), JSON.stringify([again.panels[0].flaws, p0.flaws]));
-    // ── 구운 컷 id (ADR-0020): 사용자 컷은 샷의 shotId를 그대로, 에이전트 컷·id 없는 샷은 없음. 굴림은 안 건드린다 ──
-    check('makeComic: 창의 shotId가 그 컷에 실린다', p1.shotId === ID1 && p2.shotId === ID2, JSON.stringify([p1.shotId, p2.shotId]));
-    check('makeComic: 에이전트 컷엔 shotId가 없다', p0.shotId === undefined && p3.shotId === undefined, JSON.stringify([p0.shotId, p3.shotId]));
-    const noId = makeComic(act, S().memory, { 1: { ...S().shots[0], shotId: undefined } });
-    check('makeComic: id 없는 샷의 컷엔 shotId가 없고 나머지는 그대로다', noId.panels[1].by === 'user' && noId.panels[1].shotId === undefined && noId.panels.every((p, i) => p.caption === comic.panels[i].caption && p.crop.rot === (i === 2 ? noId.panels[2].crop.rot : comic.panels[i].crop.rot)), JSON.stringify(noId.panels.map(p => p.shotId)));
-    const twice = makeComic(act, S().memory, { 1: S().shots[0], 2: S().shots[1] });
-    check('makeComic: 같은 입력이면 같은 결과 (shotId 포함)', JSON.stringify(twice) === JSON.stringify(comic), '');
+    const [p0, p1, p2] = comic.panels;
+    const shots = shotsFor(S().shots, act.key);
+    check('컷은 찍은 순서, 촬영 시각, 자리·자세·배경 그대로 (by user, % 단위)', p0.by === 'user' && p0.unit === 'pct' && p0.t === shots[0].at && sameCrop(p0.crop, c1b) && p0.me.pose === 'sit' && p1.backdrop === 'busan:x' && p2.t === shots[2].at, JSON.stringify(comic.panels));
+    check('shotId: 있는 컷은 그대로, 뗀 컷엔 없다', p0.shotId === A && p1.shotId === undefined && p2.shotId === C, JSON.stringify(comic.panels.map(p => p.shotId)));
+    check('열화·흐림은 없다', comic.panels.every(p => p.flaws === undefined && p.blur === undefined), '');
+    check('세 장이면 가운데가 트위스트, 나머지는 시각대로', ['arrive', 'doing'].includes(p0.beat) && p1.beat === 'twist' && ['doing', 'end'].includes(p2.beat), comic.panels.map(p => p.beat).join());
+    check('작성자 수: 내가 3장', comic.shots?.user === 3 && comic.shots?.agent === 0, JSON.stringify(comic.shots));
+    check('앨범에 고정된다', S().book.some(c => c.id === `c:${act.key}` && c.shots?.user === 3), '');
+    const again = makeComic(act, S().memory, []);
+    check('안 찍으면 에이전트 한 장 (트위스트, 활동 한가운데)', again.panels.length === 1 && again.panels[0].by === 'agent' && again.panels[0].beat === 'twist' && again.shots?.user === 0 && again.shots?.agent === 1, JSON.stringify(again.panels));
+    check('샷이 있어도 캡션은 같다 (시드 순서 불변)', again.panels[0].caption === p1.caption && again.summary === comic.summary, JSON.stringify([again.panels[0].caption, p1.caption]));
+    const one = makeComic(act, S().memory, [shots[1]]);
+    check('한 장이면 그 장이 트위스트', one.panels.length === 1 && one.panels[0].by === 'user' && one.panels[0].beat === 'twist', JSON.stringify(one.panels.map(p => p.beat)));
+    const twice = makeComic(act, S().memory, shots);
+    check('같은 입력이면 같은 결과 (shotId 포함)', JSON.stringify(twice) === JSON.stringify(comic), '');
 
-    // ── patchPanelShot: 옛 컷·에이전트 컷을 화면이 구운 뒤 책에 적는다 ──
-    const ID3 = 'f6'.repeat(16);
+    // ── patchPanelShot: 픽셀 없는 컷을 화면이 구운 뒤 앨범에 적는다 ──
+    const ID3 = ID('f6');
     const bookBefore = S().book;
-    S().patchPanelShot(comic.id, 0, ID3);
+    S().patchPanelShot(comic.id, 1, ID3);
     const patched = S().book.find(c => c.id === comic.id);
-    check('patchPanelShot: 그 컷에만 id가 붙고 책 항목은 새 객체다', patched.panels[0].shotId === ID3 && patched.panels[3].shotId === undefined && patched !== comic && S().book !== bookBefore, JSON.stringify(patched.panels.map(p => p.shotId)));
-    check('patchPanelShot: book 문서에 저장된다', JSON.parse(storage.get('theworld.book.v1')).find(c => c.id === comic.id)?.panels[0].shotId === ID3, storage.get('theworld.book.v1')?.slice(0, 60));
-    S().patchPanelShot(comic.id, 0, 'a7'.repeat(16));
-    check('patchPanelShot: 이미 id가 있으면 덮지 않는다', S().book.find(c => c.id === comic.id).panels[0].shotId === ID3, '');
+    check('patchPanelShot: 그 컷에만 id가 붙고 앨범 항목은 새 객체다', patched.panels[1].shotId === ID3 && patched.panels[0].shotId === A && patched !== comic && S().book !== bookBefore, JSON.stringify(patched.panels.map(p => p.shotId)));
+    check('patchPanelShot: book 문서에 저장된다', JSON.parse(storage.get('theworld.book.v1')).find(c => c.id === comic.id)?.panels[1].shotId === ID3, storage.get('theworld.book.v1')?.slice(0, 60));
+    S().patchPanelShot(comic.id, 1, ID('a7'));
+    check('patchPanelShot: 이미 id가 있으면 덮지 않는다', S().book.find(c => c.id === comic.id).panels[1].shotId === ID3, '');
     const bookNow = S().book;
-    S().patchPanelShot(comic.id, 9, ID3); S().patchPanelShot('c:nope', 0, ID3); S().patchPanelShot(comic.id, 3, 'bad');
-    check('patchPanelShot: 없는 컷·모르는 만화·틀린 id는 아무것도 안 한다', S().book === bookNow, '');
+    S().patchPanelShot(comic.id, 9, ID3); S().patchPanelShot('c:nope', 0, ID3); S().patchPanelShot(comic.id, 2, 'bad');
+    check('patchPanelShot: 없는 컷·모르는 앨범·틀린 id는 아무것도 안 한다', S().book === bookNow, '');
     S().jumpTo(S().now + 1000);
-    check('patchPanelShot: 화면의 만화(phase.comic)에도 다음 tick에 보인다', S().phase.kind === 'comic' && S().phase.comic.panels[0].shotId === ID3, S().phase.kind);
+    check('patchPanelShot: 화면의 앨범(phase.comic)에도 다음 tick에 보인다', S().phase.kind === 'comic' && S().phase.comic.panels[1].shotId === ID3, S().phase.kind);
 
-    // ── dropShotId가 endAt 뒤에 오면(굽기가 늦게 실패) 책의 컷에서도 뗀다 — 픽셀 없는 id가 남으면 그 컷은 영영 옛 경로다 ──
-    S().dropShotId(ID2);
+    // ── dropShotId가 endAt 뒤에 오면(굽기가 늦게 실패) 앨범의 컷에서도 뗀다 ──
+    S().dropShotId(C);
     const dropped = S().book.find(c => c.id === comic.id);
-    check('dropShotId: 샷·책의 컷에서 같이 뗀다 (다른 컷은 그대로)', !S().shots.some(x => x.shotId === ID2) && dropped.panels[2].shotId === undefined && dropped.panels[1].shotId === ID1 && dropped.panels[0].shotId === ID3, JSON.stringify(dropped.panels.map(p => p.shotId)));
-    check('dropShotId: book 문서에도 없다', !JSON.stringify(JSON.parse(storage.get('theworld.book.v1'))).includes(ID2), '');
-    S().jumpTo(S().now + 1000);
-    check('dropShotId: 화면의 만화(phase.comic)에도 다음 tick에 반영된다', S().phase.kind === 'comic' && S().phase.comic.panels[2].shotId === undefined && S().phase.comic.panels[1].shotId === ID1, S().phase.kind);
+    check('dropShotId: 샷·앨범의 컷에서 같이 뗀다 (다른 컷은 그대로)', !S().shots.some(x => x.shotId === C) && dropped.panels[2].shotId === undefined && dropped.panels[0].shotId === A && dropped.panels[1].shotId === ID3, JSON.stringify(dropped.panels.map(p => p.shotId)));
+    check('dropShotId: book 문서에도 없다', !JSON.stringify(JSON.parse(storage.get('theworld.book.v1'))).includes(C), '');
+    check('removeShot: 활동이 끝난 뒤엔 못 지운다', (S().removeShot(A), S().shots.some(x => x.shotId === A)), '');
   }
 }
 
 // ── resetDay ─────────────────────────────────────────────────────────────────
 console.log('\n── resetDay ──');
 S().resetDay();
-check('리셋하면 샷이 비고 오버레이도 닫힌다', S().shots.length === 0 && S().sketchOpen === null && S().cameraOpen === false, JSON.stringify([S().shots.length, S().sketchOpen, S().cameraOpen]));
-check('UI 플래그', (S().setSketchOpen('pm'), S().setCameraOpen(true), S().sketchOpen === 'pm' && S().cameraOpen === true), '');
-S().setSketchOpen(null); S().setCameraOpen(false);
+check('리셋하면 샷이 비고 오버레이도 닫힌다', S().shots.length === 0 && S().sketchOpen === null && S().camera === null, JSON.stringify([S().shots.length, S().sketchOpen, S().camera]));
+check('UI 플래그', (S().setSketchOpen('pm'), S().openCamera('busan:x'), S().sketchOpen === 'pm' && S().camera?.backdrop === 'busan:x'), '');
+S().openCamera();
+check('openCamera(): 배경 없이', S().camera !== null && S().camera.backdrop === null, JSON.stringify(S().camera));
+S().setSketchOpen(null); S().closeCamera();
+check('closeCamera', S().camera === null, '');
 
-// ── 에이전트 컷 열화 (오너 결정 14: 거의 항상 하나 이상) ─────────────────────────
-console.log('\n── 열화 ──');
+// ── 열화 없음 (ADR-0029: 열화 시스템 삭제) ─────────────────────────────────────
+console.log('\n── 에이전트 컷 ──');
 const { estimateJourney } = await import('../src/sim/journey.ts');
 const { tzOf } = await import('../src/sim/places.ts');
 const memory = { name: '토리', likes: ['그림 그리기', '커피'], dislikes: [], traits: ['느긋한'], homePlaceId: 'home', friends: [], visited: [] };
@@ -185,35 +188,16 @@ const fakeAct = (i, placeId = 'layered-yeonnam') => {
     place, fromPlace, journey, departAt, arriveAt, endAt, comicUntil: endAt + 8 * MIN, originTz: tzOf(fromPlace), tz: tzOf(place), jetlagUntil: null, companions: [],
   };
 };
-const FLAWS = new Set(['blur', 'dark', 'overzoom', 'cut', 'tilt']);
-const SCALE = [0.82, 1.14, 1.72, 1.05];   // comic.ts의 컷별 기본 화각 (×0.94~1.06) — overzoom은 여기에 ×1.75
-let panels = 0, flawed = 0, badKind = 0, overzoomOk = true, tiltOk = true, cutOk = true, shifted = 0;
-for (let i = 0; i < 100; i++) {
+let bad = 0, shifted = 0;
+for (let i = 0; i < 60; i++) {
   const a = fakeAct(i, ['layered-yeonnam', 'gyeongui-line-forest', 'mangwon-hangang', 'home'][i % 4]);
   const c = makeComic(a, memory);
-  const plain = makeComic(a, memory);   // 열화 전 값과 비교하려고 같은 활동을 한 번 더 — 같은 시드라 같은 결과
-  // 창 0에 사용자 샷 하나 — 나머지 컷의 열화(종류·값)는 샷이 없을 때와 같아야 한다 (fill 시드의 next() 소비 순서가 샷 유무와 무관)
-  const withMine = makeComic(a, memory, { 0: { actKey: a.key, win: 0, at: a.arriveAt + MIN, crop: { scale: 1.3, x: 5, y: -3, rot: 2 } } });
-  for (let k = 1; k < 4; k++) if (JSON.stringify(withMine.panels[k]) !== JSON.stringify(c.panels[k])) shifted++;
-  c.panels.forEach((p, k) => {
-    panels++;
-    if (p.flaws?.length) flawed++;
-    for (const f of p.flaws ?? []) if (!FLAWS.has(f)) badKind++;
-    if (p.flaws?.includes('overzoom') && !(p.crop.scale >= SCALE[k] * 0.94 * 1.75 - 0.01)) overzoomOk = false;
-    if (!p.flaws?.includes('overzoom') && !(p.crop.scale <= SCALE[k] * 1.06 + 0.01)) overzoomOk = false;
-    if (p.flaws?.includes('tilt') && !(Math.abs(p.crop.rot) >= 14 && Math.abs(p.crop.rot) <= 22)) tiltOk = false;
-    if (p.flaws?.includes('cut') && !(Math.abs(p.crop.x) >= 40 - 17 || Math.abs(p.crop.y) >= 40 - 11)) cutOk = false;
-    if (JSON.stringify(plain.panels[k]) !== JSON.stringify(p)) badKind++;
-  });
+  if (c.panels.length !== 1 || c.panels[0].by !== 'agent' || c.panels[0].crop.scale !== 1 || c.panels[0].crop.rot !== 0 || c.panels[0].flaws || c.panels[0].blur) bad++;
+  const withMine = makeComic(a, memory, [{ actKey: a.key, at: a.arriveAt + MIN, crop: { scale: 1.3, x: 5, y: -3, rot: 0 }, shotId: ID('a1') }]);
+  if (withMine.summary !== c.summary || withMine.panels.length !== 1 || withMine.panels[0].by !== 'user') shifted++;
 }
-const rate = flawed / panels;
-check(`에이전트 컷은 대부분 열화된다 (${(rate * 100).toFixed(0)}%, ≥ 80%)`, rate >= 0.8, String(rate));
-check('열화 종류는 다섯 가지뿐이고 결정적이다', badKind === 0, String(badKind));
-check('overzoom이면 확대돼 있다', overzoomOk, '');
-check('tilt면 14~22°', tiltOk, '');
-check('cut이면 크게 밀려 있다', cutOk, '');
-check('제대로 찍힌 컷도 가끔 있다 (< 100%)', rate < 1, String(rate));
-check('사용자 컷이 끼어도 나머지 컷의 열화는 같다 (임의 활동 100개)', shifted === 0, `${shifted}/300 어긋남`);
+check('안 찍은 활동은 에이전트 한 장, 열화·기울기 없음 (임의 활동 60개)', bad === 0, String(bad));
+check('샷이 있어도 요약(캡션 시드)은 같다', shifted === 0, `${shifted}/60`);
 
 console.log(`\n${n - fails.length}/${n} checks passed`);
 if (fails.length) { console.log('FAILED: ' + fails.join(', ')); process.exit(1); }

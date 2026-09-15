@@ -181,7 +181,7 @@ interface PublishedActivity { key: string /* `${dayKey}:${blockId}` */; agentId:
 타입
 
 ```ts
-interface Media { id: string; ownerId: string; kind: 'shot' | 'sketch' | 'npc'; mime: 'image/webp' | 'image/png'; bytes: number; createdAt: number }
+interface Media { id: string; ownerId: string; kind: 'shot' | 'sketch' | 'npc'; mime: 'image/webp' | 'image/png' | 'image/jpeg' /* jpeg는 서버 생성 컷(§2.6)만 */; bytes: number; createdAt: number }
 interface PostCut { shotId: string; actKey: string; win: 0 | 1 | 2 | 3; by: 'user' | 'agent' }
 interface Post { id: string; authorId: string; createdAt: number; cuts: PostCut[]; caption: string;
                  place: string; area: string; city: string; category?: string; dateKey: string;
@@ -539,3 +539,34 @@ Ollama가 없으면 `502`. 답은 기다리지 않아도 된다. 보호 경로�
 
 *   `speech_start`가 오면 브라우저는 재생을 즉시 멈추고 `/api/call/turn` 요청을 닫는다 (barge-in).
 *   `cancel` 뒤에 도착하는 옛 turn의 조각은 서비스가 버린다.
+
+## 2.6 사진 생성 — 컷 화풍 생성 (ADR-0029. 2026-09-15)
+
+### POST /api/shots/{id}/generate
+
+폰이 찍은 컷 `id`(32자 hex — 폰이 굽고 `PUT /api/media/{id}`로 올리는 단순 합성본과 같은 id)의 **화풍 생성**. 서버가 Gemini 이미지 모델에
+합성본과 캐릭터 원본을 보내 배경 화풍으로 캐릭터를 다시 그린 한 장을 받고, 긴 변 640 `image/jpeg`로 줄여 **새 media**(kind `shot`, 소유자 = 요청자)로
+넣는다. 원래 id의 픽셀은 그대로다(멱등 업로드라 덮지 않는다) — 폰이 샷·앨범의 참조를 응답의 `shotId`로 바꾼다(`store.replaceShotId`).
+
+```ts
+interface Pic { mime: 'image/webp' | 'image/png' | 'image/jpeg'; data: string /* base64, 접두 없이 */ }
+interface Figure { x: number; y: number; scale: number }   // 발 자리 %(프레임 대비), 프레임 너비 대비 폭
+interface ShotGenRequest {
+  background?: Pic;      // AI 배경 원본 — 있으면 합성본 없이 이것 + 캐릭터 + 자리(글)로 그린다 (A/B 2026-09-15: 붙여넣은 티가 안 새어 더 자연스럽다)
+  mePos?: Figure; friendPos?: Figure;   // background와 함께
+  composite?: Pic;       // background가 없을 때(SVG 무대)의 앵커: 뷰파인더 그대로의 단순 합성본, 긴 변 768
+  me: Pic;               // 내 캐릭터 투명 PNG (정체성 참고)
+  friend?: Pic;          // 동행 캐릭터 투명 PNG
+  place: string; spot?: string; sit?: boolean;
+  mePose?: string; friendPose?: string;   // idle|sit|wave|happy|eat|read|think|draw|walk
+  backdrop: boolean;     // AI 배경 위인가
+}
+interface ShotGenResponse { shotId: string; mime: 'image/jpeg'; bytes: number; ms: number }
+```
+
+*   본문 상한 3 MB(`BodyLimitFilter.SHOTGEN_MAX`), 그림 하나 base64 1.6 MB.
+*   `400`: `me and background or composite required` · `<name>: unsupported image type` · `<name>: bad base64` · `id must be 32 hex chars`. `413` 그림이 크다.
+*   `503 'gemini api key not configured'`(서버 env `GEMINI_API_KEY` 없음) · `502 'gemini: …'`(모델 오류·그림 없음·변환 실패). 폰은 어느 경우든 `gen: 'plain'`으로 두고 단순 합성본을 그대로 쓴다.
+*   수십 초 걸린다(폰 제한 시간 120 s). 폰은 요청 중 샷을 `gen: 'pending'`(필름 칸 "현상 중")으로, 받으면 `'done'`.
+*   `GET /api/media/{id}`는 생성 컷(`image/jpeg`)도 같은 규칙(소유자·친구·공개 글)으로 준다. `Media.mime`에 `'image/jpeg'`가 추가된다 — 서버가 만든 것에만.
+

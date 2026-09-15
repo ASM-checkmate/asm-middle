@@ -1,4 +1,4 @@
-/* ─── 카메라 (ADR-0004 오너 결정 7): 활동 시간을 4등분한 창이 곧 만화의 4컷. "지금" 창만 촬영/재촬영 ───
+/* ─── 카메라 (ADR-0029): AI 배경(또는 SVG 무대) 위에 캐릭터를 놓고 자리·크기·자세를 만진다. 활동당 아무 때나 최대 3장 ───
    오버레이(CallOverlay와 같은 어법: 새 ScreenKind가 아니라 어떤 상태 위에도 뜬다). 룩은 덱(design/home-deck.html)의
    카드·칩·버튼 — 2.5px ink 외곽선, 하드 섀도, Jua. 뷰포트 transform은 만화 .cm-shot(screens.css)과 같다. */
 .cam {
@@ -9,7 +9,7 @@
 }
 @keyframes cam-in { from { transform: translateY(28px); opacity: 0; } to { transform: none; opacity: 1; } }
 
-/* 머리: "📷 장소" + 지금 창 · 찍은 수/4 · 닫기 */
+/* 머리: "📷 장소" + 어디서 · 찍은 수/3 · 닫기 */
 .cam-hd { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; flex: none; }
 .cam-hd h3 { font-family: var(--display); font-weight: 400; font-size: 22px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cam-hd small { display: block; font-family: var(--mono); font-size: 11px; color: var(--ink-2); letter-spacing: .02em; margin-top: 2px; }
@@ -55,6 +55,10 @@
 .cam-bg .scene:nth-child(1) { left: -100%; transform: scaleX(-1); }
 .cam-bg .scene:nth-child(2) { left: 0; }
 .cam-bg .scene:nth-child(3) { left: 100%; transform: scaleX(-1); }
+/* AI 배경(ADR-0029): 프레임보다 사방 12 % 큰 상자에 cover(BD_OVER = 1.24) — ±12 % 밀어도 끝이 안 보인다. photo/bake.tsx의 <image>와 같은 식이라 구운 픽셀과 뷰파인더가 같다 */
+.cam-bg img { position: absolute; left: -12%; top: -12%; width: 124%; height: 124%; object-fit: cover; pointer-events: none; }
+.cam-frame .cam-me, .cam-frame .cam-friend { cursor: grab; touch-action: none; }
+.cam-frame.is-drag-me .cam-me, .cam-frame.is-drag-friend .cam-friend { cursor: grabbing; filter: drop-shadow(0 6px 0 rgba(42, 33, 24, .18)); }
 .cam-stage .cam-me, .cam-stage .cam-friend, .cam-stage .cam-met { filter: blur(calc(var(--dof, 0) * var(--fgblur, 0) * 5px)); }
 /* 배경 인물은 무대와 함께 흐려진다 (초점이 캐릭터면 같이 흐리고, 배경이면 같이 선명) — 뒤에 있다는 게 심도로도 읽힌다 */
 .cam-stage .cam-present { filter: blur(calc(var(--dof, 0) * var(--bgblur, 1) * 6px)); }
@@ -88,14 +92,8 @@
 .cam-vf i:nth-child(2) { top: 0; right: 0; border-left: 0; border-bottom: 0; }
 .cam-vf i:nth-child(3) { bottom: 0; left: 0; border-right: 0; border-top: 0; }
 .cam-vf i:nth-child(4) { bottom: 0; right: 0; border-left: 0; border-top: 0; }
-/* 초점: 톡 누른 자리에 노란 네모가 잠깐, 오른쪽 위에 "초점 · 캐릭터/배경" 칩 */
+/* 오른쪽 위 칩: 지금 만지는 인물(나 / 친구) */
 .cam-fchip { position: absolute; top: 8px; right: 8px; z-index: 6; font-family: var(--display); font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--sun); color: var(--ink); border: 1.5px solid var(--ink); pointer-events: none; }
-.cam-focus {
-  position: absolute; z-index: 7; width: 52px; height: 52px; margin: -26px 0 0 -26px; border: 2.5px solid var(--sun); border-radius: 8px;
-  box-shadow: 0 0 0 1.5px var(--ink), inset 0 0 0 1.5px var(--ink); pointer-events: none; animation: cam-focus .8s ease-out both;
-}
-.cam-focus::before { content: ''; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: var(--sun); border: 1.5px solid var(--ink); }
-@keyframes cam-focus { 0% { transform: scale(1.5); opacity: 0; } 20% { transform: scale(1); opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
 /* 셔터: 하얀 플래시 + "찰칵!" — key를 바꿔 다시 마운트하면 애니메이션이 처음부터 돈다 */
 .cam-flash { position: absolute; inset: 0; z-index: 7; background: #fff; pointer-events: none; animation: cam-flash .55s ease-out both; }
 @keyframes cam-flash { 0% { opacity: 1; } 35% { opacity: .6; } 100% { opacity: 0; } }
@@ -116,9 +114,18 @@
 .cam-hint { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex: none; margin-top: -2px; font-size: 11px; color: var(--ink-3); }
 .cam-hint .btn--text { font-size: 11px; min-height: 36px; padding: 6px 8px; margin: -8px -4px -8px 0; }
 
-/* 슬라이더 5개(왼쪽: 확대 · 각도 · 기울임 · 조도 · 심도) + 셔터(오른쪽) */
+/* 왼쪽: 자세 칩 + 크기·배경 슬라이더, 오른쪽: 셔터 */
 .cam-ctl { display: grid; grid-template-columns: 1fr 84px; gap: 6px 12px; align-items: center; flex: none; }
-.cam-sliders { display: grid; gap: 4px; }
+.cam-sliders { display: grid; gap: 4px; min-width: 0; }
+/* 자세 칩: 한 줄로 가로 스크롤 (아홉 개) — 고른 인물(나/친구)의 자세 */
+.cam-poses { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 4px; -webkit-overflow-scrolling: touch; }
+.cam-poses::-webkit-scrollbar { display: none; }
+.cam-pose {
+  flex: none; min-height: 32px; padding: 0 11px; border-radius: 999px; border: 2px solid var(--ink); background: var(--card);
+  font-family: var(--display); font-size: 13px; color: var(--ink); box-shadow: 2px 2px 0 var(--ink); transition: transform .1s ease, box-shadow .1s ease;
+}
+.cam-pose.is-on { background: var(--sun); }
+.cam-pose:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
 .cam-sl { display: grid; grid-template-columns: 40px 1fr 48px; align-items: center; gap: 8px; font-family: var(--display); font-size: 14px; }
 .cam-sl output { font-family: var(--mono); font-size: 11px; color: var(--ink-2); text-align: right; white-space: nowrap; }
 /* 귀여운 range: 트랙은 종이색, 채운 만큼 코랄(--pct), 손잡이는 ink 테두리 흰 동그라미 + 하드 섀도 */
@@ -127,10 +134,6 @@
   height: 14px; border-radius: 999px; border: 2px solid var(--ink);
   background: linear-gradient(to right, var(--coral) 0 var(--pct, 0%), var(--paper-2) var(--pct, 0%) 100%);
 }
-/* 조도 트랙은 어두운 밤에서 환한 낮으로 */
-.cam-range--light::-webkit-slider-runnable-track { background: linear-gradient(to right, #3A3466, var(--paper-2) 45%, var(--sun)); }
-.cam-range--light::-moz-range-track { background: linear-gradient(to right, #3A3466, var(--paper-2) 45%, var(--sun)); }
-.cam-range--light::-moz-range-progress { background: transparent; border-color: transparent; }
 .cam-range::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none; width: 26px; height: 26px; margin-top: -8px; border-radius: 50%;
   background: var(--card); border: 2.5px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); cursor: pointer;
@@ -149,13 +152,13 @@
 .cam-shutter::before { content: ''; width: 56px; height: 56px; border-radius: 50%; border: 5px solid var(--coral); background: var(--card); transition: transform .1s ease, background .1s ease; }
 .cam-shutter:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
 .cam-shutter:active::before { transform: scale(.88); background: var(--coral-3); }
-.cam-shutter.is-retake::before { border-style: double; border-width: 7px; }
+.cam-shutter:disabled { opacity: .45; }
 .cam-shutter-lbl { font-family: var(--display); font-size: 12px; color: var(--ink-2); white-space: nowrap; }
 
-/* 필름 칸 4개(WIN_LABEL): 잉크 띠 위아래로 스프로킷 구멍. past 잠김 · now 코랄 · future 흐림 */
+/* 필름 칸 3개: 잉크 띠 위아래로 스프로킷 구멍. 찍은 순서대로, 빈 칸은 번호만 */
 .cam-film {
-  position: relative; flex: none; list-style: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
-  padding: 13px 10px 12px; background: var(--ink); border-radius: 14px; box-shadow: var(--shadow-hard-sm);
+  position: relative; flex: none; list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  padding: 13px 14px 12px; background: var(--ink); border-radius: 14px; box-shadow: var(--shadow-hard-sm);
 }
 .cam-film::before, .cam-film::after {
   content: ''; position: absolute; left: 12px; right: 12px; height: 5px; border-radius: 2px; opacity: .8; pointer-events: none;
@@ -163,36 +166,46 @@
 }
 .cam-film::before { top: 4px; }
 .cam-film::after { bottom: 4px; }
-.cam-cell { display: grid; gap: 3px; justify-items: center; min-width: 0; }
+.cam-cell { display: grid; gap: 3px; justify-items: center; min-width: 0; touch-action: none; }
 .cam-thumb { position: relative; width: 100%; aspect-ratio: 1 / 1.08; border-radius: 8px; overflow: hidden; background: var(--paper-2); border: 2px solid var(--paper); }
 .cam-thumb .cam-stage { pointer-events: none; }
 .cam-empty { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display); font-size: 16px; color: var(--ink-3); }
-/* 지난 창: 기본 프레이밍의 정지 무대(CameraOverlay가 CROP0으로 그린다)를 회색으로 죽여 "이미 찍혀 잠긴 사진"으로 읽히게 */
-.cam-cell.is-past .cam-thumb { filter: grayscale(.6) brightness(.85); }
-.cam-cell.is-past.has-shot .cam-thumb { filter: none; }
-.cam-lock { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; font-size: 17px; background: rgba(42, 33, 24, .32); pointer-events: none; }
-.cam-cell.has-shot .cam-lock { background: rgba(42, 33, 24, .14); align-content: end; justify-content: end; padding: 0 3px 2px 0; font-size: 12px; }
-.cam-cell.is-now .cam-thumb { border-color: var(--coral); box-shadow: 0 0 0 2px var(--coral); }
-.cam-cell.is-future .cam-thumb { opacity: .45; filter: blur(.6px); }
-.cam-here {
-  position: absolute; left: 50%; bottom: 5px; z-index: 5; transform: translateX(-50%); white-space: nowrap;
-  font-family: var(--display); font-size: 10px; padding: 1px 6px; border-radius: 999px; background: var(--coral); color: #fff; border: 1.5px solid var(--ink);
-  animation: cam-here 1s ease-in-out infinite alternate;
+.cam-cell.is-empty .cam-thumb { opacity: .45; }
+.cam-cell.has-shot .cam-thumb { border-color: var(--coral); }
+/* 지우기: 썸네일 모서리의 작은 ✕ (터치 타깃 28px — 칸이 작아 44는 못 준다, 실수해도 다시 찍으면 된다) */
+.cam-del {
+  position: absolute; top: 2px; right: 2px; z-index: 6; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--card); border: 1.5px solid var(--ink); font-family: var(--display); font-size: 12px; line-height: 1; padding: 0; color: var(--ink);
 }
-@keyframes cam-here { from { transform: translate(-50%, 0); } to { transform: translate(-50%, -3px); } }
-.cam-ok { position: absolute; top: 3px; right: 3px; z-index: 5; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; background: var(--mint); border: 1.5px solid var(--ink); font-size: 10px; line-height: 1; }
-.cam-lbl { font-family: var(--display); font-size: 11px; line-height: 1.1; color: var(--paper-2); white-space: nowrap; }
-.cam-cell.is-now .cam-lbl { color: var(--sun); }
-.cam-cell.is-future .cam-lbl { opacity: .5; }
-/* "모모가 찍음"/"찍을 차례": 잉크 띠 위라 종이색을 흐리게 — 글자는 10px 아래로 안 내려간다 (코드베이스 최소치) */
-.cam-by { font-family: var(--mono); font-size: 10px; line-height: 1.1; color: var(--paper-2); opacity: .65; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.cam-cell.is-now .cam-by { color: var(--paper); opacity: 1; }
+/* 폴라로이드 현상 (ADR-0029 로딩 연출): 방금 찍은 칸은 뿌옇게 시작해 --dev 동안 떠오른다. 문지르면(.is-shake) 흔들리고 --dev가 줄어 빨라진다 */
+.cam-cell.is-fresh .cam-thumb { border-color: var(--paper); box-shadow: 0 0 0 2px var(--sun); }
+.cam-cell.is-fresh .cam-stage { animation: cam-develop var(--dev, 5s) ease-out both; }
+@keyframes cam-develop {
+  0% { filter: sepia(.9) brightness(1.9) contrast(.25) blur(2px); opacity: .55; }
+  45% { filter: sepia(.5) brightness(1.35) contrast(.6) blur(.8px); opacity: .85; }
+  100% { filter: none; opacity: 1; }
+}
+/* 서버 생성 중(gen pending): 현상이 끝나지 않고 뿌옇게 숨쉰다. 생성본이 오면(gen done) 그 픽셀이 떠오른다 */
+.cam-cell.is-pending .cam-thumb .cam-stage { animation: cam-developing 1.4s ease-in-out infinite alternate; }
+@keyframes cam-developing {
+  from { filter: sepia(.8) brightness(1.6) contrast(.35) blur(1.6px); opacity: .7; }
+  to { filter: sepia(.35) brightness(1.15) contrast(.75) blur(.5px); opacity: .92; }
+}
+.cam-thumb .cam-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cam-cell.is-done .cam-thumb .cam-photo { animation: cam-develop 1.6s ease-out both; }
+.cam-cell.is-done .cam-thumb { border-color: var(--mint); }
+.cam-cell.is-shake .cam-thumb { animation: cam-shake .4s ease-in-out; }
+@keyframes cam-shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-7deg) translateY(-2px); } 75% { transform: rotate(7deg) translateY(-2px); } }
+/* 찍은 시각 / "아직": 잉크 띠 위라 종이색을 흐리게 */
+.cam-by { font-family: var(--mono); font-size: 10px; line-height: 1.1; color: var(--paper-2); opacity: .75; white-space: nowrap; }
+.cam-cell.has-shot .cam-by { opacity: 1; }
 
 .cam-done { flex: none; margin-top: auto; }
 
-/* ─── ActivityScreen: 상태 카드의 lock 문구 자리에 "📷 사진 찍기" + n/4 (활동 중에만 — 만화는 endAt에 한 번 굳는다) ─── */
+/* ─── ActivityScreen: 상태 카드의 lock 문구 자리에 "📷 {자리}에서 찍기" 버튼들 + n/3 (활동 중에만 — 앨범은 endAt에 한 번 굳는다) ─── */
 /* 터치 타깃은 덱의 .btn--small과 같은 40px */
-.act-stat .act-shoot { width: auto; margin-top: 7px; min-height: 40px; font-size: 14px; padding: 4px 11px; gap: 6px; border-radius: 12px; box-shadow: var(--shadow-hard-sm); }
+.act-shoots { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.act-stat .act-shoot { width: auto; margin-top: 0; min-height: 40px; font-size: 14px; padding: 4px 11px; gap: 6px; border-radius: 12px; box-shadow: var(--shadow-hard-sm); }
 .act-shoot-n { font-style: normal; font-family: var(--mono); font-size: 11px; line-height: 1.3; padding: 1px 6px; border-radius: 999px; background: var(--card); color: var(--ink); border: 1.5px solid var(--ink); }
 .act-shoot-n.is-full { background: var(--mint); }
 /* 카드가 버튼만큼(≈30px) 자랐다 — 로그가 카드에 얹히지 않게 (screens.css의 .act-log 132px 위로) */
@@ -205,6 +218,7 @@
   .cam { gap: 8px; }
   .cam-frame { width: 58%; }
   .cam-sliders { gap: 1px; }
+  .cam-pose { min-height: 28px; font-size: 12px; }
   .cam-range { height: 21px; }
   .cam-sl { font-size: 13px; }
   .cam-hint, .cam-by { display: none; }
@@ -215,6 +229,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cam, .cam-flash, .cam-snap, .cam-here, .cam-osd::before, .cam-focus { animation: none !important; }
+  .cam, .cam-flash, .cam-snap, .cam-osd::before, .cam-cell.is-fresh .cam-stage, .cam-cell.is-pending .cam-thumb .cam-stage, .cam-cell.is-done .cam-thumb .cam-photo, .cam-cell.is-shake .cam-thumb { animation: none !important; }
   .cam-flash { display: none; }
 }

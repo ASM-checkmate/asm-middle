@@ -1,7 +1,9 @@
 import { Component, Suspense, lazy, useEffect, type ComponentType, type ReactNode } from 'react';
 import { useWorld } from './sim/store';
 import { PLACES } from './sim/places';
-import { CharacterDefs, OwnerLookContext } from './character';
+import { Character, CharacterDefs, OwnerLookContext, type Pose } from './character';
+import { DEFAULT_LOOK } from './sim/types';
+import { SCENARIOS, markScenarioSeeded, scenarioParam, scenarioPlans, scenarioSeeded } from './dev/scenario';
 import { Home } from './screens/Home';
 import { DevPanel } from './dev/DevPanel';
 
@@ -47,6 +49,14 @@ export default function App() {
   const tick = useWorld(s => s.tick);
   const planDay = useWorld(s => s.planDay);
   useEffect(() => {
+    // `?scenario=busan` (dev/scenario.ts): 한 번만 오늘을 심는다. 다시 심으려면 개발 패널 reset 뒤 새로고침
+    const sc = scenarioParam();
+    const def = sc ? SCENARIOS[sc] : undefined;
+    if (def && !scenarioSeeded(def.key)) {
+      // 시계·집은 prepScenario(main.tsx)가 스토어 부팅 전에 놓았다 — 여기선 블록만 심는다
+      useWorld.getState().seedPlans(scenarioPlans(def), def.home);
+      markScenarioSeeded(def.key);
+    }
     tick();
     void planDay();   // 오늘의 빈 블록을 모델이 미리 짓는다 (ADR-0010). tier가 off면 아무것도 안 한다
     const id = setInterval(tick, 1000);
@@ -64,6 +74,22 @@ export default function App() {
             <CharacterLab />
           </Suspense>
         </Boundary>
+      </OwnerLookContext.Provider>
+    );
+  }
+
+  // `?lab=charpng&pose=idle[&variant=friend&color=%23…]` → 캐릭터 한 명만 투명 바탕에 크게 (scripts/char-png.mjs 가 찍어 간다 — 카메라 시험용, 임시)
+  if (LAB === 'charpng') {
+    const q = new URLSearchParams(window.location.search);
+    const pose = (q.get('pose') ?? 'idle') as Pose;
+    const variant = q.get('variant') === 'friend' ? 'friend' : 'me';
+    const color = q.get('color') ?? undefined;
+    return (
+      <OwnerLookContext.Provider value={ownerLook ?? DEFAULT_LOOK}>
+        <CharacterDefs />
+        <div style={{ background: 'transparent', width: 800, height: 800 }}>
+          <Character pose={pose} size={800} variant={variant} color={color} paused />
+        </div>
       </OwnerLookContext.Provider>
     );
   }

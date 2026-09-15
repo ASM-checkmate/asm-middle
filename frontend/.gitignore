@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# 배경 생성 재료·결과 (ADR-0029): 입력 사진·생성물·시험은 git 밖, 레시피(manifest.json)만 추적
+art/backdrops/in/
+art/backdrops/gen/
+art/backdrops/test/

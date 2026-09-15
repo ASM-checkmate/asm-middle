@@ -17,7 +17,8 @@ public record TheworldProps(
   @DefaultValue Search search,
   @DefaultValue Nominatim nominatim,
   @DefaultValue Docs docs,
-  @DefaultValue Media media
+  @DefaultValue Media media,
+  @DefaultValue Gemini gemini
 ) {
   /** 허용 origin — 쉼표로 여러 개. 개발은 Vite 프록시라 same-origin이고 이건 직접 붙을 때용. */
   public record Cors(@DefaultValue("http://localhost:5173") String origins) {}
@@ -37,4 +38,7 @@ public record TheworldProps(
   public record Docs(@DefaultValue("4194304") long maxBytes) {}
   /** 미디어 파일이 놓이는 디렉터리 — H2 파일과 같은 backend/data/ 아래 (ADR-0024 §영향). 없으면 첫 업로드 때 만든다. */
   public record Media(@DefaultValue("./data/media") String dir) {}
+  /** Gemini (ADR-0029 컷 생성·배경 생성) — 키가 비어 있으면 /api/shots/{id}/generate는 503. */
+  public record Gemini(@DefaultValue("") String apiKey, @DefaultValue("https://generativelanguage.googleapis.com/v1beta/models") String endpoint,
+                       @DefaultValue("gemini-3.1-flash-image") String imageModel, @DefaultValue("90000") long timeoutMs) {}
 }

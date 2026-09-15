@@ -352,24 +352,28 @@ export interface ScheduledActivity {
   frugal?: 'cheap' | 'earn';
 }
 
-// ─── 사진 (ADR-0004 오너 결정 7) ─────────────────────────────────────────────
-/** 카메라 장면 창: 활동 시간(arriveAt~endAt) 4등분. 0 도착 · 1 하는 중 · 2 한창 · 3 마무리 */
+// ─── 사진 (ADR-0004 → ADR-0029: 창 없이 아무 때나 최대 3장) ─────────────────────────────
+/** 글의 컷 번호(PostCut.win)·NPC 컷 프레이밍이 아직 0~3을 쓴다 — 창(활동 시간 4등분)이 아니라 **앨범 안의 컷 순서**다 */
 export type ShotWin = 0 | 1 | 2 | 3;
+/** 카메라가 고르는 자세 — character/Character.tsx Pose의 부분집합 (sleep은 없다) */
+export type ShotPose = 'idle' | 'walk' | 'sit' | 'wave' | 'draw' | 'happy' | 'eat' | 'read' | 'think';
 /**
- * 사용자가 찍은 한 장 (추가전용 이벤트, 같은 actKey+win은 뒤가 이긴다).
- * crop.x/y는 촬영 뷰포트 자기 크기 대비 % (translate(x%, y%)), scale=확대(1.0~2.2), rot=기울임(deg, -15~15),
- * pitch=각도(위/아래에서 보는 앵글, deg, -18~18, 없으면 0), light=조도(밝기 배율 0.55~1.45, 없으면 1),
- * dof=심도(0 = 전부 선명 … 1 = 초점 밖이 최대 흐림, 없으면 0), focus=초점(near: 캐릭터가 선명하고 배경이 흐림 ·
- * far: 배경이 선명하고 캐릭터가 흐림 — 톡 눌러서 정한다, 없으면 near).
+ * 배경 위 인물 하나의 자리·크기·자세 (ADR-0029): x/y = **발이 닿는 점**(프레임 너비·높이 대비 %, 0~100), scale = 프레임 너비 대비
+ * 캐릭터 상자 폭(0.25~1.2). 카메라가 손으로 옮기고, 굽기(photo/bake)와 만화(ShotStage)가 같은 숫자로 그린다
+ */
+export interface ShotFigure { x: number; y: number; scale: number; pose?: ShotPose }
+/**
+ * 배경 이동·확대 — 옛 필드(rot·pitch·light·dof·focus)는 카메라가 더 만들지 않지만 옛 컷(shotId 없는 것)을 다시 그릴 때 읽는다.
+ * crop.x/y는 촬영 뷰포트 자기 크기 대비 % (translate(x%, y%)), scale=확대(1.0~2.2)
  */
 export interface ShotCrop { scale: number; x: number; y: number; rot: number; pitch?: number; light?: number; dof?: number; focus?: 'near' | 'far' }
 /**
- * `shotId`: 찍는 순간 구운 픽셀(ADR-0024)의 미디어 id(32자 hex, 폰이 정한다). 굽기가 실패한 컷·옛 컷에는 없다 — 그때는 crop으로
- * 다시 그린다(옛 경로). 있으면 crop은 굽는 순간에만 쓰인 값이고 진실은 픽셀이다.
+ * 사용자가 찍은 한 장 (추가전용, 활동당 최대 3장 — sim/shots.ts MAX_SHOTS). 같은 `shotId`를 다시 넣으면 교체.
+ * `shotId`: 찍는 순간 구운 픽셀(ADR-0024)의 미디어 id(32자 hex, 폰이 정한다). 굽기가 실패한 컷·옛 컷에는 없다 — 그때는 crop/me로 다시 그린다.
+ * `backdrop`: AI 배경 id (sim/backdrops.ts) — 없으면 SVG 무대. `me`/`friend`: 배경 위 자리·크기·자세. `gen`: 서버 화풍 생성 상태
+ * ('plain' 단순 합성 그대로 · 'pending' 생성 중 · 'done' 생성본으로 교체됨). 옛 저장본의 `win`은 로드 때 버린다.
  */
-export interface UserShot { actKey: string; win: ShotWin; at: number; crop: ShotCrop; shotId?: string }
-/** 에이전트가 대충 찍은 흔적 (오너 결정 14: 에이전트 컷은 거의 항상 하나 이상). */
-export type PanelFlaw = 'blur' | 'dark' | 'overzoom' | 'cut' | 'tilt';
+export interface UserShot { actKey: string; at: number; crop: ShotCrop; shotId?: string; backdrop?: string; me?: ShotFigure; friend?: ShotFigure; gen?: 'plain' | 'pending' | 'done' }
 
 /**
  * 마주침: someone else's agent shared this place. `talked` → a new friend when the activity ends; `again` → already a friend.
@@ -402,14 +406,15 @@ export interface ComicPanel {
   t: number;
   /** 크롭과 앵글 — 컷마다 화각이 달라야 "그린 그림"이 아니라 "찍힌 사진"이 된다 */
   crop: ShotCrop;
-  /** 잘 안 찍힌 컷 (가끔 하나). 못 찍힌 사진만큼 증거처럼 읽히는 건 없다 */
-  blur?: boolean;
   /** 누가 찍었나. 없으면(옛 만화) 'agent'로 본다 */
   by?: 'user' | 'agent';
   /** by==='user'이면 crop.x/y 단위가 %이다 (unit:'pct'). 없으면 px */
   unit?: 'px' | 'pct';
-  /** 에이전트가 대충 찍은 흔적. by==='user'면 항상 없음 */
-  flaws?: PanelFlaw[];
+  /** AI 배경(ADR-0029): 배경 id와 그 자리 이름("정원"), 인물의 자리·자세. 없으면 SVG 무대에 기본 자리 */
+  backdrop?: string;
+  spot?: string;
+  me?: ShotFigure;
+  friend?: ShotFigure;
   /**
    * 구운 픽셀의 미디어 id (ADR-0024 결정 2). 사용자 컷은 makeComic이 샷에서 복사하고, 에이전트 컷·옛 컷은 다음 열람 때
    * 화면이 한 번 굽고 store.patchPanelShot으로 적는다. 없으면 crop으로 다시 그린다(옛 경로)
@@ -425,7 +430,7 @@ export interface Comic {
   placeName: string;
   placeType: PlaceType;
   createdAt: number;
-  panels: ComicPanel[];      // 1 or 4
+  panels: ComicPanel[];      // 1~3 (ADR-0029). 옛 앨범은 4
   summary: string;           // one-line summary for the catch-up sheet
   /** 컷 작성자 수 (헤더 "내가 N장, 모모가 M장"은 화면이 조립). 없으면 전부 에이전트 */
   shots?: { user: number; agent: number };

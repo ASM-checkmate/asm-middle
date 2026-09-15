@@ -42,9 +42,11 @@ export const RIDER_SIZE: Record<TransportMode, number> = { walk: 96, car: 120, b
  * the height follows the costume's viewBox. Defaults → walk 96×96, car/boat 120×100, subway 140×100,
  * train 144×100, plane 128×80.
  */
-export function riderBox(mode: TransportMode, size = RIDER_SIZE[mode]): { width: number; height: number; viewBox: string } {
-  const [vw, vh] = VIEWBOX[mode];
-  const width = Math.round(Math.max(96, size));
+export function riderBox(mode: TransportMode, size = RIDER_SIZE[mode], friend = false): { width: number; height: number; viewBox: string } {
+  // 걸을 때 동행은 옆에 나란히 — 겹치지 않게 상자를 1.7배 넓힌다 (탈것은 한 칸에 둘이 타니 그대로)
+  const [vw0, vh] = VIEWBOX[mode];
+  const vw = mode === 'walk' && friend ? vw0 * 1.7 : vw0;
+  const width = Math.round(Math.max(96, size) * (vw / vw0));
   const height = Math.round(width * (vh / vw));
   return { width, height, viewBox: `0 0 ${vw} ${vh}` };
 }
@@ -62,7 +64,7 @@ export function Rider({
   mode, size, facing = 'right', tilt, moving = true, boarding = false, friend = false,
   className, style, friendColor, night = false, sleeping = false, doors = 'closed', altScale, lineColor,
 }: RiderProps) {
-  const box = riderBox(mode, size);
+  const box = riderBox(mode, size, friend);
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
 
   // Squash-flip only on a facing CHANGE after mount (never on first render).

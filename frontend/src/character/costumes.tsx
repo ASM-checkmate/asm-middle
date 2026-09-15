@@ -31,19 +31,25 @@ function circles(r: number, ...pts: number[]): string {
 
 // ── walk ─────────────────────────────────────────────────────────────────────
 export function Walk({ friend }: CostumeProps) {
+  // 동행이 있으면 상자가 300 폭이 되고(riderBox) 둘이 나란히 걷는다: 친구는 왼쪽(뒤), 나는 오른쪽(앞). 겹치지 않는다
+  const me = friend ? 'translate(150 0)' : undefined;
   return (
     <>
+      {friend && (
+        <g className="mv-chara2" transform="translate(-26 4) scale(.9)">
+          <ellipse className="mv-shadow" cx="100" cy="186" rx="26" ry="5" {...SHADOW} />
+          <ellipse className="foot foot-r" cx="88" cy="179" rx="12" ry="7" fill={C.skin} {...INK} />
+          <ellipse className="foot foot-l" cx="112" cy="179" rx="12" ry="7" fill={C.skin} {...INK} />
+          <use href="#chara-body" x="50" y="126" width="100" height="60" />
+          <use href="#chara-face-friend-3q" x="30" y="6" width="140" height="140" />
+        </g>
+      )}
+      <g transform={me}>
       <ellipse className="mv-shadow" cx="100" cy="186" rx="26" ry="5" {...SHADOW} />
       <g className="mv-fx">
         <circle className="puff" cx="72" cy="184" r="5" fill={C.paper2} />
         <circle className="puff" cx="72" cy="184" r="5" fill={C.paper2} />
       </g>
-      {friend && (
-        <g className="mv-chara2" transform="translate(-42 18) scale(.84)">
-          <use href="#chara-body" x="50" y="126" width="100" height="60" />
-          <use href="#chara-face-friend-3q" x="30" y="6" width="140" height="140" />
-        </g>
-      )}
       <g className="mv-veh">
         <ellipse className="foot foot-l" cx="88" cy="179" rx="12" ry="7" fill={C.skin} {...INK} />
         <ellipse className="foot foot-r" cx="112" cy="179" rx="12" ry="7" fill={C.skin} {...INK} />
@@ -55,6 +61,7 @@ export function Walk({ friend }: CostumeProps) {
         <rect x="80" y="134" width="40" height="13" rx="4" fill={C.coral} {...INK3} />
         <g className="arm arm-r"><circle className="pivot" cx="126" cy="138" r="32" fill="none" /><path d="M126 138 q14 8 12 26" fill="none" {...INK} /></g>
         <use href="#chara-face-3q" x="30" y="6" width="140" height="140" />
+      </g>
       </g>
     </>
   );

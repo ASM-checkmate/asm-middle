@@ -233,11 +233,13 @@ const ONBOARD_HOURS: Record<'sleep' | 'meal', number[]> = { sleep: [3, 2, 4, 1, 
 function fakeAct(place: Place, o: OptionText, journey: Journey, departAt: number, activityMin = 100, originTz = ownerTz, from: Place = placeById('home'), jetlagUntil: number | null = null): ScheduledActivity {
   const blk = blockAtIn(departAt, originTz);
   const blockId: BlockId = blk === 'sleep' ? 'morning' : blk;
-  const option: ActivityOption = { id: `preview-${place.id}`, title: o.title, reason: o.reason, emoji: o.emoji, placeId: place.id, category: o.category, friendId: o.friendId };
+  // `&friend=1`: 동행(민수)을 붙인다 — 걷기 등 원래 혼자인 미리보기도 둘이 가는 그림을 본다
+  const friendId = (typeof location !== 'undefined' && new URLSearchParams(location.search).get('friend') === '1') ? 'minsu' : o.friendId;
+  const option: ActivityOption = { id: `preview-${place.id}`, title: o.title, reason: o.reason, emoji: o.emoji, placeId: place.id, category: o.category, friendId };
   const arriveAt = departAt + journey.totalMin * 60_000;
   const endAt = arriveAt + activityMin * 60_000;
   const dayKey = dayKeyIn(departAt, originTz);
-  return { key: `${dayKey}:${blockId}`, dayKey, blockIds: [blockId], option, place, fromPlace: from, journey, departAt, arriveAt, endAt, comicUntil: endAt + 8 * 60_000, originTz, tz: tzOf(place), jetlagUntil, companions: o.friendId ? [o.friendId] : [], presentNearby: [] };
+  return { key: `${dayKey}:${blockId}`, dayKey, blockIds: [blockId], option, place, fromPlace: from, journey, departAt, arriveAt, endAt, comicUntil: endAt + 8 * 60_000, originTz, tz: tzOf(place), jetlagUntil, companions: friendId ? [friendId] : [], presentNearby: [] };
 }
 
 function memory() { return useWorld.getState().memory; }
@@ -464,7 +466,7 @@ export function usePreview(): { phase: Phase | null; world: TimetableWorld | nul
     switch (base.spec.kind) {
       case 'moving': {
         const act = base.act!;
-        return movingPhase(Math.min(now, act.arriveAt - 500), act);
+        return movingPhase(Math.min(now, act.arriveAt - 500), act, companionsOf(act, useWorld.getState().memory));   // 동행도 지도에 (friend=1)
       }
       case 'active': {
         const act = base.act!;

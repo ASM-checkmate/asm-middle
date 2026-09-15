@@ -25,6 +25,11 @@
   animation: room-bubble-in .3s cubic-bezier(.34, 1.56, .64, 1) both;
 }
 .room-zone-tag.is-full { background: var(--paper-2); color: var(--ink-2); }
+/* 시간 이벤트 (ADR-0015 개정 4): 배경 svg의 data-ev 조각은 방 루트에 ev-{key}가 붙은 동안만 보인다 (지금은 드론쇼 하나) */
+.room [data-ev] { display: none; }
+.room.ev-drone [data-ev="drone"] { display: initial; }
+.room.ev-drone [data-ev="drone"] circle { animation: room-drone 1.6s ease-in-out infinite alternate; }
+@keyframes room-drone { from { opacity: .55; } to { opacity: 1; } }
 /* 존 위의 📷 칩 (ADR-0029 개정 2): 이름표 자리에, 배경마다 하나. 방이 축소돼도 같이 줄어든다 */
 .room-zone-shoot { position: absolute; transform: translate(-50%, -100%); display: flex; gap: 6px; white-space: nowrap; animation: room-bubble-in .3s cubic-bezier(.34, 1.56, .64, 1) both; }
 .room-zone-shoot .room-shoot { pointer-events: auto; min-height: 36px; font-size: 13px; padding: 4px 10px; gap: 5px; border-radius: 12px; box-shadow: var(--shadow-hard-sm); }

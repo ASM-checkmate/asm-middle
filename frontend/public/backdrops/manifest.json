@@ -1,5 +1,5 @@
 {
- "_": "AI 배경 데모 묶음 (ADR-0029) — art/backdrops/manifest.json에서 생성. me/friend: 발 자리 %와 프레임 대비 폭. zone: 방의 트리거 존(Room Zone.key) — 그 존에 서야 📷 칩이 뜬다",
+ "_": "AI 배경 데모 묶음 (ADR-0029) — art/backdrops/manifest.json에서 생성. me/friend: 발 자리 %와 프레임 대비 폭. zone: 방의 트리거 존(Room Zone.key) — 그 존에 서야 📷 칩이 뜬다. event: 방의 시간 이벤트(RoomSpec.events) 동안만 뜨는 배경",
  "backdrops": [
   {
    "id": "busan:samjin-table",
@@ -42,6 +42,7 @@
    "placeId": "samjin-pocha",
    "spot": "드론쇼 앞",
    "zone": "rail",
+   "event": "drone",
    "url": "/backdrops/busan/gwangalli-drone.webp",
    "sit": false,
    "me": {

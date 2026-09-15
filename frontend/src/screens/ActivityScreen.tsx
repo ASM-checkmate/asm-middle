@@ -5,7 +5,7 @@ import { MAX_SHOTS, shotsFor } from '../sim/shots';
 import { backdropsFor } from '../sim/backdrops';
 import { Character } from '../character';
 import { Button, CompanionChip, JetlagChip, ProgressBar, type ChipFriend } from '../ui';
-import { Scene, sceneTypeFor } from '../scenes';
+import { Scene } from '../scenes';
 import { roomForPlace, RoomStage } from '../room';
 import { activityLog } from '../sim/actlog';
 import { hhmmIn } from '../sim/tz';
@@ -46,7 +46,7 @@ export function ActivityScreen({ phase }: { phase: Active }) {
   return (
     <div className={`act ${friend ? 'has-friend' : ''} ${met ? 'has-met' : ''} ${room ? 'has-room' : ''}`}>
       <div className="act-iris" />
-      {room && <RoomStage room={room} log={fullLog} seatPose={poseFor(act.option)} cast={cast} seed={act.key} shoot={{ backdrops, count: shotCount, max: MAX_SHOTS, onOpen: openCamera }} />}
+      {room && <RoomStage room={room} log={fullLog} seatPose={poseFor(act.option)} cast={cast} seed={act.key} shoot={{ backdrops, count: shotCount, max: MAX_SHOTS, onOpen: openCamera }} clock={{ nowMs, tz: act.tz }} />}
       <div className="act-scene"><Scene type={act.place.type} /></div>
       {/* 같은 공간에 있던 사람들 — 배경에 작게. 방은 내가 지금 보는 장면이라 얼굴을 가리지 않는다 (얼굴을 감추는 건 사진 쪽 규칙, FRIENDS_SPEC §6). 방이 있는 장소에선 RoomStage가 그린다 */}
       {cast.present.map((p, i) => <Character key={p.id} className={`act-present act-present-${i}`} pose="idle" size={132} variant="friend" color={p.color} look={presentLook(p.hairStyle)} />)}

@@ -46,6 +46,10 @@ export interface Zone {
   alt?: { pose?: Cue['pose']; say?: string };
 }
 
+/** 방의 시간 이벤트 (ADR-0015 개정 4): 그 장소의 현지 시각 [from, to) 동안 방 루트에 `ev-{key}`가 붙고(배경의 `data-ev` 조각이 보인다), 시작 순간 한마디.
+ *  카메라 배경(Backdrop.event)이 같은 키를 가지면 그 동안만 그 배경의 📷 칩이 뜬다 */
+export interface RoomEvent { key: string; from: string; to: string; say?: string }
+
 export interface RoomSpec {
   w: number; h: number;
   /** 뒤 배경(벽·바닥) — 절대 위치 svg들 */
@@ -60,6 +64,8 @@ export interface RoomSpec {
   cueOf(line: LogLine): Cue | null;
   /** 트리거 존. 없으면 내 자리와 strolls에서 만든다 (`zonesOf`) */
   zones?: Zone[];
+  /** 시간 이벤트 (드론쇼 등). 활동 화면이 시계를 주면 RoomStage가 켠다 */
+  events?: RoomEvent[];
   /** 앉은 자리 앞(테이블 위)에 놓이는 활동 물건의 자리와 앞뒤 — 손에 든 것은 테이블에 가리니 테이블 위에 따로 놓는다 */
   seatItem: { x: number; y: number; base: number };
 }

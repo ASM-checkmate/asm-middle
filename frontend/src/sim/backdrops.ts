@@ -22,6 +22,8 @@ export interface Backdrop {
   friend?: ShotFigure;
   /** 방의 어느 트리거 존에서 찍는가 (Room Zone.key, 개정 3). 없으면 어느 존에 서든 뜬다 — 그 장소의 방이 손 존을 안 잡았을 때 */
   zone?: string;
+  /** 방의 시간 이벤트 키(RoomSpec.events) — 그 이벤트가 켜진 동안만 이 배경의 칩이 뜨고, 같은 존의 이벤트 없는 배경은 그동안 숨는다 (드론쇼) */
+  event?: string;
 }
 
 const registry = new Map<string, Backdrop>();
@@ -35,7 +37,7 @@ const isBackdrop = (v: unknown): v is Backdrop => {
   const b = v as Partial<Backdrop> | null;
   return !!b && typeof b.id === 'string' && typeof b.placeId === 'string' && typeof b.spot === 'string' && typeof b.url === 'string'
     && isFigure(b.me) && (b.friend === undefined || isFigure(b.friend)) && (b.sit === undefined || typeof b.sit === 'boolean')
-    && (b.zone === undefined || typeof b.zone === 'string');
+    && (b.zone === undefined || typeof b.zone === 'string') && (b.event === undefined || typeof b.event === 'string');
 };
 
 /** 레지스트리에 넣는다 (같은 id는 덮는다). 모양이 틀린 항목은 버린다 */

@@ -10,6 +10,7 @@ import type { LogLine } from '../sim/actlog';
 import type { Cast } from '../sim/agents';
 import { DEFAULT_LOOK, type Friend, type Look } from '../sim/types';
 import { rng } from '../sim/rng';
+import { hhmmIn } from '../sim/tz';
 import type { Backdrop } from '../sim/backdrops';
 import { Button } from '../ui';
 import { Props, SeatItem, zonesOf, type Cue, type RoomSpec, type Spot, type Zone } from './Room';
@@ -72,6 +73,8 @@ export interface RoomStageProps {
   leaving?: boolean;
   /** 활동 중 사진 (ADR-0029 개정 2): 내가 선 존 위에 📷 칩 — 배경마다 하나, 없으면 SVG 무대로 한 장. 없으면(시간표의 기다리는 방) 안 뜬다 */
   shoot?: { backdrops: Backdrop[]; count: number; max: number; onOpen: (backdropId: string | null) => void };
+  /** 지금 시각(sim ms)과 그 장소의 tz — 방의 시간 이벤트(RoomSpec.events)를 켜는 데만 쓴다. 없으면 이벤트도 없다 */
+  clock?: { nowMs: number; tz: string };
 }
 
 /** 큐가 최종적으로 남기는 자리·자세 — 처음 그릴 때 dwell을 건너뛰고 바로 여기에 선다 */
@@ -91,7 +94,7 @@ function restingSpot(room: RoomSpec, log: LogLine[]): { spot: string; pose?: Cue
  * 로그 > 사용자 > 살아 있기다: 로그 큐는 뭘 하고 있든 끊고 가고(방은 sim이 사는 곳), 사용자 탭은 산책·잔동작을 끊고,
  * 산책·잔동작은 인물이 쉬고 있을 때만 끼어든다. 큐의 `then`과 산책의 복귀 자리는 사용자가 마지막으로 고른 존(없으면 내 자리)이다.
  */
-export function RoomStage({ room, log, seatPose, cast: castProp, companions = [], seed, leaving = false, shoot }: RoomStageProps) {
+export function RoomStage({ room, log, seatPose, cast: castProp, companions = [], seed, leaving = false, shoot, clock }: RoomStageProps) {
   const cast: Cast = castProp ?? { companions, present: [] };
   const zones = useMemo(() => zonesOf(room), [room]);
   /** 앉는 자리들: 앉기 존·내 테이블 존의 자리와 옆 손님 자리 — 여기 있는 사람은 앉은 자세, 떠들 때도 일어나지 않는다 */
@@ -326,6 +329,19 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
     walkTo({ x, y }, () => setPose(undefined));
   };
 
+  // ─── 시간 이벤트 (ADR-0015 개정 4): 현지 시각이 [from, to) 안이면 켜진다. 시작 순간 한마디 ───
+  const hhmm = clock ? hhmmIn(clock.nowMs, clock.tz) : null;
+  const activeEvents = useMemo(() => (hhmm && room.events ? room.events.filter(e => hhmm >= e.from && hhmm < e.to) : []), [hhmm, room.events]);
+  const activeKeys = activeEvents.map(e => e.key).join(' ');
+  const prevKeys = useRef(activeKeys);
+  useEffect(() => {
+    const before = new Set(prevKeys.current.split(' ').filter(Boolean));
+    prevKeys.current = activeKeys;
+    if (goneRef.current) return;
+    activeEvents.forEach(e => { if (!before.has(e.key) && e.say) say(e.say); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKeys]);
+
   // ─── 합석·떠들기 (ADR-0028 개정 1): 내가 선 존에 다른 사람이 있으면 서로 보고, 번갈아 한마디씩 ───
   const zoneAt = at ? zones.find(z => z.spots.includes(at)) ?? null : null;
   const company = zoneAt && !walking ? others.find(o => o.kind !== 'guest' && o.spot !== at && zoneAt.spots.includes(o.spot)) ?? null : null;
@@ -379,13 +395,20 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
   // 근처의 존 하나(발과 가장 가까운 것) — 빛나고 이름표가 뜬다. 걷는 중·거기 서 있는 중엔 없다
   const near = walking ? null : zones.map(z => ({ z, d: Math.min(...z.spots.map(s => dist(me, room.spots[s]!))) })).filter(x => x.d < NEAR).sort((a, b) => a.d - b.d)[0]?.z ?? null;
   const nearFull = !!near && near.spots.every(s => taken.has(s));
+  /** 이 존의 📷 배경 (ADR-0029 개정 3): 존 키가 맞는 것 중, 이벤트 배경이 켜져 있으면 그것만(드론쇼 동안은 '해변 난간' 대신 '드론쇼 앞'), 아니면 이벤트 없는 것들 */
+  const chipBackdrops = (() => {
+    if (!shoot || !zoneAt) return [];
+    const here = shoot.backdrops.filter(b => !b.zone || b.zone === zoneAt.key);
+    const on = here.filter(b => b.event && activeEvents.some(e => e.key === b.event));
+    return on.length ? on : here.filter(b => !b.event);
+  })();
   const atStyle = (s: Spot, size = SIZE): CSSProperties => ({ transform: `translate(${s.x - size / 2}px, ${s.y - size * FEET}px)`, zIndex: Math.round(s.y) });
   const reactClass = (id: string) => { const r = reacts[id]; return r === 'nod' || r === 'look' ? `fidget-${r}` : ''; };
   /** 같은 존의 사람은 나를 본다 — 내가 왼쪽이면 왼쪽으로 */
   const facesMe = (o: Other) => (companyId === o.id ? (me.x < o.pos.x ? 'face-left' : '') : '');
 
   return (
-    <div className={`room ${fidget === 'sip' ? 'is-sipping' : ''}`} style={{ width: room.w, height: room.h }} aria-hidden="true" onPointerDown={tapFloor}>
+    <div className={`room ${fidget === 'sip' ? 'is-sipping' : ''} ${activeEvents.map(e => `ev-${e.key}`).join(' ')}`} style={{ width: room.w, height: room.h }} aria-hidden="true" onPointerDown={tapFloor}>
       {room.back}
       {zones.map(z => (
         <div key={z.key} className={`room-zone ${near?.key === z.key ? 'is-near' : ''} ${at && z.spots.includes(at) ? 'is-here' : ''}`}
@@ -396,10 +419,9 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
       )}
       {/* 사진 (ADR-0029 개정 2·3): 존에 서 있으면 그 위에 📷 칩 — 이름표와 같은 자리(이름표는 서 있을 땐 안 뜬다). 누르면 그 배경으로 카메라.
           pointerdown을 막아 바닥 탭·존 탭이 안 먹게. 방 루트가 aria-hidden이라 보조기기엔 안 잡힌다 — 카메라는 크롬의 앨범에서도 연다 */}
-      {shoot && zoneAt && !walking && !gone && (shoot.backdrops.length === 0 || shoot.backdrops.some(b => !b.zone || b.zone === zoneAt.key)) && (
+      {shoot && zoneAt && !walking && !gone && (shoot.backdrops.length === 0 || chipBackdrops.length > 0) && (
         <div className={`room-zone-shoot ${shoot.count >= shoot.max ? 'is-full' : ''}`} style={{ left: zoneAt.x + zoneAt.w / 2, top: zoneAt.y - 4, zIndex: 997 }} onPointerDown={e => e.stopPropagation()}>
-          {/* 존 키가 있는 배경은 그 존에서만 (개정 3) — 배경이 있는 장소에서 포토스팟이 아닌 존은 칩이 없다 */}
-          {(shoot.backdrops.length ? shoot.backdrops.filter(b => !b.zone || b.zone === zoneAt.key) : [null]).map((b, i) => (
+          {(shoot.backdrops.length ? chipBackdrops : [null]).map((b, i) => (
             <Button key={b?.id ?? 'stage'} tone="coral" small className="room-shoot" onClick={() => shoot.onOpen(b?.id ?? null)} ariaLabel={`${b ? `${b.spot}에서 ` : ''}사진 찍기 (${shoot.count}/${shoot.max})`}>
               📷 {b ? b.spot : '사진 찍기'}{i === 0 && <i className="room-shoot-n num">{shoot.count}/{shoot.max}</i>}
             </Button>

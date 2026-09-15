@@ -2,7 +2,7 @@
 // 390×560. 광안리 해변의 야외 포차, 밤. 위 띠 0..96은 벽이 아니라 풍경 — 밤하늘·광안대교·바다. 그 앞 유리 바람막이와 난간(96..160),
 // 바닥은 나무 데크. 빨간 플라스틱 의자와 체크 테이블, 오른쪽 위에 천막 카운터. 카메라 배경(busan:samjin-*)과 같은 자리·같은 물건.
 // 큐는 식당 방(술집 문장)의 것을 쓰되 정수기(water)가 없으니 그 걸음은 난간(rail)으로.
-import type { Cue, RoomProp, RoomSpec, Zone } from '../Room';
+import type { Cue, RoomEvent, RoomProp, RoomSpec, Zone } from '../Room';
 import { INK, INK2, Desk, Patterns, chairBack, mat, stool } from '../parts';
 import { cueOf as restaurantCueOf } from '../restaurant';
 import type { LogLine } from '../../sim/actlog';
@@ -112,6 +112,12 @@ const BACK = (
     <g fill="var(--sun)"><circle cx="20" cy="47" r="1.6" /><circle cx="75" cy="30" r="1.6" /><circle cx="110" cy="24" r="2" /><circle cx="160" cy="36" r="1.6" /><circle cx="195" cy="44" r="1.6" /><circle cx="230" cy="36" r="1.6" /><circle cx="280" cy="24" r="2" /><circle cx="315" cy="30" r="1.6" /><circle cx="370" cy="47" r="1.6" /></g>
     {/* 바다에 비친 빛 */}
     <path d="M100 66 v28 M112 68 v22 M270 66 v28 M284 68 v22" stroke="var(--sun)" strokeWidth="2" opacity=".35" strokeLinecap="round" />
+    {/* 드론쇼 (이벤트 drone — room.css가 .room.ev-drone일 때만 보인다): 다리 위 하늘에 하트를 그리는 드론 불빛 + 흩어진 드론 */}
+    <g data-ev="drone">
+      <g opacity=".35"><circle cx="195.0" cy="23.5" r="4" fill="var(--coral)" /><circle cx="195.3" cy="22.2" r="4" fill="var(--sun)" /><circle cx="197.1" cy="19.1" r="4" fill="var(--sky)" /><circle cx="201.2" cy="15.9" r="4" fill="var(--mint)" /><circle cx="207.2" cy="14.5" r="4" fill="var(--coral)" /><circle cx="213.7" cy="15.8" r="4" fill="var(--sun)" /><circle cx="218.7" cy="19.6" r="4" fill="var(--sky)" /><circle cx="220.6" cy="24.8" r="4" fill="var(--mint)" /><circle cx="218.7" cy="30.3" r="4" fill="var(--coral)" /><circle cx="213.7" cy="35.5" r="4" fill="var(--sun)" /><circle cx="207.2" cy="40.3" r="4" fill="var(--sky)" /><circle cx="201.2" cy="44.6" r="4" fill="var(--mint)" /><circle cx="197.1" cy="48.4" r="4" fill="var(--coral)" /><circle cx="195.3" cy="51.1" r="4" fill="var(--sun)" /><circle cx="195.0" cy="52.1" r="4" fill="var(--sky)" /><circle cx="194.7" cy="51.1" r="4" fill="var(--mint)" /><circle cx="192.9" cy="48.4" r="4" fill="var(--coral)" /><circle cx="188.8" cy="44.6" r="4" fill="var(--sun)" /><circle cx="182.8" cy="40.3" r="4" fill="var(--sky)" /><circle cx="176.3" cy="35.5" r="4" fill="var(--mint)" /><circle cx="171.3" cy="30.3" r="4" fill="var(--coral)" /><circle cx="169.4" cy="24.8" r="4" fill="var(--sun)" /><circle cx="171.3" cy="19.6" r="4" fill="var(--sky)" /><circle cx="176.3" cy="15.8" r="4" fill="var(--mint)" /><circle cx="182.8" cy="14.5" r="4" fill="var(--coral)" /><circle cx="188.8" cy="15.9" r="4" fill="var(--sun)" /><circle cx="192.9" cy="19.1" r="4" fill="var(--sky)" /><circle cx="194.7" cy="22.2" r="4" fill="var(--mint)" /></g>
+      <circle cx="195.0" cy="23.5" r="2" fill="var(--coral)" /><circle cx="195.3" cy="22.2" r="2" fill="var(--sun)" /><circle cx="197.1" cy="19.1" r="2" fill="var(--sky)" /><circle cx="201.2" cy="15.9" r="2" fill="var(--mint)" /><circle cx="207.2" cy="14.5" r="2" fill="var(--coral)" /><circle cx="213.7" cy="15.8" r="2" fill="var(--sun)" /><circle cx="218.7" cy="19.6" r="2" fill="var(--sky)" /><circle cx="220.6" cy="24.8" r="2" fill="var(--mint)" /><circle cx="218.7" cy="30.3" r="2" fill="var(--coral)" /><circle cx="213.7" cy="35.5" r="2" fill="var(--sun)" /><circle cx="207.2" cy="40.3" r="2" fill="var(--sky)" /><circle cx="201.2" cy="44.6" r="2" fill="var(--mint)" /><circle cx="197.1" cy="48.4" r="2" fill="var(--coral)" /><circle cx="195.3" cy="51.1" r="2" fill="var(--sun)" /><circle cx="195.0" cy="52.1" r="2" fill="var(--sky)" /><circle cx="194.7" cy="51.1" r="2" fill="var(--mint)" /><circle cx="192.9" cy="48.4" r="2" fill="var(--coral)" /><circle cx="188.8" cy="44.6" r="2" fill="var(--sun)" /><circle cx="182.8" cy="40.3" r="2" fill="var(--sky)" /><circle cx="176.3" cy="35.5" r="2" fill="var(--mint)" /><circle cx="171.3" cy="30.3" r="2" fill="var(--coral)" /><circle cx="169.4" cy="24.8" r="2" fill="var(--sun)" /><circle cx="171.3" cy="19.6" r="2" fill="var(--sky)" /><circle cx="176.3" cy="15.8" r="2" fill="var(--mint)" /><circle cx="182.8" cy="14.5" r="2" fill="var(--coral)" /><circle cx="188.8" cy="15.9" r="2" fill="var(--sun)" /><circle cx="192.9" cy="19.1" r="2" fill="var(--sky)" /><circle cx="194.7" cy="22.2" r="2" fill="var(--mint)" />
+      <circle cx="60" cy="20" r="1.4" fill="var(--card)" /> <circle cx="95" cy="14" r="1.4" fill="var(--card)" /> <circle cx="140" cy="36" r="1.4" fill="var(--card)" /> <circle cx="250" cy="38" r="1.4" fill="var(--card)" /> <circle cx="300" cy="12" r="1.4" fill="var(--card)" /> <circle cx="340" cy="22" r="1.4" fill="var(--card)" /> <circle cx="170" cy="8" r="1.4" fill="var(--card)" /> <circle cx="225" cy="6" r="1.4" fill="var(--card)" />
+    </g>
     {/* 전구 줄 (천막 처마) */}
     <path d="M0 8 Q98 22 195 10 Q292 22 390 8" fill="none" stroke="var(--ink)" strokeWidth="2" />
     <g fill="var(--sun)" stroke="var(--ink)" strokeWidth="1.5"><circle cx="50" cy="16" r="4" /><circle cx="120" cy="18" r="4" /><circle cx="195" cy="12" r="4" /><circle cx="270" cy="18" r="4" /><circle cx="340" cy="15" r="4" /></g>
@@ -129,6 +135,9 @@ function cueOf(line: LogLine): Cue | null {
   if (!c) return null;
   return c.go === 'water' ? { ...c, go: 'rail', at: c.at === 'water' ? 'rail' : c.at } : c;
 }
+
+/** 광안리 드론쇼 — 데모는 21:00부터 30분 (실제는 주말 저녁). 그동안 난간의 📷는 '드론쇼 앞'만 */
+const EVENTS: RoomEvent[] = [{ key: 'drone', from: '21:00', to: '21:30', say: '🚁 드론쇼 시작!' }];
 
 const ZONES: Zone[] = [
   { key: 'rail', x: 10, y: 96, w: 196, h: 100, spots: ['rail'], say: '🌉', label: '난간' },
@@ -154,5 +163,6 @@ export const SAMJIN: RoomSpec = {
   strolls: [{ spot: 'rail', pose: 'idle' }, { spot: 'counter', pose: 'think' }, { spot: 'door', pose: 'idle' }],
   seatItem: { x: 150, y: 366, base: 429 },
   zones: ZONES,
+  events: EVENTS,
   cueOf,
 };

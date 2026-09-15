@@ -12,7 +12,7 @@ import { wonKo } from '../sim/status';
 import type { TimetableWorld } from '../dev/preview';
 import { Character, type Pose } from '../character';
 import { Bubble, Button, Chip, CompanionChip, Glyph, JetlagChip, type ChipFriend } from '../ui';
-import { Scene, sceneTypeFor } from '../scenes';
+import { Scene } from '../scenes';
 import { roomForPlace, RoomStage } from '../room';
 import { CATEGORY_FILL, Ring, type RingSeg } from './Ring';
 import { blockRange, bookIntent, dayTitle, progressLabel, shortTitle, transitNote, vehicleName } from './util';

@@ -2,74 +2,94 @@
   {
     "goto": "http://localhost:5173/?scenario=busan&reset=1",
     "load": 7000,
-    "mark": "1 부산대"
+    "mark": "0 인트로"
+  },
+  {
+    "intro": "안녕? 나는 모모야. 내가 어제 한 일 한번 들어볼래?",
+    "wait": 800
+  },
+  {
+    "introOff": true,
+    "wait": 300
   },
   {
     "say": [
       "능동적으로 살아가는 에이전트들의 세계. 내 캐릭터는 오늘도 제 하루를 산다.",
       "오후 수업… 민수랑 같이 들으니까 덜 졸려 📖"
     ],
-    "wait": 5000
-  },
-  {
-    "say": [
-      "방 안의 자리를 누르면 걸어가고, 그 자리에서만 사진을 찍는다.",
-      "대학본부 앞이 제일 예쁘대. 여기서 한 장!"
-    ],
-    "mark": "2 존·카메라"
-  },
-  {
-    "click": ".room-zone",
-    "wait": 3800
-  },
-  {
-    "click": ".room-shoot",
-    "wait": 2200
-  },
-  {
-    "click": ".cam-shutter",
-    "wait": 4200
-  },
-  {
-    "tapClick": ".cam-x",
+    "mark": "1 부산대",
     "wait": 1500
   },
   {
+    "say": [
+      "방 안의 자리를 누르면 걸어간다.",
+      "잠깐 대학본부 앞에 가 볼까?"
+    ],
+    "wait": 300
+  },
+  {
+    "click": ".room-zone",
+    "wait": 3500
+  },
+  {
     "jump": "18:02",
+    "scale": 150,
     "say": [
       "이동은 진짜 지도 위에서. 실제 이동 시간만큼 걸린다.",
       "광안리까지 민수랑 같이. 배고파…"
     ],
-    "mark": "3 이동",
-    "wait": 9000
+    "mark": "3 이동"
   },
   {
-    "jump": "18:46",
+    "waitUntil": {
+      "expr": "!!document.querySelector('.act') && !document.querySelector('.map-scene')",
+      "max": 45000
+    },
+    "mark": "3 도착"
+  },
+  {
+    "scale": 30
+  },
+  {
+    "hold": {
+      "expr": "!!document.querySelector('.room')",
+      "max": 8000
+    },
+    "wait": 1500
+  },
+  {
     "say": [
       "가보고 싶은 가게 정보는 바로 확인. 네이버 지도·구글 맵으로.",
       "조새호, 창가 자리 있대. 광안대교 보이는 자리!"
     ],
     "mark": "4 조새호",
-    "wait": 3500
-  },
-  {
-    "click": ".act-map-btn",
-    "wait": 4000
-  },
-  {
-    "tapClick": ".ps-x",
-    "wait": 1200
+    "wait": 800
   },
   {
     "eval": "document.querySelectorAll('.room-zone')[2].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))",
-    "wait": 4500
+    "wait": 200
+  },
+  {
+    "click": ".act-map-btn"
+  },
+  {
+    "hold": {
+      "expr": "window.__demoReady && window.__demoReady()",
+      "max": 15000
+    },
+    "wait": 3800
+  },
+  {
+    "tapClick": ".ps-x",
+    "wait": 1500
   },
   {
     "say": [
-      "보고 싶은 순간은 내가 찍는다.",
+      "보고 싶은 순간은 내가 찍는다. 찍은 사진은 그 자리의 그림으로 다시 그려진다.",
       "가리비 익는 동안 찰칵 🐚"
     ],
-    "mark": "5 창가 사진"
+    "mark": "5 창가 사진",
+    "wait": 500
   },
   {
     "click": ".room-shoot",
@@ -77,11 +97,14 @@
   },
   {
     "click": ".cam-shutter",
-    "wait": 2600
+    "wait": 2400
   },
   {
-    "eval": "(async () => { const s = window.__world.getState(); const shot = s.shots.filter(x => x.actKey === s.phase.act.key).at(-1); const blob = await (await fetch('/demo/josaeho.png')).blob(); const id = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join(''); await window.__media.putLocal(id, blob, 'shot'); window.__world.getState().replaceShotId(shot.shotId, id); return 'josaeho→' + id.slice(0, 6); })()",
-    "wait": 5500
+    "dropPhoto": {
+      "url": "/demo/josaeho.png",
+      "cell": 0
+    },
+    "wait": 3200
   },
   {
     "tapClick": ".cam-x",
@@ -94,11 +117,11 @@
       "하늘에 하트! 옆자리 분들도 보러 왔나 봐"
     ],
     "mark": "6a 포차·드론쇼",
-    "wait": 1500
+    "wait": 1200
   },
   {
     "click": ".room-zone",
-    "wait": 15000
+    "wait": 14500
   },
   {
     "say": [
@@ -106,26 +129,15 @@
       "봉주르! 루이랑 클로에래. 우리 친구 됐다 🥐"
     ],
     "mark": "6b 친구",
-    "wait": 6000
+    "wait": 5500
   },
   {
     "say": [
-      "드론쇼 앞에서 한 장, 테이블에서 한 장.",
+      "테이블에서 한 장.",
       "이건 꼭 남겨야지"
     ],
-    "mark": "7 사진 둘"
-  },
-  {
-    "click": ".room-shoot",
-    "wait": 2200
-  },
-  {
-    "click": ".cam-shutter",
-    "wait": 3200
-  },
-  {
-    "tapClick": ".cam-x",
-    "wait": 1200
+    "mark": "7 테이블 사진",
+    "wait": 300
   },
   {
     "eval": "document.querySelectorAll('.room-zone')[2].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))",
@@ -137,59 +149,78 @@
   },
   {
     "click": ".cam-shutter",
-    "wait": 2600
+    "wait": 2400
   },
   {
-    "eval": "(async () => { const s = window.__world.getState(); const shot = s.shots.filter(x => x.actKey === s.phase.act.key).at(-1); const blob = await (await fetch('/demo/pocha.png')).blob(); const id = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join(''); await window.__media.putLocal(id, blob, 'shot'); window.__world.getState().replaceShotId(shot.shotId, id); return 'pocha→' + id.slice(0, 6); })()",
-    "wait": 5500
+    "dropPhoto": {
+      "url": "/demo/pocha.png",
+      "cell": 0
+    },
+    "wait": 3200
   },
   {
     "tapClick": ".cam-x",
     "wait": 1200
   },
   {
-    "jump": "23:45",
+    "jump": "23:44",
+    "scale": 150,
     "say": [
       "집에 갈 땐 동백택시. 부산에선 부산 택시로.",
       "택시 잡았다. 민수 잘 가~ 🚕"
     ],
-    "mark": "8 택시",
-    "wait": 9000
+    "mark": "8 택시"
   },
   {
-    "jump": "+1 00:30",
+    "waitUntil": {
+      "expr": "!!document.querySelector('.slp')",
+      "max": 40000
+    },
+    "mark": "8 도착"
+  },
+  {
+    "scale": 30
+  },
+  {
+    "hold": {
+      "expr": "!!document.querySelector('.slp')",
+      "max": 5000
+    },
+    "wait": 600
+  },
+  {
     "say": [
       "집에 들어가서 잔다. 내일도 여기서 시작한다.",
       "다녀왔습니다… 눕고 싶다"
     ],
     "mark": "9 수면",
-    "wait": 4000
+    "wait": 2500
   },
   {
     "say": [
       "자기 전, 침대에서 오늘을 돌아본다.",
-      "새 친구 둘, 사진 석 장. 오늘 좋았다 🌙"
+      "새 친구 둘, 사진 두 장. 오늘 좋았다 🌙"
     ],
     "mark": "10 SNS·앨범"
   },
   {
     "tapClick": ".chrome-sns",
-    "wait": 2000
+    "wait": 1800
   },
   {
     "tapClick": [
       ".sns-tabs button",
       "친구"
     ],
-    "wait": 4500
+    "wait": 4200
   },
   {
     "eval": "(() => { const b = [...document.querySelectorAll('button[aria-label=\"닫기\"]')].at(-1); if (!b) return 'no close'; const r = b.getBoundingClientRect(); window.__demoTap(r.left + r.width / 2, r.top + r.height / 2); setTimeout(() => b.click(), 150); return 'sns closed'; })()",
-    "wait": 1400
+    "wait": 1300
   },
   {
     "tapClick": ".chrome-book:not(.chrome-sns):not(.chrome-chat):not(.chrome-tt)",
-    "wait": 2200
+    "wait": 2000
   },
   {
     "tapClick": [
@@ -203,6 +234,6 @@
       "",
       ""
     ],
-    "wait": 800
+    "wait": 900
   }
 ]

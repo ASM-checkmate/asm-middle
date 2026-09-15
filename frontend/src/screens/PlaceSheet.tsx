@@ -32,7 +32,8 @@ export function PlaceSheet({ placeId, onClose }: { placeId: string; onClose: () 
     const mo = new MutationObserver(collapse);
     if (attribEl) { collapse(); mo.observe(attribEl, { attributes: true, attributeFilter: ['class'] }); attribEl.querySelector('.maplibregl-ctrl-attrib-button')?.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); mo.disconnect(); }, { once: true }); }
     const marker = createPinMarker(createPinDom(place.name, place.emoji)).setLngLat([place.lng, place.lat]).addTo(map);
-    return () => { mo.disconnect(); marker.remove(); map.remove(); };
+    if (import.meta.env.DEV) (window as unknown as { __sheetMap?: MLMap | null }).__sheetMap = map;   // 데모 녹화가 타일 로딩을 기다린다
+    return () => { mo.disconnect(); marker.remove(); map.remove(); if (import.meta.env.DEV) (window as unknown as { __sheetMap?: MLMap | null }).__sheetMap = null; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placeId]);
 

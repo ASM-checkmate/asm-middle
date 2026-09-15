@@ -1,5 +1,6 @@
 import { Component, Suspense, lazy, useEffect, type ComponentType, type ReactNode } from 'react';
 import { useWorld } from './sim/store';
+import { putLocal } from './sim/media';
 import { PLACES } from './sim/places';
 import { Character, CharacterDefs, OwnerLookContext, type Pose } from './character';
 import { DEFAULT_LOOK } from './sim/types';
@@ -12,9 +13,10 @@ const DEV = params.get('dev') === '1';
 const LAB = params.get('lab');
 // Dev/QA hook: drive the sim from scripts (jumpToHour, setScale, chooseOption…)
 if (import.meta.env.DEV) {
-  const w = window as unknown as { __world?: typeof useWorld; __places?: typeof PLACES };
+  const w = window as unknown as { __world?: typeof useWorld; __places?: typeof PLACES; __media?: { putLocal: typeof putLocal } };
   w.__world = useWorld;
   w.__places = PLACES;   // place catalogue for headless assertions (which city a chosen placeId lives in)
+  w.__media = { putLocal };   // 데모 녹화(scripts/record.mjs)가 '생성된 사진'을 끼워 넣는다
 }
 
 // `?lab=character` → src/dev/CharacterLab.tsx (built concurrently). Loaded through a glob so a missing file

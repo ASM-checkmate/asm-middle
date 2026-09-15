@@ -1,1 +1,4 @@
 .DS_Store
+
+# 데모 영상 산출물 (frontend/scripts/record.mjs)
+design/out/

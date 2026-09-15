@@ -1,9 +1,9 @@
-import type { Anchor, BlockId, BlockPlan, Comic, DayKey, Friend, Journey, Memory, Onboard, Phase, PhaseEncounter, Place, ScheduledActivity, TransportMode } from './types';
+import type { ActivityOption, Anchor, BlockId, BlockPlan, Comic, DayKey, Friend, Journey, Memory, Onboard, Phase, PhaseEncounter, Place, ScheduledActivity, TransportMode } from './types';
 import { splitDayKey } from './types';
 import { BLOCK_ORDER, blockAtIn, blockEndAt, blockSlotIn, blockStartAt, nextBlockId } from './blocks';
 import { HOUR_MS, addDaysKey, dayKeyIn, dayStartOfKey, offsetMinutes } from './tz';
 import { estimateJourney, journeyKey } from './journey';
-import { placeById, tzOf } from './places';
+import { PLACES, placeById, tzOf } from './places';
 import { alongPath, cumulativeKm } from './geo';
 import { AGENTS, agentById, agentOfFriend, agentsAt, isRemoteId, remoteMeId, remoteSlotAt, rollTalk, rollTalkRemote, talkChance } from './agents';
 import { diverts, pickAlternative, rollFriction, type Outcome } from './friction';
@@ -25,6 +25,9 @@ const JETLAG_MS = 24 * HOUR_MS;
 const MEAL_BLOCKS: ReadonlySet<BlockId> = new Set<BlockId>(['morning', 'lunch', 'evening']);
 const ONBOARD_MODES: ReadonlySet<TransportMode> = new Set<TransportMode>(['train', 'plane', 'boat']);
 const ENCOUNTER_MIN_MS = 30 * 60_000;   // 같은 장소에서 30분 이상 겹치면 마주침 (FRIENDS_SPEC §4)
+const BED_MARGIN_MIN = 20;              // 잘 곳에 이만큼 먼저 닿게 출발한다 (씻고 눕는 시간)
+/** 자도 되는 곳 — 여기 있으면 취침 전 이동이 없다 */
+const SLEEPABLE: ReadonlySet<Place['type']> = new Set<Place['type']>(['home', 'hotel', 'friend_home']);
 
 /** How many times we have run into each agent — the roll gets +20 % from the second time on. */
 export type Encounters = Record<string, number>;
@@ -41,8 +44,20 @@ export function emptyPlans(): Plans {
 }
 
 const placeOrNull = (id: string): Place | null => { try { return placeById(id); } catch { return null; } };
-/** Does `a` occupy any moment of [start, end)? The journey, the activity and its comic all count. */
-const covers = (a: ScheduledActivity, start: number, end: number) => a.departAt < end && a.comicUntil > start;
+/** Does `a` occupy any moment of [start, end)? The journey, the activity and its comic all count. 취침 전 이동(`isBedtime`)은 블록을 차지하지 않는다 —
+ *  밤 블록 끝자락에 걸쳐도 그 블록은 여전히 고를 수 있어야 하고, 고르면 이동은 그 활동 뒤로 다시 잡힌다 */
+const covers = (a: ScheduledActivity, start: number, end: number) => !isBedtime(a) && a.departAt < end && a.comicUntil > start;
+
+/** 취침 전 이동 활동인가 (`buildTimeline`이 수면 슬롯 앞에 합성) — 앨범·정산·마주침·요약에서 뺀다 */
+export const isBedtime = (a: Pick<ScheduledActivity, 'option'>): boolean => a.option.category === 'sleep';
+
+/** 취침 전에 갈 곳: 자도 되는 곳에 이미 있으면 없음, 집 도시면 집, 아니면 그 도시의 호텔, 그것도 없으면 없음(그 자리에서 잔다) */
+export function bedPlaceFor(at: Place, memory: Memory): Place | null {
+  if (SLEEPABLE.has(at.type)) return null;
+  const home = placeById(memory.homePlaceId);
+  if (at.city === home.city) return at.id === home.id ? null : home;
+  return PLACES.find(p => p.city === at.city && p.type === 'hotel') ?? null;
+}
 
 // ─── eras ────────────────────────────────────────────────────────────────────
 /** Zone the character lives in at `t`: that of the last arrival before `t` (a journey keeps the origin's), else `fallbackTz`. */
@@ -80,8 +95,23 @@ export function buildTimeline(anchor: Anchor, days: Days, memory: Memory, journe
     const tz = cursor.tz;
     const slot = blockSlotIn(t, tz);
     if (slot.start > horizon) break;
-    // sleep happens wherever the character is; a slot already consumed by the previous activity is skipped
-    if (slot.id === 'sleep' || cursor.free >= slot.end) { t = slot.end; continue; }
+    // 취침 전 이동: 잘 만한 곳이 아니면 수면 슬롯 앞에 잘 곳(집·숙소)으로 가는 이동을 넣는다 — 마지막 활동의 앨범이 끝난 뒤, 늦어도 자정 20분 전에 닿게.
+    // 자정을 넘겨 닿으면 닿는 순간부터 잔다. 앨범·정산은 없다 (isBedtime). 잘 만한 곳이면 그대로 거기서 잔다 (TIMEZONE_SPEC: 자정에 순간이동하지 않는다)
+    if (slot.id === 'sleep') {
+      const bed = cursor.free < slot.end ? bedPlaceFor(cursor.place, memory) : null;
+      if (bed) {
+        const journey = journeys[journeyKey(cursor.place.id, bed.id)] ?? estimateJourney(cursor.place, bed);
+        const departAt = Math.max(cursor.free, slot.start - (journey.totalMin + BED_MARGIN_MIN) * 60_000);
+        const arriveAt = departAt + journey.totalMin * 60_000;
+        const dayKey = dayKeyIn(departAt, tz);
+        const option: ActivityOption = { id: `${dayKey}-bed`, title: bed.type === 'home' ? '집으로' : '숙소로', reason: '슬슬 잘 시간', emoji: '🛏️', placeId: bed.id, category: 'sleep' };
+        acts.push({ key: `${dayKey}:bed`, dayKey, blockIds: ['sleep'], option, place: bed, fromPlace: cursor.place, journey, departAt, arriveAt, endAt: arriveAt, comicUntil: arriveAt, originTz: tz, tz: tzOf(bed), jetlagUntil: cursor.jetlagUntil, companions: [], presentNearby: [] });
+        cursor = { ...cursor, place: bed, free: arriveAt };
+      }
+      t = slot.end; continue;
+    }
+    // a slot already consumed by the previous activity is skipped
+    if (cursor.free >= slot.end) { t = slot.end; continue; }
     const dayKey = dayKeyIn(t, tz);
     const plan = days[dayKey]?.[slot.id];
     const opt = plan?.options.find(o => o.id === plan.chosenId);
@@ -144,6 +174,7 @@ export function buildTimeline(anchor: Anchor, days: Days, memory: Memory, journe
 function addEncounters(acts: ScheduledActivity[], memory: Memory, encounters: Encounters): void {
   const talkedDays = new Set<DayKey>();
   for (const a of acts) {
+    if (isBedtime(a)) continue;   // 잘 곳으로 가는 길엔 마주침이 없다
     const remote = remoteSlotAt(a.key, a.place.id, a.arriveAt, a.endAt) ?? [];
     const met = [...remote, ...agentsAt(a.place.id, a.arriveAt, a.endAt, AGENTS)]
       .filter(x => x.overlapMs >= ENCOUNTER_MIN_MS && !a.companions.includes(x.agent.id) && x.agent.homePlaceId !== memory.homePlaceId);

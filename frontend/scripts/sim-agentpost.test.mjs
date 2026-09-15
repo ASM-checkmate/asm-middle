@@ -279,7 +279,7 @@ console.log('\n── 컷 고치기 · 버린 날 ──');
 const prepDay = async (h, m, ids, opts = {}) => {
   S().jumpTo(dayStart + opts.days * 86400_000 + h * 3600_000 + m * MIN); S().tick(); await sleep(10);
   const day = S().today;
-  const done = S().timeline.filter(a => a.dayKey === day && a.endAt <= S().now);
+  const done = S().timeline.filter(a => a.dayKey === day && a.endAt <= S().now && a.option.category !== 'sleep');   // 취침 전 이동(ADR-0030)은 앨범이 없다
   // 앨범은 활동당 한 장(안 찍은 날, ADR-0029)이라 id 하나에 끝난 활동 하나씩 — 늦게 끝난 활동부터 거꾸로 (컷 순서는 시각순이라 ids 순서가 그대로)
   const acts = done.slice(-ids.length);
   const comics = acts.map(a => {

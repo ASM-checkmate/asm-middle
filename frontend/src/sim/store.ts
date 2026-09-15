@@ -11,7 +11,7 @@ import { AGENTS, agentActivityAt, agentById, agentNames, agentOfFriend, appendLe
 import { appearanceOf, arrivedKeys, emptyRemote, friendOfRemote, mergeRemote, pendingSlots, pruneRemote, publishWindow, remoteFriendIds, remoteHomeId, timelineSig, validRemote } from './remote';
 import { makeComic } from './comic';
 import { MAX_SHOTS, shotsFor, trimShots } from './shots';
-import { buildTimeline, currentDayKey, currentPlaceAt, emptyPlans, isBlockEditable, isBlockFree, phaseAt, returnDueAt, tzAt, type Days, type Encounters, type JourneyCache, type Plans } from './timeline';
+import { buildTimeline, currentDayKey, currentPlaceAt, emptyPlans, isBlockEditable, isBlockFree, phaseAt, returnDueAt, tzAt, type Days, type Encounters, type JourneyCache, type Plans, isBedtime } from './timeline';
 import { estimateJourney, journeyKey } from './journey';
 import { rng } from './rng';
 import { INITIAL_STATUS, TIGHT_MONEY, applyDelta, foldStatus, validStatus, type Status } from './status';
@@ -793,7 +793,7 @@ export const useWorld = create<WorldState>((set, get) => {
   const agentLikes0 = validAgentLikes(persisted?.agentLikes);
   let w: World = { days: validDays(persisted?.days), anchor: validAnchor(persisted?.anchor, now, memory), memory, journeys: persisted?.journeys ?? {}, regen: persisted?.regen ?? {}, encounters, requests: requests0, calls: Array.isArray(persisted?.calls) ? persisted.calls : [], messages: messages0, dueCalls: dueCalls0, shots, llmPlans: validLlmPlans(persisted?.llmPlans), remote, agentPost: agentPost0, agentLikes: agentLikes0 };
   const gapActs: ScheduledActivity[] = [];
-  const remember = (a: ScheduledActivity) => { settleLocal(a); if (a.endAt > lastSeen && a.endAt <= now) gapActs.push(a); };
+  const remember = (a: ScheduledActivity) => { if (isBedtime(a)) return; settleLocal(a); if (a.endAt > lastSeen && a.endAt <= now) gapActs.push(a); };
   w = prune(w, now, remember);
   shots = trimShots(shots, w.anchor.t);   // anchor 뒤로 접힌 활동의 샷은 만화가 이미 앨범에 있다
   if (remote) {
@@ -1000,7 +1000,7 @@ export const useWorld = create<WorldState>((set, get) => {
     let w = worldOf(s);
     if (currentDayKey(t, build(w, t), w.anchor.tz) !== s.today) {
       let { book, memory, encounters } = s;
-      w = prune(w, t, a => { const r = settle(a, book, memory, encounters, s.shots); book = r.book; memory = r.memory; encounters = r.encounters; comicCache.set(a.key, r.comic); });
+      w = prune(w, t, a => { if (isBedtime(a)) return; const r = settle(a, book, memory, encounters, s.shots); book = r.book; memory = r.memory; encounters = r.encounters; comicCache.set(a.key, r.comic); });
       const shots = trimShots(s.shots, w.anchor.t);
       memory = decayAll(memory, t);   // 날이 바뀌면 설렘의 시간 감쇠 (AFFECTION_SPEC §3)
       w = { ...w, memory, encounters, shots, days: liveOut({ ...w, memory, encounters, shots }, t) };
@@ -1281,7 +1281,7 @@ export const useWorld = create<WorldState>((set, get) => {
       sync(t);
       // activities that ended since the previous tick — any day (a skipped comic window, a throttled tab, a long absence)
       const gap: ScheduledActivity[] = [];
-      for (const a of get().timeline) if (a.endAt > from && a.endAt <= t) { comicFor(a); gap.push(a); }
+      for (const a of get().timeline) if (a.endAt > from && a.endAt <= t && !isBedtime(a)) { comicFor(a); gap.push(a); }
       lastTick = t;
       save(SEEN_KEY, t);
       // 도착 혼잣말: 보고 있을 때 이동→활동으로 넘어간 순간 한마디 (ADR-0004 오너 결정 6)

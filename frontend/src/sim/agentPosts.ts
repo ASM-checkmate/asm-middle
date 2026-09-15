@@ -53,8 +53,8 @@ export const LOCAL_POSTS_CAP = 30;
 export type RelaxedWindow = 'cafe' | 'home-rest' | 'transit' | 'bedtime';
 
 /**
- * 지금이 글을 올려도 되는 여유 있는 창인가. 카페에 있을 때 · 집(숙소)에서 쉴 때 · 20분 넘는 이동 중 · 밤 블록의 대기(자기 전).
- * 아니면 null — 만화 보는 중·자는 중·바쁜 활동 중엔 올리지 않는다.
+ * 지금이 글을 올려도 되는 여유 있는 창인가. 카페에 있을 때 · 집(숙소)에서 쉴 때 · 20분 넘는 이동 중 · 밤 블록의 대기(자기 전) ·
+ * 잘 곳으로 가는 길(ADR-0030의 취침 전 이동 — 길이와 무관하게 자기 전 창). 아니면 null — 만화 보는 중·자는 중·바쁜 활동 중엔 올리지 않는다.
  */
 export function relaxedWindow(phase: Phase): RelaxedWindow | null {
   switch (phase.kind) {
@@ -64,7 +64,7 @@ export function relaxedWindow(phase: Phase): RelaxedWindow | null {
       if ((t === 'home' || t === 'hotel') && phase.act.option.category === 'rest') return 'home-rest';
       return null;
     }
-    case 'moving': return phase.act.journey.totalMin >= 20 ? 'transit' : null;
+    case 'moving': return phase.act.option.category === 'sleep' ? 'bedtime' : phase.act.journey.totalMin >= 20 ? 'transit' : null;
     case 'waiting': return phase.currentBlockId === 'night' ? 'bedtime' : null;
     default: return null;
   }

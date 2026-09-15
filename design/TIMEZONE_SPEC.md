@@ -24,7 +24,7 @@
 ### 날짜와 계획
 - 계획은 `days: Record<dayKey, Plans>`로 보관한다. `dayKey = ${dateKeyIn(t, tz)}@${tz}` (예: `2026-09-04@America/New_York`). 같은 달력 날짜라도 시간대가 다르면 다른 하루다.
 - `anchor: { placeId, t, tz }` — 타임라인의 시작 상태. 최초는 집·설치일 현지 자정·집 시간대. 5일보다 오래된 day는 지우고 anchor를 그 day의 끝 상태로 옮긴다.
-- 스토어의 `today` = `dayKey(now, tzAt(now))`; `plans` = `days[today]` (없으면 생성). 날짜가 넘어가면(현지 자정) 새 day가 생긴다. **더 이상 자정에 집으로 순간이동하지 않는다** — 캐릭터는 마지막 활동 장소에 남아 있고 다음 날도 거기서 시작한다.
+- 스토어의 `today` = `dayKey(now, tzAt(now))`; `plans` = `days[today]` (없으면 생성). 날짜가 넘어가면(현지 자정) 새 day가 생긴다. **더 이상 자정에 집으로 순간이동하지 않는다** — 캐릭터는 마지막 활동 장소에 남아 있고 다음 날도 거기서 시작한다. 단, 잘 만한 곳이 아니면 **취침 전에 집(집 도시)·호텔(여행지)로 이동**한다 — 시간이 걸리는 진짜 이동이고 지도에 보인다 (ADR-0030).
 
 ### 타임라인 빌드 (`buildTimeline(anchor, days, memory, journeys, horizon)`)
 ```
@@ -32,7 +32,8 @@ cursor = { place: anchor.place, free: anchor.t, tz: anchor.tz }; t = anchor.t
 loop (≤ 80 슬롯, slotStart ≤ horizon까지):
   tz = cursor.tz; dayStart = dayStartIn(t, tz); id = blockAtIn(t, tz)
   slotStart/slotEnd = 그 블록의 경계
-  if id == 'sleep' or cursor.free >= slotEnd: t = slotEnd; continue     // 잠은 지금 있는 곳에서, 이미 소비된 슬롯은 건너뜀
+  if id == 'sleep': 잘 만한 곳이 아니면 집·호텔로 가는 이동(category 'sleep', 앨범 없음)을 넣고 cursor를 옮긴다 (ADR-0030); t = slotEnd; continue
+  if cursor.free >= slotEnd: t = slotEnd; continue                        // 이미 소비된 슬롯은 건너뜀
   plan = days[dayKey(t, tz)]?.[id]; opt = 선택된 옵션; 없으면 t = slotEnd; continue
   place = opt의 장소; journey = 캐시 or estimateJourney(cursor.place, place)
   departAt = max(slotStart, cursor.free); arriveAt = departAt + journey.totalMin

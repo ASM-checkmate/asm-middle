@@ -59,10 +59,12 @@ const BACK = (
         )))}
       </g>
       <path d="M62 44 h266 M62 70 h266" stroke="#D9D2C2" strokeWidth="2" />
-      {/* 현수막 */}
-      <rect x="146" y="34" width="98" height="40" rx="3" fill="var(--night-2)" stroke="var(--ink)" strokeWidth="2.5" />
-      <circle cx="195" cy="54" r="10" fill="none" stroke="var(--card)" strokeWidth="3" />
-      <path d="M150 40 h14 M226 40 h14" stroke="var(--card)" strokeWidth="2" opacity=".7" />
+      {/* 현수막 (참고 사진의 "70주년" 파란 천): 네 모서리를 줄로 매달고, 아랫단이 살짝 처지고, 접힌 결이 보인다 */}
+      <path d="M150 30 l-6 -8 M240 30 l6 -8 M152 72 l-8 6 M238 72 l8 6" stroke="var(--ink)" strokeWidth="1.5" />
+      <path d="M148 30 h94 v42 q-47 6 -94 0 z" fill="var(--night-2)" stroke="var(--ink)" strokeWidth="2.5" strokeLinejoin="round" />
+      <path d="M170 32 q4 20 0 40 M220 32 q-4 20 0 40" stroke="var(--night)" strokeWidth="2" opacity=".6" />
+      <text x="195" y="60" textAnchor="middle" fontSize="22" fontFamily="var(--display)" fill="var(--card)">70</text>
+      <text x="195" y="70" textAnchor="middle" fontSize="7" fontFamily="var(--display)" fill="var(--sun)">주년</text>
       {/* 정문 */}
       <rect x="180" y="78" width="30" height="20" fill="var(--night)" stroke="var(--ink)" strokeWidth="2" />
       {/* 깃발 */}

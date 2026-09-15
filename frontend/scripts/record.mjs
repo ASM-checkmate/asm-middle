@@ -152,7 +152,8 @@ try {
     } else if (m.method === 'Runtime.consoleAPICalled' && ['error', 'warning'].includes(m.params.type)) logs.push(m.params.type + ': ' + m.params.args.map(a => a.value ?? a.description).join(' ').slice(0, 200));
     else if (m.method === 'Runtime.exceptionThrown') logs.push('exception: ' + (m.params.exceptionDetails.exception?.description ?? m.params.exceptionDetails.text).slice(0, 200));
   };
-  const send = (method, params = {}) => new Promise(res => { const i = ++id; pending.set(i, res); ws.send(JSON.stringify({ id: i, method, params })); });
+  // CDP 응답이 안 오면(페이지 죽음 등) 15초 뒤 빈 응답 — 녹화가 영원히 멈추지 않게
+  const send = (method, params = {}) => new Promise(res => { const i = ++id; const t = setTimeout(() => { if (pending.has(i)) { pending.delete(i); console.log('cdp timeout:', method); res({}); } }, 15000); pending.set(i, m => { clearTimeout(t); res(m); }); ws.send(JSON.stringify({ id: i, method, params })); });
   const ev = async (expr) => { const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }); if (r.result?.exceptionDetails) { console.log('eval error:', JSON.stringify(r.result.exceptionDetails).slice(0, 300)); return undefined; } return r.result?.result?.value; };
   const videoNow = () => (frames.length ? lastVt + (holding ? 0 : (Date.now() - lastKeptWall) / 1000) : 0);
   const mark = label => console.log(`[vt ${videoNow().toFixed(1)}s] ${label}`);
@@ -247,6 +248,7 @@ try {
   for (let i = 0; i < frames.length; i++) { const d = i + 1 < frames.length ? Math.max(0.01, frames[i + 1].vt - frames[i].vt) : 0.6; list += `file '${frames[i].name}'\nduration ${d.toFixed(3)}\n`; }
   if (frames.length) list += `file '${frames[frames.length - 1].name}'\n`;
   writeFileSync(join(outDir, 'list.txt'), list);
+  writeFileSync(join(outDir, 'voices.json'), JSON.stringify(voices));   // 다시 섞을 때
   console.log(`frames: ${frames.length}, ${(frames.at(-1)?.vt ?? 0).toFixed(1)}s, voices: ${voices.length}`);
   if (logs.length) console.log('LOGS:\n' + logs.slice(0, 10).join('\n'));
   let r = spawnSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', 'list.txt', '-fps_mode', 'cfr', '-r', '30', '-pix_fmt', 'yuv420p', '-c:v', 'libx264', '-crf', '20', 'video.mp4'], { cwd: outDir, stdio: 'inherit' });

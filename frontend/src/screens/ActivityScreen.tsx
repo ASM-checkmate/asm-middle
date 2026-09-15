@@ -28,7 +28,7 @@ export function ActivityScreen({ phase }: { phase: Active }) {
   // 2.5D 방(ADR-0015)이 있는 장소면 캐릭터가 방 안을 돌아다닌다 — 로그 줄이 곧 동선. 없으면 옛 정면 무대
   const room = roomFor(sceneTypeFor(act.place.type));
   // 사진 (ADR-0029): 활동 중에만 찍을 수 있다 — 앨범은 endAt에 한 번 만들어져 굳는다. 오버레이는 Home이 띄운다.
-  // 배경(AI 그림)이 있는 장소면 자리마다 버튼 하나 — 트리거 존 버튼이 붙기 전의 임시 자리. 없으면 SVG 무대로 찍기
+  // 방이 있으면 📷 칩은 방의 트리거 존 위에 뜬다(RoomStage shoot, 개정 2). 방 없는 장소만 아래 패널의 버튼 — 배경마다 하나, 없으면 SVG 무대로
   const openCamera = useWorld(s => s.openCamera);
   const shots = useWorld(s => s.shots);
   const memory = useWorld(s => s.memory);
@@ -46,7 +46,7 @@ export function ActivityScreen({ phase }: { phase: Active }) {
   return (
     <div className={`act ${friend ? 'has-friend' : ''} ${met ? 'has-met' : ''} ${room ? 'has-room' : ''}`}>
       <div className="act-iris" />
-      {room && <RoomStage room={room} log={fullLog} seatPose={poseFor(act.option)} cast={cast} seed={act.key} />}
+      {room && <RoomStage room={room} log={fullLog} seatPose={poseFor(act.option)} cast={cast} seed={act.key} shoot={{ backdrops, count: shotCount, max: MAX_SHOTS, onOpen: openCamera }} />}
       <div className="act-scene"><Scene type={act.place.type} /></div>
       {/* 같은 공간에 있던 사람들 — 배경에 작게. 방은 내가 지금 보는 장면이라 얼굴을 가리지 않는다 (얼굴을 감추는 건 사진 쪽 규칙, FRIENDS_SPEC §6). 방이 있는 장소에선 RoomStage가 그린다 */}
       {cast.present.map((p, i) => <Character key={p.id} className={`act-present act-present-${i}`} pose="idle" size={132} variant="friend" color={p.color} look={presentLook(p.hairStyle)} />)}
@@ -83,8 +83,8 @@ export function ActivityScreen({ phase }: { phase: Active }) {
       <div className="act-stat">
         <div>
           <b>{progressLabel(act.option, act.place)}</b>
-          {/* lock 문구 자리: 지켜보기만 하던 활동 중에 유일하게 손댈 수 있는 것 — 사진 */}
-          <div className="act-shoots">
+          {/* lock 문구 자리: 지켜보기만 하던 활동 중에 유일하게 손댈 수 있는 것 — 사진. 방이 있으면 존 위의 칩이 이 일을 한다 */}
+          {!room && <div className="act-shoots">
             {backdrops.length ? backdrops.map((b, i) => (
               <Button key={b.id} tone="coral" small className="act-shoot" onClick={() => openCamera(b.id)} ariaLabel={`${b.spot}에서 찍기 (${shotCount}/${MAX_SHOTS})`}>
                 📷 {b.spot} {i === 0 && <i className={`act-shoot-n ${full ? 'is-full' : ''}`}>{shotCount}/{MAX_SHOTS}</i>}
@@ -94,7 +94,7 @@ export function ActivityScreen({ phase }: { phase: Active }) {
                 📷 사진 찍기 <i className={`act-shoot-n ${full ? 'is-full' : ''}`}>{shotCount}/{MAX_SHOTS}</i>
               </Button>
             )}
-          </div>
+          </div>}
         </div>
         <div className="act-t num">{fmtRemain(remainingMin)}<small>남음</small></div>
         <ProgressBar className="act-bar" value={progress} color="var(--mint)" />

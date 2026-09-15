@@ -10,6 +10,8 @@ import type { LogLine } from '../sim/actlog';
 import type { Cast } from '../sim/agents';
 import { DEFAULT_LOOK, type Friend, type Look } from '../sim/types';
 import { rng } from '../sim/rng';
+import type { Backdrop } from '../sim/backdrops';
+import { Button } from '../ui';
 import { Props, SeatItem, zonesOf, type Cue, type RoomSpec, type Spot, type Zone } from './Room';
 import './room.css';
 
@@ -68,6 +70,8 @@ export interface RoomStageProps {
   seed: string;
   /** 출발: 문으로 걸어 나가 사라진다 (ADR-0015 개정 2). 한 번 true가 되면 되돌리지 않는다 */
   leaving?: boolean;
+  /** 활동 중 사진 (ADR-0029 개정 2): 내가 선 존 위에 📷 칩 — 배경마다 하나, 없으면 SVG 무대로 한 장. 없으면(시간표의 기다리는 방) 안 뜬다 */
+  shoot?: { backdrops: Backdrop[]; count: number; max: number; onOpen: (backdropId: string | null) => void };
 }
 
 /** 큐가 최종적으로 남기는 자리·자세 — 처음 그릴 때 dwell을 건너뛰고 바로 여기에 선다 */
@@ -87,7 +91,7 @@ function restingSpot(room: RoomSpec, log: LogLine[]): { spot: string; pose?: Cue
  * 로그 > 사용자 > 살아 있기다: 로그 큐는 뭘 하고 있든 끊고 가고(방은 sim이 사는 곳), 사용자 탭은 산책·잔동작을 끊고,
  * 산책·잔동작은 인물이 쉬고 있을 때만 끼어든다. 큐의 `then`과 산책의 복귀 자리는 사용자가 마지막으로 고른 존(없으면 내 자리)이다.
  */
-export function RoomStage({ room, log, seatPose, cast: castProp, companions = [], seed, leaving = false }: RoomStageProps) {
+export function RoomStage({ room, log, seatPose, cast: castProp, companions = [], seed, leaving = false, shoot }: RoomStageProps) {
   const cast: Cast = castProp ?? { companions, present: [] };
   const zones = useMemo(() => zonesOf(room), [room]);
   /** 앉는 자리들: 앉기 존·내 테이블 존의 자리와 옆 손님 자리 — 여기 있는 사람은 앉은 자세, 떠들 때도 일어나지 않는다 */
@@ -389,6 +393,17 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
       ))}
       {near && !(at && near.spots.includes(at)) && (
         <div className={`room-zone-tag ${nearFull ? 'is-full' : ''}`} style={{ left: near.x + near.w / 2, top: near.y - 4, zIndex: 997 }}>{nearFull ? `${near.label} · 자리 없음` : near.label}</div>
+      )}
+      {/* 사진 (ADR-0029 개정 2): 존에 서 있으면 그 위에 📷 칩 — 이름표와 같은 자리(이름표는 서 있을 땐 안 뜬다). 누르면 그 배경으로 카메라.
+          pointerdown을 막아 바닥 탭·존 탭이 안 먹게. 방 루트가 aria-hidden이라 보조기기엔 안 잡힌다 — 카메라는 크롬의 앨범에서도 연다 */}
+      {shoot && zoneAt && !walking && !gone && (
+        <div className={`room-zone-shoot ${shoot.count >= shoot.max ? 'is-full' : ''}`} style={{ left: zoneAt.x + zoneAt.w / 2, top: zoneAt.y - 4, zIndex: 997 }} onPointerDown={e => e.stopPropagation()}>
+          {(shoot.backdrops.length ? shoot.backdrops : [null]).map((b, i) => (
+            <Button key={b?.id ?? 'stage'} tone="coral" small className="room-shoot" onClick={() => shoot.onOpen(b?.id ?? null)} ariaLabel={`${b ? `${b.spot}에서 ` : ''}사진 찍기 (${shoot.count}/${shoot.max})`}>
+              📷 {b ? b.spot : '사진 찍기'}{i === 0 && <i className="room-shoot-n num">{shoot.count}/{shoot.max}</i>}
+            </Button>
+          ))}
+        </div>
       )}
       <Props props={room.props} />
       <div ref={actorRef} className={`room-actor is-me ${heading.left && pose !== 'sleep' ? 'face-left' : ''} ${seated ? 'is-seated' : ''} ${lying && !walking ? 'is-lying' : ''} ${gone ? 'is-gone' : ''} ${fidget && fidget !== 'sip' ? `fidget-${fidget}` : ''}`}>

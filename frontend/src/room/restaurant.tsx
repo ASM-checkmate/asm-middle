@@ -143,7 +143,7 @@ export const RESTAURANT: RoomSpec = {
     water: { x: 60, y: 256 },
     seat: { x: 150, y: 372 },
     friend: { x: 104, y: 372 },
-    side: { x: 292, y: 446 },
+    side: { x: 292, y: 410 },   // 테이블 윗판(y 398) 위로 얼굴이 다 나오게 (배경 인물은 84px라 더 올린다)
     met: { x: 352, y: 452 },
   },
   seat: 'seat', friendSeat: 'friend', metSpot: 'met', ghostSeat: 'side', door: 'door',

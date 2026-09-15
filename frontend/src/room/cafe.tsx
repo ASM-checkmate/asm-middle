@@ -147,7 +147,8 @@ export const CAFE: RoomSpec = {
     seat: { x: 150, y: 372 },
     friend: { x: 104, y: 372 },
     window: { x: 62, y: 152 }, window2: { x: 118, y: 152 },
-    side: { x: 262, y: 446 }, side2: { x: 322, y: 446 },
+    // 스툴 자리는 테이블 뒤(z가 작다)지만 얼굴은 윗판(y 398) 위에 오게 — 몸만 가려져 "앉아 있다"로 읽힌다
+    side: { x: 262, y: 428 }, side2: { x: 322, y: 428 },
     met: { x: 352, y: 452 },
   },
   seat: 'seat', friendSeat: 'friend', metSpot: 'met', ghostSeat: 'side', door: 'door',

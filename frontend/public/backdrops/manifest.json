@@ -1,10 +1,11 @@
 {
- "_": "AI 배경 데모 묶음 (ADR-0029) — art/backdrops/manifest.json에서 생성. me/friend: 발 자리 %와 프레임 대비 폭",
+ "_": "AI 배경 데모 묶음 (ADR-0029) — art/backdrops/manifest.json에서 생성. me/friend: 발 자리 %와 프레임 대비 폭. zone: 방의 트리거 존(Room Zone.key) — 그 존에 서야 📷 칩이 뜬다",
  "backdrops": [
   {
    "id": "busan:samjin-table",
    "placeId": "samjin-pocha",
    "spot": "앞 테이블",
+   "zone": "seat",
    "url": "/backdrops/busan/samjin-table.webp",
    "sit": true,
    "me": {
@@ -22,6 +23,7 @@
    "id": "busan:samjin-night",
    "placeId": "samjin-pocha",
    "spot": "해변 난간",
+   "zone": "rail",
    "url": "/backdrops/busan/gwangalli-night.webp",
    "sit": false,
    "me": {
@@ -39,6 +41,7 @@
    "id": "busan:samjin-drone",
    "placeId": "samjin-pocha",
    "spot": "드론쇼 앞",
+   "zone": "rail",
    "url": "/backdrops/busan/gwangalli-drone.webp",
    "sit": false,
    "me": {
@@ -56,6 +59,7 @@
    "id": "busan:pnu",
    "placeId": "pnu",
    "spot": "대학본부 앞",
+   "zone": "front",
    "url": "/backdrops/busan/pnu.webp",
    "sit": false,
    "me": {
@@ -73,6 +77,7 @@
    "id": "busan:josaeho-window",
    "placeId": "josaeho",
    "spot": "창가 자리",
+   "zone": "seat",
    "url": "/backdrops/busan/josaeho-window.webp",
    "sit": true,
    "me": {

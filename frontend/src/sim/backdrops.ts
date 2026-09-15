@@ -20,6 +20,8 @@ export interface Backdrop {
   me: ShotFigure;
   /** 동행의 기본 자리 (동행이 있을 때) */
   friend?: ShotFigure;
+  /** 방의 어느 트리거 존에서 찍는가 (Room Zone.key, 개정 3). 없으면 어느 존에 서든 뜬다 — 그 장소의 방이 손 존을 안 잡았을 때 */
+  zone?: string;
 }
 
 const registry = new Map<string, Backdrop>();
@@ -32,7 +34,8 @@ const isFigure = (v: unknown): v is ShotFigure => {
 const isBackdrop = (v: unknown): v is Backdrop => {
   const b = v as Partial<Backdrop> | null;
   return !!b && typeof b.id === 'string' && typeof b.placeId === 'string' && typeof b.spot === 'string' && typeof b.url === 'string'
-    && isFigure(b.me) && (b.friend === undefined || isFigure(b.friend)) && (b.sit === undefined || typeof b.sit === 'boolean');
+    && isFigure(b.me) && (b.friend === undefined || isFigure(b.friend)) && (b.sit === undefined || typeof b.sit === 'boolean')
+    && (b.zone === undefined || typeof b.zone === 'string');
 };
 
 /** 레지스트리에 넣는다 (같은 id는 덮는다). 모양이 틀린 항목은 버린다 */

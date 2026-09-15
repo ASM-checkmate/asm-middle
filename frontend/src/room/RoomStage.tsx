@@ -24,7 +24,7 @@ const PRESENT_SPOTS = ['window', 'counter', 'side2', 'shore', 'kiosk', 'water', 
  * 그 밖(옆자리·분수·길)은 그냥 앞을 본다: 방은 내 캐릭터가 지금 보는 장면이라 얼굴을 가릴 이유가 없다.
  * 얼굴을 감추는 것은 **사진** 쪽 규칙이다 (FRIENDS_SPEC §6 — 남의 사진에 얼굴이 실리지 않게).
  */
-const BACK_SPOTS = new Set(['window', 'window2', 'counter', 'counter2', 'kiosk', 'mirror', 'escalator', 'label', 'kitchen', 'shore', 'water']);
+const BACK_SPOTS = new Set(['window', 'window2', 'counter', 'counter2', 'kiosk', 'mirror', 'escalator', 'label', 'kitchen', 'shore', 'water', 'rail']);
 const FEET = 0.91;
 const SPEED = 120;            // 걷는 속도 (px/s) — 방을 대각선으로 가로지르는 데 4초쯤. 옛 1.4초 고정과 비슷한 체감
 const MIN_WALK_MS = 320;      // 아주 가까워도 걸음 한 번은 보인다
@@ -394,11 +394,12 @@ export function RoomStage({ room, log, seatPose, cast: castProp, companions = []
       {near && !(at && near.spots.includes(at)) && (
         <div className={`room-zone-tag ${nearFull ? 'is-full' : ''}`} style={{ left: near.x + near.w / 2, top: near.y - 4, zIndex: 997 }}>{nearFull ? `${near.label} · 자리 없음` : near.label}</div>
       )}
-      {/* 사진 (ADR-0029 개정 2): 존에 서 있으면 그 위에 📷 칩 — 이름표와 같은 자리(이름표는 서 있을 땐 안 뜬다). 누르면 그 배경으로 카메라.
+      {/* 사진 (ADR-0029 개정 2·3): 존에 서 있으면 그 위에 📷 칩 — 이름표와 같은 자리(이름표는 서 있을 땐 안 뜬다). 누르면 그 배경으로 카메라.
           pointerdown을 막아 바닥 탭·존 탭이 안 먹게. 방 루트가 aria-hidden이라 보조기기엔 안 잡힌다 — 카메라는 크롬의 앨범에서도 연다 */}
-      {shoot && zoneAt && !walking && !gone && (
+      {shoot && zoneAt && !walking && !gone && (shoot.backdrops.length === 0 || shoot.backdrops.some(b => !b.zone || b.zone === zoneAt.key)) && (
         <div className={`room-zone-shoot ${shoot.count >= shoot.max ? 'is-full' : ''}`} style={{ left: zoneAt.x + zoneAt.w / 2, top: zoneAt.y - 4, zIndex: 997 }} onPointerDown={e => e.stopPropagation()}>
-          {(shoot.backdrops.length ? shoot.backdrops : [null]).map((b, i) => (
+          {/* 존 키가 있는 배경은 그 존에서만 (개정 3) — 배경이 있는 장소에서 포토스팟이 아닌 존은 칩이 없다 */}
+          {(shoot.backdrops.length ? shoot.backdrops.filter(b => !b.zone || b.zone === zoneAt.key) : [null]).map((b, i) => (
             <Button key={b?.id ?? 'stage'} tone="coral" small className="room-shoot" onClick={() => shoot.onOpen(b?.id ?? null)} ariaLabel={`${b ? `${b.spot}에서 ` : ''}사진 찍기 (${shoot.count}/${shoot.max})`}>
               📷 {b ? b.spot : '사진 찍기'}{i === 0 && <i className="room-shoot-n num">{shoot.count}/{shoot.max}</i>}
             </Button>

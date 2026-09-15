@@ -23,6 +23,7 @@ import { ChatOverlay } from './ChatOverlay';
 import { SayBubble } from './SayBubble';
 import { SketchOverlay } from './SketchOverlay';
 import { CameraOverlay } from './CameraOverlay';
+import { PlaceSheet } from './PlaceSheet';
 import { pendingOf, untoldOf } from '../sim/requests';
 import { buildThread, unreadCount } from '../sim/chat';
 import { chromeLabel } from './util';
@@ -73,6 +74,8 @@ export function Home() {
   const say = useWorld(s => s.say);
   const dismissSay = useWorld(s => s.dismissSay);
   const sketchOpen = useWorld(s => s.sketchOpen);
+  const placeOpen = useWorld(s => s.placeOpen);
+  const closePlace = useWorld(s => s.closePlace);
   const setSketchOpen = useWorld(s => s.setSketchOpen);
   const camera = useWorld(s => s.camera);
   const closeCameraStore = useWorld(s => s.closeCamera);
@@ -244,10 +247,12 @@ export function Home() {
       {(ttOpen || previewSheetOpen) && <TimetableScreen phase={pseudoWaiting(phase, now)} asSheet onClose={() => { setTtOpen(false); setPreviewSheetOpen(false); }} world={previewWorld ?? undefined} />}
       {/* 그려서 알려줘 (ADR-0004): 시간표 시트(z 45) 위. 카드 분기의 "✎ 카드 대신 그려서 알려줄래" / 그림 카드의 "다시 그리기"가 연다 */}
       {sketchOpen && <SketchOverlay blockId={sketchOpen} onClose={() => setSketchOpen(null)} />}
+      {/* 장소 시트 (ADR-0031): 그 가게를 작은 지도로, 네이버·구글 링크 */}
+      {placeOpen && <PlaceSheet placeId={placeOpen} onClose={closePlace} />}
       {/* 카메라: nowMs는 ActivityScreen과 같은 식으로 progress에서 되짚는다 — 화면은 스토어의 now를 따로 안 읽는다. preview면 샷은 오버레이 로컬 */}
       {camPhase && <CameraOverlay key={camera?.backdrop ?? 'stage'} act={camPhase.act} nowMs={camPhase.act.arriveAt + (camPhase.act.endAt - camPhase.act.arriveAt) * Math.min(1, Math.max(0, camPhase.progress))} backdropId={camera?.backdrop ?? null} preview={isPreview} onClose={closeCamera} />}
       {/* 쪽지: 시트·그림·카메라가 떠 있지 않고 혼잣말이 (보이는 채로) 지나가는 중도 아닐 때만, 한 번에 하나 (ADR-0001 §1) */}
-      {pendingReq && !summaryItems?.length && !ttOpen && !showBook && !snsOpen && !sketchOpen && !camPhase && !sayVisible && <RequestCard req={pendingReq} tz={phase.tz} />}
+      {pendingReq && !summaryItems?.length && !ttOpen && !showBook && !snsOpen && !sketchOpen && !placeOpen && !camPhase && !sayVisible && <RequestCard req={pendingReq} tz={phase.tz} />}
       {summaryItems && summaryItems.length > 0 && <SummarySheet items={summaryItems} gap={summaryGap} tz={phase.tz} untold={untold} missed={summaryGap ? calls.filter(c => c.dir === 'in' && c.result !== 'answered' && c.at >= summaryGap.from && c.at <= summaryGap.to) : []} onClose={closeSummary} />}
       {showBook && <BookOverlay onClose={closeBook} comics={previewOverlay.book ?? undefined} />}
     </div>

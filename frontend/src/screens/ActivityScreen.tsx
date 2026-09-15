@@ -30,6 +30,7 @@ export function ActivityScreen({ phase }: { phase: Active }) {
   // 사진 (ADR-0029): 활동 중에만 찍을 수 있다 — 앨범은 endAt에 한 번 만들어져 굳는다. 오버레이는 Home이 띄운다.
   // 방이 있으면 📷 칩은 방의 트리거 존 위에 뜬다(RoomStage shoot, 개정 2). 방 없는 장소만 아래 패널의 버튼 — 배경마다 하나, 없으면 SVG 무대로
   const openCamera = useWorld(s => s.openCamera);
+  const openPlace = useWorld(s => s.openPlace);
   const shots = useWorld(s => s.shots);
   const memory = useWorld(s => s.memory);
   const shotCount = shotsFor(shots, act.key).length;
@@ -58,11 +59,20 @@ export function ActivityScreen({ phase }: { phase: Active }) {
           <div className="act-met-bubble">{cast.met?.hello ?? '안녕!'}</div>
         </>
       )}
-      <div className="act-tag">
-        {act.place.emoji} {act.place.name}
-        <small>{where}</small>
-        {phase.jetlag && <JetlagChip sticker />}
-      </div>
+      {/* 장소 태그: 가게면 눌러서 지도로 본다 (ADR-0031 PlaceSheet). 집·친구 집은 그냥 태그 */}
+      {act.place.type === 'home' || act.place.type === 'friend_home' ? (
+        <div className="act-tag">
+          {act.place.emoji} {act.place.name}
+          <small>{where}</small>
+          {phase.jetlag && <JetlagChip sticker />}
+        </div>
+      ) : (
+        <button type="button" className="act-tag is-link" onClick={() => openPlace(act.place.id)} aria-label={`${act.place.name} 위치 보기`}>
+          {act.place.emoji} {act.place.name}
+          <small>{where} <i className="act-tag-pin" aria-hidden="true">📍 지도</i></small>
+          {phase.jetlag && <JetlagChip sticker />}
+        </button>
+      )}
       {!!companions.length && (
         <CompanionChip className="act-with" friends={companions} />
       )}

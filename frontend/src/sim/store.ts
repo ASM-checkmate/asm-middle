@@ -587,6 +587,8 @@ export interface WorldState {
   agentAutoLike: (items: readonly FeedItem[]) => void;
   /** 그림 캔버스 오버레이가 열린 블록 (없으면 null) */
   sketchOpen: BlockId | null;
+  /** 장소 시트 (ADR-0031): 활동 화면의 장소 태그를 누르면 그 가게를 지도로 본다 — 장소 id */
+  placeOpen: string | null;
   /** 카메라 오버레이가 열려 있나 */
   /** 카메라 오버레이 (ADR-0029): 열려 있으면 어느 배경으로 (null = SVG 무대). 트리거 존 버튼이 배경 id를 넣어 연다 */
   camera: { backdrop: string | null } | null;
@@ -697,6 +699,8 @@ export interface WorldState {
    */
   resolvePostDraft: (draftId: string, outcome: 'posted' | 'discarded', postId?: string) => void;
   setSketchOpen: (id: BlockId | null) => void;
+  openPlace: (placeId: string) => void;
+  closePlace: () => void;
   openCamera: (backdrop?: string | null) => void;
   /** dev 시나리오(dev/scenario.ts): 오늘 블록 계획을 통째로 덮어 심는다 — 사용자가 확정한 카드로 */
   seedPlans: (patch: Partial<Record<BlockId, BlockPlan>>, home?: string) => void;
@@ -1264,7 +1268,7 @@ export const useWorld = create<WorldState>((set, get) => {
     clock, now, anchor: w.anchor, days: w.days, today, tz: initialPhase.tz, memory, agents: [...remoteAgents(), ...AGENTS], encounters, status: initialStatus, requests: w.requests, calls: w.calls, activeCall: null, onboarded,
     messages: w.messages, dueCalls: w.dueCalls, chatOpen: false, chatSeen: load<number>(CHAT_SEEN_KEY, now), llmTier: getTier(), tripBusy: null, llmPlans: w.llmPlans, planBusy: false, say: null,
     backend: sync0.backend, sync: sync0.sync, remote: w.remote ?? null,
-    shots: w.shots, sketchOpen: null, camera: null, agentPost: agentPost0, agentLikes: agentLikes0,
+    shots: w.shots, sketchOpen: null, placeOpen: null, camera: null, agentPost: agentPost0, agentLikes: agentLikes0,
     plans: w.days[today], journeys: w.journeys, regen: w.regen, book,
     timeline: first.timeline,
     phase: initialPhase,
@@ -1450,6 +1454,8 @@ export const useWorld = create<WorldState>((set, get) => {
       setPlans({ ...s.plans, [id]: { ...p, sketch: undefined, status: p.options.length ? 'proposed' : 'empty' } });
     },
     setSketchOpen: (id) => set({ sketchOpen: id }),
+    openPlace: (placeId) => set({ placeOpen: placeId }),
+    closePlace: () => set({ placeOpen: null }),
     openCamera: (backdrop = null) => set({ camera: { backdrop } }),
     seedPlans: (patch, home) => {
       const s = get();
@@ -1892,7 +1898,7 @@ export const useWorld = create<WorldState>((set, get) => {
       const remote = s.remote ? { ...s.remote, slots: {} } : null;
       setRemoteCache(remote, { meId: s.sync.userId, homeCity: homeCityOf(s.memory) });
       publishedSig = null;
-      set({ clock: c, anchor, days: {}, regen: {}, llmPlans: {}, today: dayKeyIn(t, anchor.tz), tz: anchor.tz, plans: emptyPlans(), timeline: [], summary: null, gap: null, requests: [], calls: [], activeCall: null, selectedBlock: null, messages: [], dueCalls: [], chatOpen: false, say: null, shots: [], sketchOpen: null, camera: null, remote, agentPost: emptyAgentPost(), agentLikes: emptyAgentLikes() });
+      set({ clock: c, anchor, days: {}, regen: {}, llmPlans: {}, today: dayKeyIn(t, anchor.tz), tz: anchor.tz, plans: emptyPlans(), timeline: [], summary: null, gap: null, requests: [], calls: [], activeCall: null, selectedBlock: null, messages: [], dueCalls: [], chatOpen: false, say: null, shots: [], sketchOpen: null, placeOpen: null, camera: null, remote, agentPost: emptyAgentPost(), agentLikes: emptyAgentLikes() });
       useSns.getState().setDraft(null);
       recompute(t);
     },

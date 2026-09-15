@@ -49,37 +49,11 @@
   },
   {
     "say": [
-      "가보고 싶은 가게 정보는 바로 확인. 네이버 지도·구글 맵으로.",
+      "",
       "조개구이 먹으러 조새호 가자! 여기 광안대교 뷰 너무 예뻐, 감성 미쳤다."
     ],
     "mark": "4 조새호",
-    "wait": 600
-  },
-  {
-    "eval": "document.querySelectorAll('.room-zone')[2].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))",
-    "wait": 200
-  },
-  {
-    "click": ".act-map-btn"
-  },
-  {
-    "hold": {
-      "expr": "window.__demoReady && window.__demoReady()",
-      "max": 15000
-    },
-    "wait": 3200
-  },
-  {
-    "tapClick": ".ps-x",
-    "wait": 1200
-  },
-  {
-    "say": [
-      "보고 싶은 순간은 내가 찍는다. 찍은 사진은 그 자리의 그림으로 다시 그려진다.",
-      "가리비 익는 동안 찰칵 🐚"
-    ],
-    "mark": "5 창가 사진",
-    "wait": 400
+    "wait": 300
   },
   {
     "eval": "document.querySelectorAll('.room-zone')[2].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
@@ -90,6 +64,14 @@
       "max": 9000
     },
     "wait": 400
+  },
+  {
+    "say": [
+      "보고 싶은 순간은 내가 찍는다. 찍은 사진은 그 자리의 그림으로 다시 그려진다.",
+      "가리비 익는 동안 찰칵 🐚"
+    ],
+    "mark": "5 창가 사진",
+    "wait": 300
   },
   {
     "click": ".room-shoot",
@@ -104,17 +86,39 @@
       "url": "/demo/josaeho.png",
       "cell": 0
     },
-    "wait": 2600
+    "wait": 1800
   },
   {
     "tapClick": ".cam-x",
     "wait": 1000
   },
   {
+    "say": [
+      "가보고 싶은 가게 정보는 바로 확인. 네이버 지도·구글 맵으로.",
+      ""
+    ],
+    "mark": "5b 장소 지도",
+    "wait": 400
+  },
+  {
+    "click": ".act-map-btn"
+  },
+  {
+    "hold": {
+      "expr": "window.__demoReady && window.__demoReady()",
+      "max": 15000
+    },
+    "wait": 3200
+  },
+  {
+    "tapClick": ".ps-x",
+    "wait": 1000
+  },
+  {
     "jump": "20:52",
     "say": [
       "밤엔 광안리 포차. 드론쇼 전에 테이블에서 먼저 한 장.",
-      "민수랑도 찍어야지 🍶"
+      "치즈! 🍶"
     ],
     "mark": "6 포차·테이블 사진",
     "wait": 300

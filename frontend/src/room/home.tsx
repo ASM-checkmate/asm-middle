@@ -2,7 +2,7 @@
 // 390×560. 뒷벽(창·시계·선반) 0..96, 바닥 96..560. 침대는 왼쪽 위, 부엌 카운터는 오른쪽 위, 책상(내 자리)은 왼쪽 가운데,
 // 소파는 오른쪽 아래, 문은 오른쪽 아래 구석. 집·친구 집·호텔이 이 방을 쓴다 (scenes MAP).
 // 로그 줄(sim/actlog.ts의 home·friend_home 문장)이 곧 동선이다: 집. → 침대에 털썩 → 책상 · 설거지·간식은 부엌 · 낮잠·뒹굴은 침대 · 게임은 소파.
-import type { Cue, RoomProp, RoomSpec } from './Room';
+import type { Cue, RoomProp, RoomSpec, Zone } from './Room';
 import { INK, INK2, Cup, Desk, Patterns, Rug, Steam, Wall, Window, chairBack, mat, plant, prop } from './parts';
 import type { LogLine } from '../sim/actlog';
 
@@ -17,15 +17,22 @@ const desk = Desk({ w: 132, d: 44, children: (
   </>
 ) });
 
-/** 침대: 머리판(뒤) + 매트리스 + 베개 + 이불. (x, y)는 왼쪽 위 모서리, base는 발치 */
-const bed: RoomProp = { key: 'bed', x: 16, y: 88, w: 136, h: 120, base: 206, node: (
+/**
+ * 침대는 두 겹이다 — 머리판·매트리스·베개(뒤, base 120)와 이불(앞, base 206). 누운 인물(자리 `bedlie`, 발 행 170)은 그 사이에 그려져
+ * 머리는 베개 위에, 몸은 이불 밑에 있다 (ADR-0028 개정 2). (x, y)는 왼쪽 위 모서리
+ */
+const bed: RoomProp = { key: 'bed', x: 16, y: 88, w: 136, h: 120, base: 120, node: (
   <>
     <rect x="4" y="2" width="128" height="30" rx="8" fill="var(--rm-wood)" {...INK} />
     <rect x="4" y="24" width="128" height="88" rx="8" fill="var(--card)" {...INK} />
     <rect x="14" y="30" width="46" height="22" rx="7" fill="var(--sun-2)" {...INK2} />
-    <path d="M4 60 h128 v44 a8 8 0 0 1 -8 8 h-112 a8 8 0 0 1 -8 -8 z" fill="var(--coral-2)" {...INK} />
-    <path d="M4 60 h128 v10 h-128 z" fill="var(--coral)" opacity=".7" />
-    <path d="M30 80 q10 8 20 0 M80 90 q10 8 20 0" fill="none" stroke="var(--coral)" strokeWidth="2.5" strokeLinecap="round" opacity=".7" />
+  </>
+) };
+const blanket: RoomProp = { key: 'blanket', x: 16, y: 148, w: 136, h: 60, base: 206, node: (
+  <>
+    <path d="M4 0 h128 v44 a8 8 0 0 1 -8 8 h-112 a8 8 0 0 1 -8 -8 z" fill="var(--coral-2)" {...INK} />
+    <path d="M4 0 h128 v10 h-128 z" fill="var(--coral)" opacity=".7" />
+    <path d="M30 20 q10 8 20 0 M80 30 q10 8 20 0" fill="none" stroke="var(--coral)" strokeWidth="2.5" strokeLinecap="round" opacity=".7" />
   </>
 ) };
 
@@ -43,7 +50,7 @@ const sofaSeat: RoomProp = { key: 'sofa-seat', x: 236, y: 432, w: 118, h: 44, ba
 ) };
 
 const PROPS: RoomProp[] = [
-  bed,
+  bed, blanket,
   // 협탁 + 스탠드 (침대 오른쪽)
   prop('nightstand', 176, 200, 44, 70, (
     <>
@@ -113,10 +120,10 @@ const BACK = (
 
 /** 집·친구 집 문장 → 큐 (sim/actlog.ts MIDDLE.home·friend_home + 공통 기본 문장과 짝). '집.'·'도착'·돈 줄은 prefix로 */
 const CUES: Record<string, Cue> = {
-  '뒹굴거림': { go: 'bed', then: 'seat', pose: 'sit', say: '뒹굴뒹굴' },
+  '뒹굴거림': { go: 'bedlie', then: 'seat', pose: 'sit', say: '뒹굴뒹굴' },
   '음악 틀어놓음': { say: '♪♪', kind: 'notes', pose: 'happy' },
   '설거지함': { go: 'kitchen', then: 'seat', at: 'kitchen', say: '🧽' },
-  '낮잠 잠깐': { go: 'bed', then: 'seat', pose: 'sit', say: '💤' },
+  '낮잠 잠깐': { go: 'bedlie', then: 'seat', pose: 'sleep' },
   '게임 한 판': { go: 'side', then: 'seat', pose: 'sit', say: '🎮' },
   '간식 꺼내옴': { go: 'kitchen', then: 'seat', at: 'kitchen', say: '🍪' },
   '수다 중': { say: '💬', pose: 'happy' },
@@ -128,11 +135,19 @@ const CUES: Record<string, Cue> = {
 };
 function cueOf(line: LogLine): Cue | null {
   if (line.fx) return { kind: 'fx' };
-  if (line.text.startsWith('집.')) return { go: 'bed', then: 'seat', say: '휴' };
+  if (line.text.startsWith('집.')) return { go: 'bedlie', then: 'seat', pose: 'sit', say: '휴' };
   if (line.text.startsWith('도착')) return { go: 'kitchen', then: 'seat', at: 'kitchen', say: '안녕!' };
   if (/원 씀$/.test(line.text)) return { go: 'door', then: 'seat', at: 'door', say: `−${line.text.replace(' 씀', '')}`, kind: 'money' };
   return CUES[line.text] ?? null;
 }
+
+/** 트리거 존 (ADR-0028 개정 2): 침대는 누워 자기(다시 누르면 뒹굴기), 소파는 앉기(다시 누르면 옆으로 눕기), 부엌, 책상 */
+const ZONES: Zone[] = [
+  { key: 'bed', x: 16, y: 88, w: 136, h: 130, spots: ['bedlie'], pose: 'sleep', label: '눕기', alt: { pose: 'sit', say: '뒹굴뒹굴' } },
+  { key: 'kitchen', x: 214, y: 118, w: 164, h: 130, spots: ['kitchen'], label: '부엌' },
+  { key: 'seat', x: 56, y: 330, w: 144, h: 96, spots: ['seat', 'friend'], label: '책상' },
+  { key: 'sofa', x: 236, y: 396, w: 118, h: 84, spots: ['side'], pose: 'sit', label: '소파', alt: { pose: 'lie', say: '휴…' } },
+];
 
 export const HOME: RoomSpec = {
   w: 390, h: 560,
@@ -142,6 +157,7 @@ export const HOME: RoomSpec = {
     door: { x: 332, y: 548 },
     kitchen: { x: 296, y: 268 },
     bed: { x: 84, y: 240 },
+    bedlie: { x: 53, y: 170 },   // 누운 자리: 머리 중심이 베개(53, 129)에 오게 — 발 행 = 129 + 41
     seat: { x: 150, y: 372 },
     friend: { x: 104, y: 372 },
     side: { x: 292, y: 446 },
@@ -150,5 +166,6 @@ export const HOME: RoomSpec = {
   seat: 'seat', friendSeat: 'friend', metSpot: 'met', ghostSeat: 'side', door: 'door',
   strolls: [{ spot: 'kitchen', pose: 'idle' }, { spot: 'bed', pose: 'think' }, { spot: 'door', pose: 'idle' }],
   seatItem: { x: 150, y: 366, base: 429 },
+  zones: ZONES,
   cueOf,
 };

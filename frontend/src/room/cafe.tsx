@@ -1,7 +1,7 @@
 // ─── 카페 방 (ADR-0015) ──────────────────────────────────────────────────────
 // 390×560. 뒷벽(창·메뉴판·선반) 0..96, 바닥 96..560. 카운터는 오른쪽 위, 내 테이블은 왼쪽 가운데, 옆 테이블은 오른쪽 아래, 입구는 오른쪽 아래 구석.
 // 로그 줄(sim/actlog.ts의 카페 문장)이 곧 동선이다: 도착 → 카운터에서 주문·결제 → 자리에 앉아 활동 → 두 잔째는 카운터 → 창가 구경.
-import type { Cue, RoomProp, RoomSpec } from './Room';
+import type { Cue, RoomProp, RoomSpec, Zone } from './Room';
 import { INK, INK2, Table, chairBack, stool } from './parts';
 import type { LogLine } from '../sim/actlog';
 
@@ -128,21 +128,32 @@ function cueOf(line: LogLine): Cue | null {
   return CUES[line.text] ?? null;
 }
 
+/** 트리거 존 (ADR-0028): 창가 벤치·카운터·내 테이블·옆 테이블. 상자는 소품 위에 손으로 잡았다 */
+const ZONES: Zone[] = [
+  { key: 'window', x: 14, y: 90, w: 148, h: 72, spots: ['window', 'window2'], pose: 'think', say: '👀', label: '창밖 보기' },
+  { key: 'counter', x: 214, y: 118, w: 164, h: 130, spots: ['counter', 'counter2'], say: '주문할게요', label: '주문하기' },
+  { key: 'seat', x: 56, y: 330, w: 144, h: 96, spots: ['seat', 'friend'], label: '내 자리' },
+  { key: 'side', x: 236, y: 380, w: 112, h: 92, spots: ['side', 'side2'], pose: 'sit', label: '옆 테이블' },
+];
+
 export const CAFE: RoomSpec = {
   w: 390, h: 560,
   back: BACK,
   props: PROPS,
   spots: {
     door: { x: 332, y: 548 },
-    counter: { x: 296, y: 268 },
+    // 자리는 의자·스툴·벤치 칸마다 하나 — 둘이 나란히 서거나 앉을 수 있게 (ADR-0028 개정 1)
+    counter: { x: 270, y: 268 }, counter2: { x: 330, y: 268 },
     seat: { x: 150, y: 372 },
     friend: { x: 104, y: 372 },
-    window: { x: 88, y: 152 },
-    side: { x: 292, y: 446 },
+    window: { x: 62, y: 152 }, window2: { x: 118, y: 152 },
+    // 스툴 자리는 테이블 뒤(z가 작다)지만 얼굴은 윗판(y 398) 위에 오게 — 몸만 가려져 "앉아 있다"로 읽힌다
+    side: { x: 262, y: 428 }, side2: { x: 322, y: 428 },
     met: { x: 352, y: 452 },
   },
   seat: 'seat', friendSeat: 'friend', metSpot: 'met', ghostSeat: 'side', door: 'door',
   strolls: [{ spot: 'window', pose: 'think' }, { spot: 'counter', pose: 'idle' }, { spot: 'door', pose: 'idle' }],
   seatItem: { x: 150, y: 366, base: 429 },
+  zones: ZONES,
   cueOf,
 };

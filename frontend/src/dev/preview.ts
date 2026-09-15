@@ -478,7 +478,7 @@ export function usePreview(): { phase: Phase | null; world: TimetableWorld | nul
       case 'sleeping': {
         const tz = base.spec.tz;
         const at = placeInTz(tz, ['home', 'hotel']) ?? placeById('home');
-        return { kind: 'sleeping', until: blockEndAt(dayStartIn(now, tz), 'sleep'), at, tz };
+        return { kind: 'sleeping', until: blockEndAt(dayStartIn(now, tz), 'sleep'), at, tz, since: dayStartIn(now, tz) };
       }
       case 'timetable': {
         const tz = base.spec.tz;

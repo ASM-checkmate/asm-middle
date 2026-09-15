@@ -470,7 +470,9 @@ export interface PhaseEncounter { agent: Agent; talked: boolean; again?: boolean
  * companions of the activity it is waiting for.
  */
 export type Phase =
-  | { kind: 'sleeping'; until: number; at: Place; tz: string }
+  | { kind: 'sleeping'; until: number; at: Place; tz: string;
+      /** 잠들기 시작한 시각 — 수면 슬롯 시작, 또는 취침 전 이동으로 집에 닿은 시각(ADR-0030). 그 뒤 잠깐은 집 방에서 눕는 장면 */
+      since: number }
   | { kind: 'waiting'; at: Place; currentBlockId: BlockId; nextBlockId: BlockId | null; nextStartAt: number | null; tz: string; jetlag: boolean; companions: Friend[] }
   | { kind: 'moving'; act: ScheduledActivity; legIndex: number; legProgress: number; position: LngLat; heading: number; remainingMin: number; totalProgress: number; tz: string; onboard: Onboard; companions: Friend[]; encounter?: PhaseEncounter }
   | { kind: 'active'; act: ScheduledActivity; remainingMin: number; progress: number; tz: string; jetlag: boolean; companions: Friend[]; encounter?: PhaseEncounter }

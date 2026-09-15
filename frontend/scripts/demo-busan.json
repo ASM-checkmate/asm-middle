@@ -2,11 +2,12 @@
   {
     "goto": "http://localhost:5173/?scenario=busan&reset=1&day=2026-09-15",
     "load": 7000,
+    "keepHold": true,
     "mark": "0 인트로"
   },
   {
     "intro": "안녕? 나는 모모야. 내가 어제 한 일 한번 들어볼래?",
-    "wait": 800
+    "wait": 600
   },
   {
     "introOff": true,
@@ -18,7 +19,7 @@
       "오후 수업… 민수랑 같이 들으니까 덜 졸려 📖"
     ],
     "mark": "1 부산대",
-    "wait": 1500
+    "wait": 1200
   },
   {
     "jump": "18:02",
@@ -44,7 +45,7 @@
       "expr": "!!document.querySelector('.room')",
       "max": 8000
     },
-    "wait": 1500
+    "wait": 1200
   },
   {
     "say": [
@@ -52,7 +53,7 @@
       "조새호, 창가 자리 있대. 광안대교 보이는 자리!"
     ],
     "mark": "4 조새호",
-    "wait": 800
+    "wait": 600
   },
   {
     "eval": "document.querySelectorAll('.room-zone')[2].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))",
@@ -66,11 +67,11 @@
       "expr": "window.__demoReady && window.__demoReady()",
       "max": 15000
     },
-    "wait": 3800
+    "wait": 3200
   },
   {
     "tapClick": ".ps-x",
-    "wait": 1500
+    "wait": 1200
   },
   {
     "say": [
@@ -78,7 +79,7 @@
       "가리비 익는 동안 찰칵 🐚"
     ],
     "mark": "5 창가 사진",
-    "wait": 500
+    "wait": 400
   },
   {
     "click": ".room-shoot",
@@ -93,11 +94,11 @@
       "url": "/demo/josaeho.png",
       "cell": 0
     },
-    "wait": 3200
+    "wait": 2600
   },
   {
     "tapClick": ".cam-x",
-    "wait": 1200
+    "wait": 1000
   },
   {
     "jump": "20:57",
@@ -106,11 +107,11 @@
       "하늘에 하트! 옆자리 분들도 보러 왔나 봐"
     ],
     "mark": "6a 포차·드론쇼",
-    "wait": 1200
+    "wait": 800
   },
   {
     "click": ".room-zone",
-    "wait": 14500
+    "wait": 14000
   },
   {
     "say": [
@@ -118,14 +119,34 @@
       "봉주르! 루이랑 클로에래. 우리 친구 됐다 🥐"
     ],
     "mark": "6b 친구",
-    "wait": 5500
+    "wait": 4500
   },
   {
     "say": [
-      "테이블에서 한 장.",
+      "드론쇼 앞에서 한 장.",
       "이건 꼭 남겨야지"
     ],
-    "mark": "7 테이블 사진",
+    "mark": "7a 드론쇼 사진",
+    "wait": 300
+  },
+  {
+    "click": ".room-shoot",
+    "wait": 2200
+  },
+  {
+    "click": ".cam-shutter",
+    "wait": 2400
+  },
+  {
+    "tapClick": ".cam-x",
+    "wait": 900
+  },
+  {
+    "say": [
+      "테이블에서도 한 장.",
+      "민수랑도 찍어야지 🍶"
+    ],
+    "mark": "7b 테이블 사진",
     "wait": 300
   },
   {
@@ -143,13 +164,13 @@
   {
     "dropPhoto": {
       "url": "/demo/pocha.png",
-      "cell": 0
+      "cell": 1
     },
-    "wait": 3200
+    "wait": 2600
   },
   {
     "tapClick": ".cam-x",
-    "wait": 1200
+    "wait": 1000
   },
   {
     "jump": "23:44",
@@ -162,7 +183,7 @@
   },
   {
     "waitUntil": {
-      "expr": "!!document.querySelector('.slp')",
+      "expr": "window.__world.getState().phase.kind === 'sleeping' && !!document.querySelector('.room')",
       "max": 40000
     },
     "mark": "8 도착"
@@ -172,25 +193,25 @@
   },
   {
     "hold": {
-      "expr": "!!document.querySelector('.slp')",
+      "expr": "!!document.querySelector('.room')",
       "max": 5000
     },
-    "wait": 600
+    "wait": 300
   },
   {
     "say": [
-      "집에 들어가서 잔다. 내일도 여기서 시작한다.",
-      "다녀왔습니다… 눕고 싶다"
+      "집에 들어와서 눕는다.",
+      "다녀왔습니다… 씻고 누워야지"
     ],
-    "mark": "9 수면",
-    "wait": 2500
+    "mark": "9 집",
+    "wait": 5500
   },
   {
     "say": [
       "자기 전, 침대에서 오늘을 돌아본다.",
-      "새 친구 둘, 사진 두 장. 오늘 좋았다 🌙"
+      "새 친구 둘, 사진 석 장. 오늘 좋았다 🌙"
     ],
-    "mark": "10 SNS·앨범"
+    "mark": "10 SNS"
   },
   {
     "tapClick": ".chrome-sns",
@@ -201,28 +222,26 @@
       ".sns-tabs button",
       "친구"
     ],
-    "wait": 4200
+    "wait": 4000
   },
   {
     "eval": "(() => { const b = [...document.querySelectorAll('button[aria-label=\"닫기\"]')].at(-1); if (!b) return 'no close'; const r = b.getBoundingClientRect(); window.__demoTap(r.left + r.width / 2, r.top + r.height / 2); setTimeout(() => b.click(), 150); return 'sns closed'; })()",
-    "wait": 1300
+    "wait": 1200
   },
   {
-    "tapClick": ".chrome-book:not(.chrome-sns):not(.chrome-chat):not(.chrome-tt)",
-    "wait": 2000
-  },
-  {
-    "tapClick": [
-      ".book-item",
-      "삼진포차"
+    "jump": "0:45",
+    "say": [
+      "",
+      "나 이제 졸려. 잘게 😴"
     ],
-    "wait": 6000
+    "mark": "11 잠",
+    "wait": 3500
   },
   {
     "say": [
       "",
       ""
     ],
-    "wait": 900
+    "wait": 800
   }
 ]

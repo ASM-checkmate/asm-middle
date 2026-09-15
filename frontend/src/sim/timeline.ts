@@ -247,7 +247,12 @@ export function phaseAt(t: number, timeline: ScheduledActivity[], anchor: Anchor
   let jetlag = false;
   for (const a of timeline) if (a.arriveAt <= t) { at = a.place; jetlag = a.jetlagUntil !== null && t < a.jetlagUntil; }
   const slot = blockSlotIn(t, tz);
-  if (slot.id === 'sleep') return { kind: 'sleeping', until: slot.end, at, tz };
+  if (slot.id === 'sleep') {
+    // 취침 전 이동(ADR-0030)으로 방금 닿았으면 그때부터 — 화면이 집 방에서 눕는 장면을 잠깐 보여 준다
+    let since = slot.start;
+    for (const a of timeline) if (isBedtime(a) && a.arriveAt <= t && a.arriveAt > since && a.place.id === at.id) since = a.arriveAt;
+    return { kind: 'sleeping', until: slot.end, at, tz, since };
+  }
   const upcoming = timeline.find(a => a.departAt > t);
   const nb = nextBlockId(slot.id);
   return { kind: 'waiting', at, currentBlockId: slot.id, nextBlockId: nb, nextStartAt: upcoming ? upcoming.departAt : nb ? blockStartAt(slot.dayStart, nb) : null, tz, jetlag, companions: upcoming ? companionsOf(upcoming, memory) : [] };

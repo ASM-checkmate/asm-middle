@@ -5,7 +5,7 @@ import { blockAtIn, nextBlockId } from '../sim/blocks';
 import { movingPhase } from '../sim/timeline';
 import { placeById } from '../sim/places';
 import { sceneTypeFor } from '../scenes';
-import { roomFor } from '../room';
+import { roomFor, roomForPlace } from '../room';
 import { MapScene } from '../map';
 import { TopChrome } from '../ui';
 import { usePreview, usePreviewOverlay, usePreviewSns } from '../dev/preview';
@@ -13,6 +13,7 @@ import { TimetableScreen } from './TimetableScreen';
 import { ActivityScreen } from './ActivityScreen';
 import { ComicScreen } from './ComicScreen';
 import { SleepScreen } from './SleepScreen';
+import { HomeNightScreen, HOME_LIE_MS } from './HomeNightScreen';
 import { SummarySheet } from './SummarySheet';
 import { BookOverlay } from './BookOverlay';
 import { SnsOverlay } from './SnsOverlay';
@@ -153,7 +154,9 @@ export function Home() {
     phase = { kind: 'active', act, remainingMin: Math.max(1, Math.ceil((act.endAt - now) / 60_000)), progress: 0, tz: act.tz, jetlag: act.jetlagUntil !== null && now < act.jetlagUntil, companions: phase.companions, encounter: phase.encounter };
   }
   movingKeyRef.current = phase.kind === 'moving' ? phase.act.key : null;
-  const screen = SCREEN_OF[phase.kind];
+  // 귀가 뒤 눕기 (ADR-0030): 취침 전 이동으로 집에 닿은 직후는 집 방에서 눕는 장면 — 그 뒤 수면 화면
+  const homeNight = !isPreview && phase.kind === 'sleeping' && now < phase.since + HOME_LIE_MS && phase.since > phase.until - 7 * 3600_000 && !!roomForPlace(phase.at);
+  const screen = homeNight ? 'active' : SCREEN_OF[phase.kind];
 
   // ── 카메라 (ADR-0029): 활동 중에만 뜬다. 활동이 끝나 앨범으로 넘어가면 접는다 — 앨범은 endAt에 한 번 굳어
   //    (store.addShot 가드) 더 찍을 곳이 없고, 스토어 플래그가 남아 다음 활동에서 저절로 열리면 안 된다. 배경은 연 쪽(트리거 존 버튼)이 정한다 ──
@@ -204,7 +207,7 @@ export function Home() {
       // 만화의 "다음" 버튼은 시간표를 **시트로** 연다 — 기본 화면을 시간표로 바꾸면 내릴 수 없고 크롬의 링 버튼도 사라진다.
       // 만화 창이 끝나면(comicUntil) 스토어가 알아서 대기(시간표)로 넘어간다.
       case 'comic': return <ComicScreen phase={p} onNext={block => { selectBlock(block); setTtOpen(true); }} />;
-      case 'sleeping': return <SleepScreen phase={p} />;
+      case 'sleeping': return homeNight ? <HomeNightScreen phase={p} now={now} /> : <SleepScreen phase={p} />;
     }
   };
 

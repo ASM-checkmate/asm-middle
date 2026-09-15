@@ -212,6 +212,7 @@ try {
       for (let i = 0; i < 20; i++) { const ok = await ev(`!!document.querySelector('.stage')`); if (ok) break; await sleep(500); }
       console.log('overlay:', await ev(OVERLAY));
       await holdUntil('window.__demoReady && window.__demoReady()', 15000, 600);
+      if (s.keepHold) beginHold();   // 인트로가 뜰 때까지 화면을 안 보여 준다
       mark(`goto ${s.goto}`);
     }
     if (s.jump) {
@@ -229,8 +230,8 @@ try {
       }
     }
     if (s.scale) { await ev(`window.__world.getState().setScale(${Number(s.scale)})`); }
-    if (s.hold) { await holdUntil(s.hold.expr ?? s.hold, s.hold.max ?? 15000); }
-    if (s.intro !== undefined) { await voiceDone(); await ev(`window.__demoIntro(${JSON.stringify(s.intro)})`); await sleep(450); speak([s._tts?.[1]]); }
+    if (s.hold) { await voiceDone(); await holdUntil(s.hold.expr ?? s.hold, s.hold.max ?? 15000); }
+    if (s.intro !== undefined) { await voiceDone(); await ev(`window.__demoIntro(${JSON.stringify(s.intro)})`); await sleep(450); if (holding) { holding = false; lastKeptWall = Date.now(); } speak([s._tts?.[1]]); }
     if (s.introOff) { await voiceDone(); await sleep(400); await ev(`window.__demoIntro('')`); await sleep(500); }
     if (s.say) {
       await voiceDone();

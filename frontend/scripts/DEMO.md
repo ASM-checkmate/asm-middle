@@ -13,8 +13,9 @@ cp /tmp/rec/demo.mp4 ../design/out/nadeuli-demo-busan-$(date +%F).mp4     # desi
   · `waitUntil{expr,max}` · `hold{expr,max}`(준비될 때까지 프레임을 버린다 — 로딩 안 보이게) · `dropPhoto{url,cell}`(생성 사진 액자 드롭 + 필름 칸 교체) · `wait` · `mark`
   · `waitVoice: true`(앞 `say`의 목소리가 끝날 때까지 — `say`는 기다리지 않으니 말 끝나고 화면을 바꿀 `eval`·`tapClick` 앞에 둔다).
 - **광고/비광고 구분**(2026-09-16): 가게 방문 자체가 광고 지면이다. 시나리오의 조새호·삼진포차는 `sponsored: true`(`dev/scenario.ts`) → 시간표 카드·활동 장소 태그에 `AD`
-  알약(`ui/AdTag`, 지도의 동백택시 카드와 같은 것). 부산대 수업은 민수 일정(광고 아님), 귀가 택시는 제휴(광고). 대본은 지하철에서 `.chrome-tt`로 시간표를 열어
-  `selectBlock('evening'|'night')`로 카드를 보여 주며 모모가 "광고 중에 우리 취향" 이유를 말한다. 블록은 `chosenBy: 'agent'`(캐릭터가 골랐어요).
+  알약(`ui/AdTag`, 지도의 동백택시 카드와 같은 것). 저녁·밤 블록은 **카드 3장**(`alts`)이고 광고 카드는 가운데 — 모모는 뷰·자리가 좋아서 고르고, 광고라는 말은 안 한다
+  (오너: "광고 중에서 고른다"로 들리면 안 됨, 광고광고 하지 말 것). 광고를 짚는 건 나레이션 한 줄뿐. 부산대 수업은 민수 일정(광고 아님), 귀가 택시는 제휴(광고).
+  대본은 지하철에서 `.chrome-tt`로 시간표를 열어 `selectBlock('evening'|'night')`로 카드를 보여 준다. 블록은 `chosenBy: 'agent'`(캐릭터가 골랐어요).
 - **말 튼 친구도 사진에**: 카메라(`CameraOverlay`)가 `castAt`의 met·metAlso(루이·클로에)를 뒷줄 양끝에 세운다 — 드론쇼 컷은 넷(`UserShot.mets`에 id 저장).
 - 목소리는 macOS `say`. 이 맥에서 한국어를 읽는 건 **Yuna뿐**(다른 한국어 목소리는 무음) — 나레이터 165, 모모 205 속도. `VOICE_N`/`VOICE_C`로 바꾼다.
   다른 TTS를 쓰려면 `tts/` 의 aiff를 같은 이름으로 갈아 끼우고 `voices.json` 시각으로 다시 섞는다.

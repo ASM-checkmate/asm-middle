@@ -88,17 +88,17 @@
     "wait": 700
   },
   {
-    "jump": "18:02",
+    "jump": "18:10",
     "scale": 30,
     "say": [
       "",
-      "지하철 탔다~ 조새호로 출발!"
+      "광안리로 슝~ 🚇"
     ],
     "mark": "2 지하철",
-    "wait": 1200
+    "wait": 500
   },
   {
-    "scale": 300,
+    "scale": 400,
     "mark": "2 이동"
   },
   {
@@ -157,13 +157,6 @@
   {
     "click": ".cam-shutter",
     "wait": 2400
-  },
-  {
-    "dropPhoto": {
-      "url": "/demo/josaeho.png",
-      "cell": 0
-    },
-    "wait": 1500
   },
   {
     "tapClick": ".cam-x",

@@ -99,8 +99,8 @@
 .tt-agent.is-ok { color: var(--mint); }
 .tt-list {
   /* 3 × 50px + 2 × 5px gap + 5px padding = 165px: fits the panel (top 344) without scrolling */
-  flex: 1; min-height: 0; overflow-y: auto; display: grid; gap: 5px; align-content: start; margin-top: 4px;
-  padding: 2px 4px 3px 1px; scrollbar-width: none;
+  flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; align-content: start; margin-top: 4px;
+  padding: 2px 4px 3px 1px; scrollbar-width: none;   /* minmax(0,1fr): 암시적 auto 열은 긴 제목(nowrap)+칩+체크의 max-content로 패널보다 넓어져 오른쪽이 잘렸다 */
 }
 .tt-list::-webkit-scrollbar { display: none; }
 .opt {

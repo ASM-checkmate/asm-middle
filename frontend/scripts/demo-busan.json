@@ -167,22 +167,8 @@
       "",
       ""
     ],
-    "mark": "3 장소 지도",
-    "wait": 400
-  },
-  {
-    "click": ".act-map-btn"
-  },
-  {
-    "hold": {
-      "expr": "window.__demoReady && window.__demoReady()",
-      "max": 15000
-    },
-    "wait": 3000
-  },
-  {
-    "tapClick": ".ps-x",
-    "wait": 900
+    "mark": "3 끝",
+    "wait": 1200
   },
   {
     "cut": true

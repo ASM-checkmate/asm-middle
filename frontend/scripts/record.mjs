@@ -81,6 +81,12 @@ const OVERLAY = `(() => {
     #demo-tap.is-on { animation: demo-tap .55s ease-out both; }
     @keyframes demo-tap { 0% { opacity: 1; transform: scale(.4); } 100% { opacity: 0; transform: scale(1.4); } }
     #demo-intro { position: fixed; inset: 0; z-index: 10002; background: #FFF6E6; display: grid; place-items: center; align-content: center; gap: 22px; opacity: 1; }
+    /* 인트로: 얼굴만이 아니라 몸 전체가 손 흔들며(wave 포즈), 말풍선은 오른쪽에 (오너 2026-09-17) */
+    #demo-intro .di-row { display: flex; align-items: center; gap: 14px; }
+    #demo-intro .di-row svg.ch { width: 340px; height: 340px; flex: none; }
+    #demo-intro .di-row .dc-bubble { margin: 0 24px 40px 0; max-width: 300px; text-align: left; }
+    #demo-intro .di-row .dc-bubble::before { left: -14px; top: auto; bottom: 30px; margin: 0; border: 8px solid transparent; border-right-color: #2A2118; border-left: 0; border-top: 8px solid transparent; }
+    #demo-intro .di-row .dc-bubble::after { left: -10px; top: auto; bottom: 32px; margin: 0; border: 6px solid transparent; border-right-color: #FFFFFF; border-left: 0; border-top: 6px solid transparent; }
     #demo-intro.is-off { opacity: 0; transition: opacity .5s ease; }
     /* 인트로가 걷히면 폰(과 노치)이 왼쪽에서 미끄러져 들어온다 — 인트로는 캔버스 전체(가운데 모모), 그 다음이 왼쪽 폰 + 오른쪽 자막 */
     .stage.demo-in, #demo-notch.demo-in { animation: demo-stage-in 1.1s cubic-bezier(.45, .05, .25, 1) both; animation-delay: .3s; }   /* 인트로가 거의 걷힌 뒤에 들어온다 */
@@ -117,7 +123,13 @@ const OVERLAY = `(() => {
   window.__demoIntro = (text) => {
     let el = document.getElementById('demo-intro');
     if (!text) { if (el) { el.classList.add('is-off'); document.querySelector('.stage')?.classList.add('demo-in'); document.getElementById('demo-notch')?.classList.add('demo-in'); setTimeout(() => el.remove(), 550); } return; }
-    if (!el) { el = document.createElement('div'); el.id = 'demo-intro'; el.innerHTML = '<svg viewBox="30 6 140 140"><use href="#chara-face-happy" x="30" y="6" width="140" height="140"/></svg><div class="dc-bubble"></div><small>나들이 · DEMO</small>'; document.body.appendChild(el); }   // 캔버스 전체에 — 폰 안이 아니라
+    if (!el) {
+      // 몸 전체가 손을 흔든다: 앱의 데모 훅(App.tsx __demoCharacter)이 React로 wave 포즈를 그린다. 없으면 얼굴만
+      el = document.createElement('div'); el.id = 'demo-intro'; el.innerHTML = '<div class="di-row"><div class="di-chara"></div><div class="dc-bubble"></div></div><small>나들이 · DEMO</small>'; document.body.appendChild(el);   // 캔버스 전체에 — 폰 안이 아니라
+      const box = el.querySelector('.di-chara');
+      if (window.__demoCharacter) window.__demoCharacter(box, 'wave', 340);
+      else box.innerHTML = '<svg viewBox="30 6 140 140"><use href="#chara-face-happy" x="30" y="6" width="140" height="140"/></svg>';
+    }
     el.querySelector('.dc-bubble').textContent = text;
   };
   // 준비 판정: 폰트, 이동 지도(타일까지), 장소 시트 지도

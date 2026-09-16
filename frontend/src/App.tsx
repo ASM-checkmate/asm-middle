@@ -1,4 +1,5 @@
 import { Component, Suspense, lazy, useEffect, type ComponentType, type ReactNode } from 'react';
+import { createRoot } from 'react-dom/client';
 import { useWorld } from './sim/store';
 import { putLocal } from './sim/media';
 import { PLACES } from './sim/places';
@@ -13,10 +14,14 @@ const DEV = params.get('dev') === '1';
 const LAB = params.get('lab');
 // Dev/QA hook: drive the sim from scripts (jumpToHour, setScale, chooseOption…)
 if (import.meta.env.DEV) {
-  const w = window as unknown as { __world?: typeof useWorld; __places?: typeof PLACES; __media?: { putLocal: typeof putLocal } };
+  const w = window as unknown as { __world?: typeof useWorld; __places?: typeof PLACES; __media?: { putLocal: typeof putLocal }; __demoCharacter?: (el: HTMLElement, pose?: Pose, size?: number) => void };
   w.__world = useWorld;
   w.__places = PLACES;   // place catalogue for headless assertions (which city a chosen placeId lives in)
   w.__media = { putLocal };   // 데모 녹화(scripts/record.mjs)가 '생성된 사진'을 끼워 넣는다
+  // 데모 녹화 인트로: 빈 컨테이너에 주인 캐릭터 한 명을 포즈대로 그린다 (몸 전체, 기본은 손 흔들기). 심볼 defs는 앱 루트의 CharacterDefs를 쓴다
+  w.__demoCharacter = (el, pose = 'wave', size = 340) => {
+    createRoot(el).render(<OwnerLookContext.Provider value={useWorld.getState().memory.look}><Character pose={pose} size={size} /></OwnerLookContext.Provider>);
+  };
 }
 
 // `?lab=character` → src/dev/CharacterLab.tsx (built concurrently). Loaded through a glob so a missing file

@@ -21,6 +21,7 @@ cp /tmp/rec/demo.mp4 ../design/out/nadeuli-demo-busan-$(date +%F).mp4     # desi
   **모모 목소리를 일레븐랩스 등으로 바꾸기**: 대사 순서대로 `01.mp3`, `02.mp3` … 를 한 폴더에 두고 `MOMO_TTS_DIR=<폴더> node scripts/record.mjs …`.
   번호 순서는 대본의 `intro` → `say[1]`이 있는 스텝 순. 뽑기: `node -e "const s=require('./scripts/demo-busan.json');let n=0;for(const st of s){if(st.intro)console.log(++n,st.intro);if(st.say&&st.say[1])console.log(++n,st.say[1])}"`.
   없는 번호는 Yuna로 채운다. 나레이터는 그대로 Yuna. 파일은 `design/voice/momo/`(gitignore)에 둔다.
+  API로 만들기: `ELEVENLABS_API_KEY=… node scripts/momo-voice.mjs --list`로 목소리를 고르고 `… node scripts/momo-voice.mjs <voiceId|이름> ../design/voice/momo` — 15줄을 01~15.mp3로 저장(있는 번호는 건너뜀).
 - 시나리오 URL에 `&day=2026-09-15`가 붙어 있다 — 마찰 굴림이 날짜에 묶여 있어 날짜가 바뀌면 밤 활동이 다른 곳으로 샌다. 그대로 둔다.
 - 생성 사진은 `public/demo/josaeho.png`·`pocha.png`(오너가 Gemini로 만든 것). 다른 장면 사진이 생기면 같은 이름 규칙으로 두고 `dropPhoto`를 더한다.
 - 확인: `ffmpeg -ss <초> -i demo.mp4 -frames:v 1 f.png`로 프레임을 뽑아 본다. 스텝 로그의 `[vt …s]`가 영상 시각이다.

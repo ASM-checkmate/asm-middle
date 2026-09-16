@@ -58,16 +58,7 @@
   },
   {
     "tapClick": ".tt-cta",
-    "wait": 600
-  },
-  {
-    "waitVoice": true,
-    "say": [
-      "",
-      "좋아, 오늘 일정은 이렇게 해서 가자!"
-    ],
-    "mark": "1 일정 확정",
-    "wait": 500
+    "wait": 1200
   },
   {
     "waitVoice": true,

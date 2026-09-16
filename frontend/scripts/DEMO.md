@@ -23,10 +23,10 @@ cp /tmp/rec/demo.mp4 ../design/out/nadeuli-demo-busan-$(date +%F)-1-v2.mp4   # d
 - **말 튼 친구도 사진에**: 카메라(`CameraOverlay`)가 `castAt`의 met·metAlso(루이·클로에)를 뒷줄 양끝에 세운다 — 드론쇼 컷은 넷(`UserShot.mets`에 id 저장).
   **단, 말 트는 시각(21:05)이 지나야** 선다(`castAt`: talked && t ≥ at) — 대본은 드론쇼를 20:55에 들어가 단체 사진 전에 `waitUntil`로 21:05를 기다린다(21:01에 찍으면 둘만 나온다).
 - 목소리는 macOS `say`. 이 맥에서 한국어를 읽는 건 **Yuna뿐**(다른 한국어 목소리는 무음) — 나레이터 165, 모모 205 속도. `VOICE_N`/`VOICE_C`로 바꾼다.
-  **당분간(2026-09-16~) 녹화는 Yuna로만 한다** — 일레븐랩스 파일은 **최종본에만** 쓴다(오너). 즉 `MOMO_TTS_DIR`/`NARR_TTS_DIR` 없이 돌린다.
-  **목소리를 일레븐랩스로(최종본만)**: `ELEVENLABS_API_KEY=$(cat ~/.config/elevenlabs.key)`(키는 레포 밖 파일). 목록 `node scripts/demo-voice.mjs --list`.
-  모모 `node scripts/demo-voice.mjs 모모 ../design/voice/momo`, 나레이터 `node scripts/demo-voice.mjs Seonguk ../design/voice/narr --who n` — 대사 순서대로 01.mp3…(있는 번호는 건너뜀, 다시 만들려면 지운다).
-  녹화는 `MOMO_TTS_DIR=../design/voice/momo NARR_TTS_DIR=../design/voice/narr node scripts/record.mjs …`. 없는 번호는 Yuna로 채운다. `design/voice/`는 gitignore.
+  **2026-09-17부터 최종본은 일레븐랩스**(오너) — 대본을 고치는 동안은 Yuna(환경변수 없이), 최종 녹화는 아래 두 폴더를 새로 만들어 `MOMO_TTS_DIR`/`NARR_TTS_DIR`로 돌린다.
+  **목소리를 일레븐랩스로**: `ELEVENLABS_API_KEY=$(cat ~/.config/elevenlabs.key)`(키는 레포 밖 파일). 목록 `node scripts/demo-voice.mjs --list`.
+  모모 `node scripts/demo-voice.mjs 모모 ../design/voice/momo`, 나레이터 `node scripts/demo-voice.mjs 나들이나래이터 ../design/voice/narr --who n`(오너가 만든 계정 목소리, xusxi6twcXZi5EZnda2k) — 대사 순서대로 01.mp3…(있는 번호는 건너뜀, 다시 만들려면 지운다).
+  녹화는 `MOMO_TTS_DIR=../design/voice/momo NARR_TTS_DIR=../design/voice/narr PART=1 node scripts/record.mjs …`(PART=2도). 없는 번호는 Yuna로 채우고 로그에 `없음`이 찍힌다 — 최종본에선 그 줄이 없어야 한다. `design/voice/`는 gitignore, 옛 번호 파일은 `design/voice/old-<날짜>/`로 치운다.
   **대사가 바뀌면 번호가 밀린다** — 2026-09-16 대본 개편(부산대 일정 장면·1편 나레이션 삭제)으로 모모·나레이터 번호가 전부 바뀌었으니, 최종본 때 `design/voice/momo`·`narr`를 지우고 새로 만든다.
 - **영상 둘로**(오너 2026-09-16): 대본의 `{"cut": true}`가 분할점(조새호 장소 지도 닫은 뒤). `PART=1 …`은 그 앞까지, `PART=2 …`는 goto + 그 뒤(**조새호 식사 끝→걸어서 포차**→잠, 오너 2026-09-16 저녁).
   결과는 `design/out/nadeuli-demo-busan-<날짜>-1.mp4`·`-2.mp4`.

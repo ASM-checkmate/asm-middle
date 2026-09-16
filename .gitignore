@@ -2,3 +2,5 @@
 
 # 데모 영상 산출물 (frontend/scripts/record.mjs)
 design/out/
+# 데모 목소리 원본 (일레븐랩스 mp3 — MOMO_TTS_DIR)
+design/voice/

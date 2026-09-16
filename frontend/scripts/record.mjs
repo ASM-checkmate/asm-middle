@@ -6,7 +6,7 @@
 //        · scale(n) · waitUntil{expr,max} · hold{expr,max} · dropPhoto{url,cell} · wait(ms) · mark(라벨) · waitVoice(true — 앞 say의 목소리가 끝날 때까지)
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -24,7 +24,20 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const VOICE_N = process.env.VOICE_N || 'Yuna', VOICE_C = process.env.VOICE_C || 'Yuna';   // 이 맥에서 한국어를 읽는 건 Yuna뿐 — 모모는 말 속도로만 구분
 /** 읽을 글: 이모지·기호는 뺀다 (say가 이모지 이름을 읽는다) */
 const speakable = t => t.replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, '').replace(/\s+/g, ' ').trim();
+// 모모 목소리를 바깥 TTS(일레븐랩스 등)로: MOMO_TTS_DIR=<폴더> 에 대사 순서대로 01.mp3, 02.mp3 … (확장자 자유). 없는 번호는 say(Yuna)로 채운다.
+// 순서는 대본의 intro → say[1]이 있는 스텝 순 (DEMO.md "모모 대사 뽑기" 명령이 같은 순서로 번호를 매긴다)
+const MOMO_DIR = process.env.MOMO_TTS_DIR || '';
+let momoN = 0;
+const momoFile = () => {
+  const n = String(++momoN).padStart(2, '0');
+  if (!MOMO_DIR) return null;
+  const f = readdirSync(MOMO_DIR).find(x => x.startsWith(n + '.'));
+  if (!f) console.log(`momo voice: ${n}.* 없음 — say로 대신`);
+  return f ? join(MOMO_DIR, f) : null;
+};
 const tts = (raw, who) => {
+  const ext = who === 'c' ? momoFile() : null;
+  if (ext) { const d = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', ext]); return { file: ext, dur: Number(String(d.stdout).trim()) || 1 }; }
   const text = speakable(raw);
   const voice = who === 'c' ? VOICE_C : VOICE_N;
   const key = createHash('md5').update(voice + '|' + text).digest('hex').slice(0, 10);

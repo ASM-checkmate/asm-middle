@@ -1,7 +1,8 @@
 // ─── 이동 제휴 광고 카드 (ADR-0031) ──────────────────────────────────────────
 // 이동 카드(.mc, MOVEMENT_SPEC §5 — 카드 하나, 크기 고정) 위에 따로 서는 작은 카드. 귀가가 제휴 택시일 때만(act.ride).
-// 로고 없이 동백꽃 아이콘 + 이름 + 한 줄. 누르는 동작은 없다 (데모). 'AD' 칩으로 광고임을 밝힌다.
+// 로고 없이 동백꽃 아이콘 + 이름 + 한 줄. 누르는 동작은 없다 (데모). 'AD' 알약(ui/AdTag — 시간표·활동 태그와 같은 것)으로 광고임을 밝힌다.
 import type { RideSponsor } from '../sim/types';
+import { AdTag } from '../ui';
 
 /** 동백꽃: 빨간 다섯 잎 + 노란 술 */
 function Camellia({ size = 34 }: { size?: number }) {
@@ -23,7 +24,7 @@ export function AdCard({ ride }: { ride: RideSponsor }) {
         <b>{ride.name}</b>
         <small>{ride.tagline}</small>
       </span>
-      <i className="mc-ad-tag">AD</i>
+      <AdTag />
     </div>
   );
 }

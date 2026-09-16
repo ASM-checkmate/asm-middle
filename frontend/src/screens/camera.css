@@ -76,6 +76,10 @@
 .cam-friend { position: absolute; left: 56%; bottom: 20%; width: 62%; height: auto; transform: translateY(9%); z-index: 2; }
 .cam-met { position: absolute; left: 60%; bottom: 18%; width: 53%; height: auto; transform: translateY(9%); z-index: 4; }
 .cam-stage.has-friend .cam-met { left: auto; right: -6%; bottom: 16%; }
+/* 말 튼 사람이 둘(encounter.also, ADR-0031)이면 단체 사진: 나·동행이 앞줄, 둘은 뒷줄 양끝(왼쪽 클로에·오른쪽 루이)에 작게, 나보다 뒤에.
+   숫자는 photo/geometry.ts castLayout(met·met2)이 그대로 옮겨 적는다 — 바꾸면 거기도 */
+.cam-stage.has-met2 .cam-met.cam-met-0 { left: auto; right: -8%; bottom: 26%; width: 44%; z-index: 1; }
+.cam-stage .cam-met.cam-met-1 { left: -8%; right: auto; bottom: 26%; width: 44%; z-index: 1; }
 /* 같은 공간에 있던 사람들 (FRIENDS_SPEC §6 표): 뒤의 띠(bottom 33~35 %)에 뒷모습으로 작게(나의 40 %), 왼쪽 하나·오른쪽 하나, 살짝 흐리게.
    숫자는 photo/geometry.ts castLayout이 그대로 옮겨 적는다 — 바꾸면 거기도 */
 .cam-present { position: absolute; width: 34%; height: auto; transform: translateY(9%); z-index: 1; opacity: .85; }

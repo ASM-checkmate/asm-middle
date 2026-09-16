@@ -32,6 +32,8 @@ export interface BakeInput {
   friend?: BakeFigure;
   /** 말을 건 마주침 상대 (앞쪽) — encounter.at 뒤의 컷에만 */
   met?: BakeFigure;
+  /** 같이 온 둘째 말 튼 사람 (encounter.also, ADR-0031) — 왼쪽 뒤, 나보다 뒤에 */
+  met2?: BakeFigure;
   /** 같은 공간에 있던 사람들 (FRIENDS_SPEC §6): 뒤의 왼쪽·오른쪽에 뒷모습으로 작게, 최대 둘. glance면 돌아본 얼굴 */
   present?: BakeFigure[];
   /** AI 배경 (ADR-0029) — data URL. 있으면 무대(type) 대신 이 그림을 프레임에 slice로 채운다 (sim/backdrops backdropDataUrl) */
@@ -92,7 +94,7 @@ export function bakeSvg(input: BakeInput, opts: BakeSvgOptions = {}): string {
   const size: Size = frameSize(opts.longEdge ?? DEFAULT_LONG_EDGE);
   const { w, h } = size;
   const present = input.present ?? [];
-  const cast = { friend: !!input.friend, met: !!input.met, present: present.length };
+  const cast = { friend: !!input.friend, met: !!input.met, met2: !!input.met2, present: present.length };
   const lay = castLayout(size, cast);
   const blur = blurRadii(input.crop, size);
   const light = lightTransfer(input.crop.light ?? 1);
@@ -123,6 +125,12 @@ export function bakeSvg(input: BakeInput, opts: BakeSvgOptions = {}): string {
     const body = characterSvg(box, 'idle', 'friend', p.look, p.color, p.glance ? { glance: true } : { back: true });
     people.push(`<g opacity="${PRESENT_OPACITY}"${blur.bg > 0 ? ' filter="url(#bgblur)"' : ''}>${body}</g>`);
   });
+  // 말 튼 사람이 둘이면 둘 다 뒷줄 — 나·동행보다 먼저(뒤에) 그린다 (camera.css .has-met2 z-index 1)
+  const metSvg = lay.met && input.met ? fg(characterSvg(lay.met, 'wave', 'friend', input.met.look, input.met.color, { glance: input.met.glance })) : '';
+  if (lay.met2 && input.met2) {
+    people.push(fg(characterSvg(lay.met2, 'wave', 'friend', input.met2.look, input.met2.color, { glance: input.met2.glance })));
+    people.push(metSvg);
+  }
   // 자리·자세(ADR-0029): 카메라가 옮긴 값이 있으면 그대로, 없으면 옛 기본 자리. 동행이 나보다 뒤(발이 위)면 먼저 그린다
   const meBox = input.me ? figureBox(size, input.me) : lay.me;
   const friendBox = input.friend ? (input.friendPos ? figureBox(size, input.friendPos) : lay.friend) : undefined;
@@ -132,7 +140,7 @@ export function bakeSvg(input: BakeInput, opts: BakeSvgOptions = {}): string {
   if (friendBehind) people.push(friendSvg);
   people.push(meSvg);
   if (!friendBehind) people.push(friendSvg);
-  if (lay.met && input.met) people.push(fg(characterSvg(lay.met, 'wave', 'friend', input.met.look, input.met.color, { glance: input.met.glance })));
+  if (!lay.met2) people.push(metSvg);
 
   const shot = `<g transform="${cropTransform(input.crop, size)}"><g ${bgAttrs}>${bg}</g>${people.join('')}</g>`;
   const stage = `<rect width="${w}" height="${h}" fill="${TOKEN.paper2}"/>${shot}`;

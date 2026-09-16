@@ -184,7 +184,6 @@
 .mc-ad-txt { flex: 1; min-width: 0; display: grid; line-height: 1.2; }
 .mc-ad-txt b { font-family: var(--display); font-weight: 400; font-size: 16px; }
 .mc-ad-txt small { font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mc-ad-tag { flex: none; font-style: normal; font-family: var(--mono); font-size: 9px; letter-spacing: .08em; padding: 2px 6px; border-radius: 999px; border: 1.5px solid var(--ink-3); color: var(--ink-3); }
 .map-scene.has-ad .maplibregl-ctrl-bottom-left { bottom: calc(22px + 132px + 10px + 56px + 6px + var(--safe-bottom)); }
 @media (prefers-reduced-motion: reduce) { .mc-ad { animation: none; } }
 .mc-row1 { grid-area: row1; display: flex; align-items: center; gap: 8px; min-width: 0; }

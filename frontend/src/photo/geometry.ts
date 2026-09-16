@@ -131,8 +131,8 @@ export const bgParallax = (pitch: number, { h }: Size): number => -0.0055 * pitc
 
 // ─── 인물 자리 (camera.css:66-76) ─────────────────────────────────────────────
 /** `present`: 같은 공간에 있던 사람 수 (0~2) — 뒤의 왼쪽·오른쪽 (FRIENDS_SPEC §6 표) */
-export interface Cast { friend?: boolean; met?: boolean; present?: number }
-export interface CastLayout { me: Box; friend?: Box; met?: Box; present: Box[] }
+export interface Cast { friend?: boolean; met?: boolean; met2?: boolean; present?: number }
+export interface CastLayout { me: Box; friend?: Box; met?: Box; met2?: Box; present: Box[] }
 
 /** 배경 인물은 최대 둘 — 셋째부터는 그림에 없다 (agents.ts PRESENT_MAX와 같다) */
 export const PRESENT_MAX = 2;
@@ -143,6 +143,7 @@ export const PRESENT_MAX = 2;
  *   .cam-me        left 50% (has-friend·has-met 39%, 둘 다 44%) bottom 22% width 84% translate(-50%, 9%)
  *   .cam-friend    left 56% bottom 20% width 62% translateY(9%)
  *   .cam-met       left 60% bottom 18% width 53% translateY(9%)  (has-friend: right -6% bottom 16%)
+ *   has-met2 (말 튼 사람 둘): .cam-met-0 right -8% bottom 26% width 44%, .cam-met-1 left -8% 같은 크기 — 뒷줄 양끝, 나보다 뒤
  *   .cam-present-0 left 3%  bottom 33% width 34% translateY(9%)   (뒷모습, 나의 40 %)
  *   .cam-present-1 right 1% bottom 35% width 32% translateY(9%)
  */
@@ -152,7 +153,12 @@ export function castLayout({ w, h }: Size, cast: Cast): CastLayout {
   const meLeft = cast.friend && cast.met ? 0.44 : cast.friend || cast.met ? 0.39 : 0.5;
   const out: CastLayout = { me: box(me, meLeft * w - 0.5 * me, h - 0.22 * h + 0.09 * me), present: [] };
   if (cast.friend) { const s = 0.62 * w; out.friend = box(s, 0.56 * w, h - 0.20 * h + 0.09 * s); }
-  if (cast.met) {
+  if (cast.met2) {
+    // 말 튼 사람 둘 = 단체 사진: 뒷줄 양끝에 작게 (camera.css .has-met2 .cam-met-0 / .cam-met-1)
+    const s = 0.44 * w;
+    out.met = box(s, w + 0.08 * w - s, h - 0.26 * h + 0.09 * s);
+    out.met2 = box(s, -0.08 * w, h - 0.26 * h + 0.09 * s);
+  } else if (cast.met) {
     const s = 0.53 * w;
     out.met = cast.friend ? box(s, w + 0.06 * w - s, h - 0.16 * h + 0.09 * s) : box(s, 0.60 * w, h - 0.18 * h + 0.09 * s);
   }

@@ -11,7 +11,7 @@ import { agentById } from '../sim/agents';
 import { wonKo } from '../sim/status';
 import type { TimetableWorld } from '../dev/preview';
 import { Character, type Pose } from '../character';
-import { Bubble, Button, Chip, CompanionChip, Glyph, JetlagChip, type ChipFriend } from '../ui';
+import { AdTag, Bubble, Button, Chip, CompanionChip, Glyph, JetlagChip, type ChipFriend } from '../ui';
 import { Scene } from '../scenes';
 import { roomForPlace, RoomStage } from '../room';
 import { CATEGORY_FILL, Ring, type RingSeg } from './Ring';
@@ -292,6 +292,8 @@ export function TimetableScreen({ phase, asSheet, onClose, world, leaving }: { p
                     {/* 친구 제안 카드는 이유 대신 그 한 줄 ("민수가 같이 가자고 함"과 겹치지 않게) */}
                     {asked ? <span className="opt-ask">{asked.name}가 같이 가자고 해요</span> : <span>{o.reason}</span>}
                   </div>
+                  {/* 광고 가게 (ADR-0031 확장): 광고 중에서 골랐음을 카드에 밝힌다 — 이유는 reason이 말한다 */}
+                  {o.sponsored && <AdTag />}
                   {f && <CompanionChip friends={[f]} small className="opt-friend" />}
                   {on && <span className="opt-check"><Glyph name="check" size={14} color="#fff" /></span>}
                 </button>
@@ -375,6 +377,7 @@ export function TimetableScreen({ phase, asSheet, onClose, world, leaving }: { p
             <b>{shownDiverted ? `${shown.place.name}에서 ${shortTitle(shown.option.title)}` : shown.option.title}</b>
             <span>{shown.outcome && now >= shown.outcome.divertedAt ? shown.outcome.line : shown.option.reason}</span>
           </div>
+          {shown.option.sponsored && !shownDiverted && <AdTag />}
           <Chip className="done-tag" tone={shownDiverted ? 'coral' : shown.comicUntil <= now ? 'mint' : 'sun'}>{shownDiverted ? '바뀜' : tag(shown)}</Chip>
         </div>
         <div className="tt-head" style={{ marginTop: 6 }}>

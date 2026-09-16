@@ -52,6 +52,12 @@ check('상대만: 나 39%, 상대 left 60% 너비 53%', near(wm.me.x + wm.me.w /
 const wb = G.castLayout(S, { friend: true, met: true });
 check('둘 다: 나 44%, 상대는 right -6% (x = 1.06w − .53w)', near(wb.me.x + wb.me.w / 2, 0.44 * 278) && wb.met && near(wb.met.x, 0.53 * 278), JSON.stringify(wb));
 check('둘 다: 상대 bottom 16% (동행 없을 때 18%)', wb.met && wm.met && wb.met.y + wb.met.h > wm.met.y + wm.met.h, '');
+// 말 튼 사람 둘 (encounter.also, ADR-0031 — camera.css .has-met2): 단체 사진, 둘 다 뒷줄 양끝에 너비 44%·bottom 26%. 없으면 상자도 없다
+const w4 = G.castLayout(S, { friend: true, met: true, met2: true });
+check('넷: 둘째 상대 left -8%, 너비 44%', !!w4.met2 && near(w4.met2.x, -0.08 * 278) && near(w4.met2.w, 0.44 * 278), JSON.stringify(w4.met2));
+check('넷: 첫째 상대도 뒷줄 오른쪽 끝 (right -8%, 너비 44%)', !!w4.met && near(w4.met.x + w4.met.w, 1.08 * 278) && near(w4.met.w, 0.44 * 278), JSON.stringify(w4.met));
+check('넷: 뒷줄 발이 26% 높이 언저리 (bottom 26% + 9% 자기 크기)', !!w4.met2 && near(w4.met2.y + w4.met2.h, 300 - 0.26 * 300 + 0.09 * 0.44 * 278) && near(w4.met.y + w4.met.h, w4.met2.y + w4.met2.h), String(w4.met2 && w4.met2.y + w4.met2.h));
+check('둘째 상대는 시키지 않으면 없다', !wb.met2 && !wm.met2, '');
 // 같은 공간에 있던 사람들 (FRIENDS_SPEC §6, camera.css .cam-present-0/-1): 뒤의 왼쪽(left 3% bottom 33% width 34%)·오른쪽(right 1% bottom 35% width 32%), 나는 가운데 그대로
 const wp1 = G.castLayout(S, { present: 1 });
 check('배경 인물 하나: 왼쪽 3%, 너비 34% (나의 40%), 나는 가운데 그대로', wp1.present.length === 1 && near(wp1.present[0].x, 0.03 * 278) && near(wp1.present[0].w, 0.34 * 278) && near(wp1.me.x, me.x), JSON.stringify(wp1));

@@ -19,6 +19,8 @@ export interface Scenario {
   /** 캐릭터의 집 (그 도시에 산다) — 없으면 기억의 집 그대로 */
   home?: string;
   blocks: Partial<Record<BlockId, { title: string; reason: string; emoji: string; placeId: string; category: Category; friendId?: string;
+    /** 광고 가게 (ActivityOption.sponsored): 광고하는 가게들 중 에이전트가 취향으로 고른 것 — 시간표·활동 태그에 AD */
+    sponsored?: boolean;
     /** 강제 마주침 (ADR-0031): 이 사람들이 [from, to) 동안 그 자리에 있고 `at`에 말을 튼다 — 굴림 없이 친구가 된다 */
     meet?: { agentIds: string[]; from: [number, number]; to: [number, number]; at: [number, number] } }>>;
 }
@@ -31,24 +33,27 @@ export const SCENARIOS: Record<string, Scenario> = {
     home: 'busan-home',
     // 블록은 오후·저녁·밤 셋뿐이다 — 광안리 드론쇼는 같은 해변의 삼진포차 자리(해변 난간·드론쇼 앞)로 찍는다
     blocks: {
-      // 세 일정 다 민수와 — 같이 수업 듣고 그대로 광안리까지
+      // 세 일정 다 민수와 — 같이 수업 듣고 그대로 광안리까지. 수업은 민수 일정(광고 아님), 저녁·밤은 광고 가게 중 에이전트가 취향으로 고른 곳
       pm: { title: '부산대에서 민수랑 수업 듣기', reason: '오후 수업, 끝나면 같이 광안리로', emoji: '🏫', placeId: 'pnu', category: 'study', friendId: 'minsu' },
-      evening: { title: '조새호에서 민수랑 조개구이', reason: '창가 자리에 광안대교', emoji: '🦪', placeId: 'josaeho', category: 'meal', friendId: 'minsu' },
+      evening: { title: '조새호에서 민수랑 조개구이', reason: '광고 중 우리 취향 — 창가에 광안대교', emoji: '🦪', placeId: 'josaeho', category: 'meal', friendId: 'minsu', sponsored: true },
       // 드론쇼(21:00)에 프랑스 관광객 둘이 옆자리에 — 21:05에 말을 트고 활동이 끝나면 둘 다 친구 (ADR-0031)
-      night: { title: '삼진포차에서 민수랑 한잔', reason: '드론쇼 보고 바다 앞에서', emoji: '🍶', placeId: 'samjin-pocha', category: 'play', friendId: 'minsu',
+      night: { title: '삼진포차에서 민수랑 한잔', reason: '광고 중 드론쇼 자리가 제일 좋아', emoji: '🍶', placeId: 'samjin-pocha', category: 'play', friendId: 'minsu', sponsored: true,
         meet: { agentIds: ['louis', 'chloe'], from: [21, 0], to: [23, 30], at: [21, 5] } },
     },
   },
 };
 
-/** 시나리오의 블록 계획 — 사용자가 확정한 카드 한 장짜리 */
+/**
+ * 시나리오의 블록 계획 — 에이전트가 골라 확정한 카드 한 장짜리 (`chosenBy: 'agent'`: 시간표가 "캐릭터가 대신 골랐어요"를 보인다).
+ * 확정 계획은 타임라인을 덮으니 `decide()`가 블록 시작에 다시 고르지 않는다 (isBlockFree 거짓).
+ */
 export function scenarioPlans(sc: Scenario): Partial<Record<BlockId, BlockPlan>> {
   const out: Partial<Record<BlockId, BlockPlan>> = {};
   // 시나리오에 없는 블록은 비운다 — 부팅 때 에이전트가 옛 집(서울) 기준으로 이미 채워 둔 아침이 남아 있으면 첫 이동이 거기서 출발한다
   for (const b of BLOCKS) if (b.id !== 'sleep' && !sc.blocks[b.id]) out[b.id] = { blockId: b.id, category: null, options: [], chosenId: null, chosenBy: null, status: 'empty' };
   for (const [id, b] of Object.entries(sc.blocks) as [BlockId, NonNullable<Scenario['blocks'][BlockId]>][]) {
-    const opt = { id: `${sc.key}-${id}`, title: b.title, reason: b.reason, emoji: b.emoji, placeId: b.placeId, category: b.category, ...(b.friendId ? { friendId: b.friendId } : {}) };
-    out[id] = { blockId: id, category: b.category, options: [opt], chosenId: opt.id, chosenBy: 'user', status: 'confirmed' };
+    const opt = { id: `${sc.key}-${id}`, title: b.title, reason: b.reason, emoji: b.emoji, placeId: b.placeId, category: b.category, ...(b.friendId ? { friendId: b.friendId } : {}), ...(b.sponsored ? { sponsored: true } : {}) };
+    out[id] = { blockId: id, category: b.category, options: [opt], chosenId: opt.id, chosenBy: 'agent', status: 'confirmed' };
   }
   return out;
 }

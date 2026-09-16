@@ -256,6 +256,11 @@ export interface ActivityOption {
    * **에이전트 자신의 말**을 배반하게 만드는 장치다 (docs/adr/0001-agentness.md).
    */
   forecast?: string;
+  /**
+   * 광고 가게 (ADR-0031 확장): 이 카드의 장소가 광고 지면이다 — 시간표 카드·활동 장소 태그에 `AD`. 에이전트는 광고 가게 중에서도
+   * 취향에 맞는 곳만 고른다(이유는 reason에). 서버 계약(CONTRACT 옵션)엔 없고 클라이언트·시나리오만 쓴다. 사진·앨범에는 붙지 않는다.
+   */
+  sponsored?: boolean;
 }
 
 /**
@@ -378,7 +383,11 @@ export interface ShotCrop { scale: number; x: number; y: number; rot: number; pi
  * `backdrop`: AI 배경 id (sim/backdrops.ts) — 없으면 SVG 무대. `me`/`friend`: 배경 위 자리·크기·자세. `gen`: 서버 화풍 생성 상태
  * ('plain' 단순 합성 그대로 · 'pending' 생성 중 · 'done' 생성본으로 교체됨). 옛 저장본의 `win`은 로드 때 버린다.
  */
-export interface UserShot { actKey: string; at: number; crop: ShotCrop; shotId?: string; backdrop?: string; me?: ShotFigure; friend?: ShotFigure; gen?: 'plain' | 'pending' | 'done' }
+export interface UserShot {
+  actKey: string; at: number; crop: ShotCrop; shotId?: string; backdrop?: string; me?: ShotFigure; friend?: ShotFigure; gen?: 'plain' | 'pending' | 'done';
+  /** 찍을 때 같이 선 말 튼 사람들의 agent id (ADR-0031, 최대 둘) — 썸네일·앨범이 되살릴 때 같은 사람이 서게 */
+  mets?: string[];
+}
 
 /**
  * 마주침: someone else's agent shared this place. `talked` → a new friend when the activity ends; `again` → already a friend.

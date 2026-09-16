@@ -4,7 +4,7 @@ import { cityNameKo } from '../sim/places';
 import { MAX_SHOTS, shotsFor } from '../sim/shots';
 import { backdropsFor } from '../sim/backdrops';
 import { Character } from '../character';
-import { Button, CompanionChip, JetlagChip, ProgressBar, type ChipFriend } from '../ui';
+import { AdTag, Button, CompanionChip, JetlagChip, ProgressBar, type ChipFriend } from '../ui';
 import { Scene } from '../scenes';
 import { roomForPlace, RoomStage } from '../room';
 import { activityLog } from '../sim/actlog';
@@ -63,6 +63,8 @@ export function ActivityScreen({ phase }: { phase: Active }) {
       <div className="act-tagrow">
         <div className="act-tag">
           {act.place.emoji} {act.place.name}
+          {/* 광고 가게 (ADR-0031 확장): 여기 온 게 광고 지면임을 태그가 밝힌다. 사진·앨범엔 붙지 않는다 */}
+          {act.option.sponsored && <AdTag className="act-ad" />}
           <small>{where}</small>
           {phase.jetlag && <JetlagChip sticker />}
         </div>

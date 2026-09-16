@@ -120,6 +120,9 @@ button.chip:active { transform: translate(1px, 1px); box-shadow: none; }
 .bubble--right { border-radius: 18px 18px 4px 18px; transform-origin: 100% 100%; }
 @keyframes bubble-pop { from { transform: scale(.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
+/* `AD` 알약 (ADR-0031, ui/AdTag): 지도 광고 카드·시간표 카드·활동 장소 태그가 같이 쓴다. 영상에서도 읽히게 잉크 2단계 */
+.ad-tag { flex: none; display: inline-block; font-style: normal; font-family: var(--mono); font-size: 9px; line-height: 1.2; letter-spacing: .08em; padding: 2px 6px; border-radius: 999px; border: 1.5px solid var(--ink-2); color: var(--ink-2); background: var(--paper-2); vertical-align: middle; }
+
 /* "😴 시차 적응 중": a sun sticker, tilted onto the corner of a tag / bubble / sheet, or inline in a caption */
 .jetlag { animation: jetlag-in .45s cubic-bezier(.34, 1.56, .64, 1) both; }
 .jetlag-zz { font-size: 13px; line-height: 1; }

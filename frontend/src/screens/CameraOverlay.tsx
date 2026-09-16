@@ -1,7 +1,8 @@
 import { memo, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useWorld } from '../sim/store';
-import type { PlaceType, ScheduledActivity, ShotCrop, ShotFigure, ShotPose, UserShot } from '../sim/types';
+import type { Look, PlaceType, ScheduledActivity, ShotCrop, ShotFigure, ShotPose, UserShot } from '../sim/types';
 import { DEFAULT_LOOK } from '../sim/types';
+import { agentById, castAt, hairStyleOf, type Agent, type CastMet } from '../sim/agents';
 import { MAX_SHOTS, shotsFor } from '../sim/shots';
 import { DEFAULT_FRIEND, DEFAULT_ME, DEFAULT_ME_WITH_FRIEND, backdropById, backdropDataUrl, type Backdrop } from '../sim/backdrops';
 import { hhmmIn } from '../sim/tz';
@@ -60,8 +61,10 @@ export interface ShotStageProps {
   friendColor?: string;
   /** 동행의 자리·자세 — 없으면 오른쪽 옆에서 손 흔들기 */
   friendPos?: ShotFigure;
-  /** 말을 건 마주침 상대의 색 (옛 컷) */
+  /** 말을 건 마주침 상대의 색 (옛 컷 — `mets`가 없을 때만) */
   metColor?: string;
+  /** 말 튼 사람들 (castAt의 met·metAlso, ADR-0031): 첫째는 오른쪽 앞, 둘째는 왼쪽 뒤. 최대 둘. 카메라도 같이 찍는다 */
+  mets?: MetFigure[];
   /** 같은 공간에 있던 사람들 (옛 컷, FRIENDS_SPEC §6): 뒷모습·작게 */
   present?: PresentFigure[];
   /** 썸네일: 캐릭터 루프도 멈춘다 (무대는 항상 scene--still) */
@@ -73,28 +76,45 @@ export interface ShotStageProps {
  * 무대 한 장: 배경(AI 그림 또는 정지 Scene) + 나 + 동행(+ 옛 컷의 마주침·배경 인물), 그 위에 배경 이동·확대(% 단위).
  * 뷰파인더·필름 썸네일·앨범 컷이 같은 컴포넌트를 쓰니 "찍은 그대로"가 보장된다. 굽기(photo/bake)는 같은 숫자를 svg로 옮겨 적는다.
  */
-export function ShotStage({ type, pose, crop, backdrop, me, friendColor, friendPos, metColor, present, still, className = '' }: ShotStageProps) {
+export function ShotStage({ type, pose, crop, backdrop, me, friendColor, friendPos, metColor, mets, present, still, className = '' }: ShotStageProps) {
   // 동행이 나보다 앞(발이 아래)이면 위에 그린다
   const friendFront = !!friendPos && !!me && friendPos.y > me.y;
+  const metList = (mets ?? (metColor ? [{ color: metColor }] : [])).slice(0, METS_MAX);
   return (
     // 변수는 무대(.cam-stage)에 둔다: transform은 그 안의 .cam-shot이, blur·조도는 옛 컷 변수로 물려받는다
-    <div className={`cam-stage ${friendColor ? 'has-friend' : ''} ${metColor ? 'has-met' : ''} ${backdrop ? 'has-bd' : ''} ${className}`} style={cropVars(crop)}>
+    <div className={`cam-stage ${friendColor ? 'has-friend' : ''} ${metList.length ? 'has-met' : ''} ${metList.length > 1 ? 'has-met2' : ''} ${backdrop ? 'has-bd' : ''} ${className}`} style={cropVars(crop)}>
       <div className="cam-shot">
         {/* 배경: AI 그림은 프레임보다 사방 12 % 큰 상자에 cover(camera.css .cam-bg img, geometry BD_OVER) — ±12 % 밀어도 끝이 안 보인다. SVG 무대는 옛 방식(가로 3장·세로 2배, 양옆 거울) */}
         <div className="cam-bg">{backdrop ? <img src={backdrop.url} alt="" draggable={false} /> : <><Still type={type} /><Still type={type} /><Still type={type} /></>}</div>
         {present?.slice(0, 2).map((p, i) => <Chara key={i} className={`cam-present cam-present-${i}`} pose="idle" size={120} variant="friend" color={p.color} look={presentLook(p.hairStyle)} back glance={p.glance} paused={still} />)}
+        {/* 둘째 말 튼 사람은 왼쪽 뒤(나보다 뒤) — camera.css .cam-met-1, 굽기는 geometry castLayout.met2 */}
+        {metList[1] && <Chara className="cam-met cam-met-1" pose="wave" size={170} variant="friend" color={metList[1].color} look={metList[1].look} paused={still} />}
         {friendColor && <Chara className="cam-friend" style={friendPos ? figStyle(friendPos, friendFront ? 4 : 2) : undefined} pose={friendPos?.pose ?? 'wave'} size={224} variant="friend" color={friendColor} paused={still} />}
         <Chara className="cam-me" style={me ? figStyle(me, 3) : undefined} pose={me?.pose ?? pose} size={300} paused={still} />
-        {metColor && <Chara className="cam-met" pose="wave" size={190} variant="friend" color={metColor} paused={still} />}
+        {metList[0] && <Chara className="cam-met cam-met-0" pose="wave" size={190} variant="friend" color={metList[0].color} look={metList[0].look} paused={still} />}
       </div>
     </div>
   );
 }
 
-/** 샷 하나를 무대로 (필름 썸네일·앨범 컷이 같은 식으로 되살린다) */
-export function stageOfShot(shot: Pick<UserShot, 'crop' | 'backdrop' | 'me' | 'friend'>, type: PlaceType, pose: Pose, friendColor?: string): Omit<ShotStageProps, 'still' | 'className'> {
-  return { type, pose, crop: shot.crop, backdrop: backdropById(shot.backdrop), me: shot.me, friendColor, friendPos: shot.friend };
+/** 샷 하나를 무대로 (필름 썸네일·앨범 컷이 같은 식으로 되살린다). 말 튼 사람들은 샷의 `mets`(agent id)에서 되찾는다 */
+export function stageOfShot(shot: Pick<UserShot, 'crop' | 'backdrop' | 'me' | 'friend' | 'mets'>, type: PlaceType, pose: Pose, friendColor?: string): Omit<ShotStageProps, 'still' | 'className'> {
+  return { type, pose, crop: shot.crop, backdrop: backdropById(shot.backdrop), me: shot.me, friendColor, friendPos: shot.friend, mets: metsOfIds(shot.mets) };
 }
+
+/** 말 튼 사람 하나 — 무대에 그릴 색·겉모습 */
+export interface MetFigure { color: string; look?: Look }
+/** 무대에 서는 말 튼 사람은 둘까지 (루이·클로에) — geometry castLayout의 met·met2 */
+export const METS_MAX = 2;
+/** castAt의 met·metAlso → 무대 인물 (겉모습은 방과 같은 식: 머리 모양 + 피부·머리색) */
+export const metsOfCast = (c: { met?: CastMet; metAlso?: CastMet[] }): MetFigure[] =>
+  [c.met, ...(c.metAlso ?? [])].filter((m): m is CastMet => !!m).slice(0, METS_MAX).map(m => ({ color: m.color, look: presentLook(m.hairStyle, m.look) }));
+/** 샷에 저장한 agent id들 → 무대 인물 (에이전트 풀에서 되찾는다 — 없어진 사람은 뺀다) */
+export const metsOfIds = (ids?: string[]): MetFigure[] | undefined => {
+  if (!ids?.length) return undefined;
+  const out = ids.map(id => agentById(id)).filter((a): a is Agent => !!a).slice(0, METS_MAX).map(a => ({ color: a.color, look: presentLook(hairStyleOf(a), a.look) }));
+  return out.length ? out : undefined;
+};
 
 export interface CameraOverlayProps {
   act: ScheduledActivity;
@@ -127,6 +147,10 @@ export function CameraOverlay({ act, nowMs, backdropId, preview, onClose }: Came
   const full = count >= MAX_SHOTS;
   const backdrop = backdropById(backdropId) ?? null;
   const friend = memory.friends.find(f => act.companions.includes(f.id));
+  // 말 튼 사람들(루이·클로에)도 같이 찍힌다 (ADR-0031) — 방(RoomStage)과 같은 castAt, 이 시각 기준. 자리는 고정(끌지 않는다)
+  const cast = castAt(act, nowMs, memory);
+  const mets = metsOfCast(cast);
+  const metIds = [cast.met, ...(cast.metAlso ?? [])].filter((m): m is CastMet => !!m).slice(0, METS_MAX).map(m => m.agent.id);
   const basePose = poseFor(act.option);
 
   // 시작 자리: 배경이 정한 자리(앉는 자리면 앉아서), 없으면 무대의 기본 자리 — 동행이 있으면 둘이 나눠 선다
@@ -188,7 +212,7 @@ export function CameraOverlay({ act, nowMs, backdropId, preview, onClose }: Came
   // ── 셔터: 최대 3장. 찍는 순간 id를 정하고 샷을 저장, 굽기는 뒤에서 (ADR-0024 결정 1) ──
   const shoot = () => {
     if (full) return;
-    const shot: UserShot = { actKey: act.key, at: nowMs, crop: { ...crop }, me: { ...me }, ...(fr ? { friend: { ...fr } } : {}), ...(backdrop ? { backdrop: backdrop.id } : {}), gen: 'plain' };
+    const shot: UserShot = { actKey: act.key, at: nowMs, crop: { ...crop }, me: { ...me }, ...(fr ? { friend: { ...fr } } : {}), ...(metIds.length ? { mets: metIds } : {}), ...(backdrop ? { backdrop: backdrop.id } : {}), gen: 'plain' };
     setFlash(n => n + 1);
     try { navigator.vibrate?.(24); } catch { /* 진동 없는 브라우저 */ }
     if (preview) {
@@ -200,10 +224,12 @@ export function CameraOverlay({ act, nowMs, backdropId, preview, onClose }: Came
     const id = newShotId();
     addShot({ ...shot, shotId: id });
     setFresh({ id, n: (fresh?.n ?? 0) + 1 });
-    // 뷰파인더(ShotStage)에 보이던 그대로: 배경·자리·자세·내 겉모습·동행. 60 KB를 넘거나(BakeOversizeError) 못 구우면 id를 떼어 옛 경로(다시 그리기)로
+    // 뷰파인더(ShotStage)에 보이던 그대로: 배경·자리·자세·내 겉모습·동행·말 튼 사람들. 60 KB를 넘거나(BakeOversizeError) 못 구우면 id를 떼어 옛 경로(다시 그리기)로
     const input: BakeInput = {
       type: sceneTypeFor(act.place.type), pose: basePose, crop: { ...crop }, look: look ?? DEFAULT_LOOK, me: { ...me },
       ...(friend && fr ? { friend: { color: friend.color }, friendPos: { ...fr } } : {}),
+      ...(mets[0] ? { met: { color: mets[0].color, look: mets[0].look } } : {}),
+      ...(mets[1] ? { met2: { color: mets[1].color, look: mets[1].look } } : {}),
     };
     const withBackdrop = backdrop ? backdropDataUrl(backdrop).then(url => ({ ...input, backdrop: url })) : Promise.resolve(input);
     void withBackdrop.then(async i => {
@@ -233,7 +259,7 @@ export function CameraOverlay({ act, nowMs, backdropId, preview, onClose }: Came
   useEffect(() => { if (!fresh) return; const id = window.setTimeout(() => setShake(0), 400); return () => window.clearTimeout(id); }, [shake, fresh]);
 
   const selFig = figOf(sel) ?? me;
-  const stage: ShotStageProps = { type: act.place.type, pose: basePose, crop, backdrop, me, friendColor: friend?.color, friendPos: fr ?? undefined };
+  const stage: ShotStageProps = { type: act.place.type, pose: basePose, crop, backdrop, me, friendColor: friend?.color, friendPos: fr ?? undefined, ...(mets.length ? { mets } : {}) };
   const where = backdrop ? `${backdrop.spot}에서` : act.place.area;
 
   return (

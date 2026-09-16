@@ -195,7 +195,40 @@
     "cut": true
   },
   {
-    "jump": "20:52",
+    "jump": "19:33",
+    "scale": 30,
+    "say": [
+      "",
+      "조개구이 잘 먹었다~ 이제 포차로 슬슬 걸어가자 🚶"
+    ],
+    "mark": "3 조새호 출발",
+    "wait": 600
+  },
+  {
+    "waitVoice": true,
+    "scale": 5
+  },
+  {
+    "jump": "20:01",
+    "scale": 15,
+    "mark": "3 걸어서 이동"
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.act') && !document.querySelector('.map-scene')",
+      "max": 60000
+    },
+    "mark": "3 도착"
+  },
+  {
+    "scale": 30,
+    "hold": {
+      "expr": "!!document.querySelector('.room')",
+      "max": 8000
+    },
+    "wait": 800
+  },
+  {
     "say": [
       "선택지에는 광고 가게도 섞여 들어옵니다. 고르는 건 캐릭터의 취향입니다.",
       "역시 밤에는 포차를 가야지~ 드론쇼 전에 좋은 자리 찾았다."
@@ -274,7 +307,8 @@
       "와, 드론쇼 시작한다! 드론 너무 예쁘다. 사람도 완전 많아."
     ],
     "mark": "5 드론쇼",
-    "wait": 300
+    "wait": 300,
+    "jump": "20:52"
   },
   {
     "eval": "document.querySelectorAll('.room-zone')[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"

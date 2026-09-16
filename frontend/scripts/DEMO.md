@@ -26,8 +26,10 @@ cp /tmp/rec/demo.mp4 ../design/out/nadeuli-demo-busan-$(date +%F)-1-v2.mp4   # d
   모모 `node scripts/demo-voice.mjs 모모 ../design/voice/momo`, 나레이터 `node scripts/demo-voice.mjs Seonguk ../design/voice/narr --who n` — 대사 순서대로 01.mp3…(있는 번호는 건너뜀, 다시 만들려면 지운다).
   녹화는 `MOMO_TTS_DIR=../design/voice/momo NARR_TTS_DIR=../design/voice/narr node scripts/record.mjs …`. 없는 번호는 Yuna로 채운다. `design/voice/`는 gitignore.
   **대사가 바뀌면 번호가 밀린다** — 2026-09-16 대본 개편(부산대 일정 장면·1편 나레이션 삭제)으로 모모·나레이터 번호가 전부 바뀌었으니, 최종본 때 `design/voice/momo`·`narr`를 지우고 새로 만든다.
-- **영상 둘로**(오너 2026-09-16): 대본의 `{"cut": true}`가 분할점(조새호 장소 지도 닫은 뒤). `PART=1 …`은 그 앞까지, `PART=2 …`는 goto + 그 뒤(포차→잠).
-  결과는 `design/out/nadeuli-demo-busan-<날짜>-1.mp4`·`-2.mp4`. 대사 번호는 전체 대본 기준이라 PART를 나눠도 같은 파일을 쓴다.
+- **영상 둘로**(오너 2026-09-16): 대본의 `{"cut": true}`가 분할점(조새호 장소 지도 닫은 뒤). `PART=1 …`은 그 앞까지, `PART=2 …`는 goto + 그 뒤(**조새호 식사 끝→걸어서 포차**→잠, 오너 2026-09-16 저녁).
+  결과는 `design/out/nadeuli-demo-busan-<날짜>-1.mp4`·`-2.mp4`.
+  **걷기 장면 요령**: 짧은 이동(2~3분)은 `jump`로 이동 **도중**(20:01)에 들어간다 — jump의 hold가 지도·타일까지 기다려 로딩·빈 화면이 안 보인다(출발 시각에 맞추면 문으로 나가는 동안 빈 화면이 잡힌다).
+  jump의 hold 동안에도 시계가 달리므로 **건너뛰기 전에 `scale 5`로 늦추고** 건너뛴 뒤 `scale 15`(스텝 안 순서는 jump → scale). 도착 뒤 `scale 30`으로 되돌린다. 대사 번호는 전체 대본 기준이라 PART를 나눠도 같은 파일을 쓴다.
 - 시나리오 URL에 `&day=2026-09-15`가 붙어 있다 — 마찰 굴림이 날짜에 묶여 있어 날짜가 바뀌면 밤 활동이 다른 곳으로 샌다. 그대로 둔다.
 - 생성 사진은 `public/demo/josaeho.png`·`pocha.png`(오너가 Gemini로 만든 것). 다른 장면 사진이 생기면 같은 이름 규칙으로 두고 `dropPhoto`를 더한다.
   **연출**(`__demoDrop`, 오너 2026-09-16): 폰이 아니라 **영상 화면(뷰포트 760×913)** 기준 — 액자의 왼쪽 아래 모서리를 (가로 1/3, 아래에서 1/3) 지점에 두고 오른쪽·위는 24px만 남기고 키운다(모모 말풍선을 덮는 게 맞다).

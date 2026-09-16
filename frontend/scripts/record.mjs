@@ -128,25 +128,32 @@ const OVERLAY = `(() => {
     if (document.querySelector('.ps-map')) { const m = window.__sheetMap; if (!m || !m.loaded() || !m.areTilesLoaded()) return false; }
     return true;
   };
-  // 생성된 사진이 위에서 큰 액자로 떨어져 폰 화면을 채우고, 잠깐 서 있다가 필름 첫 칸으로 쏙 들어간다 → 그 뒤 호출자가 replaceShotId로 칸을 바꾼다
+  // 생성된 사진이 위에서 큰 액자로 떨어져 **영상 화면**(폰이 아니라 뷰포트) 오른쪽 위를 채우고, 잠깐 서 있다가 필름 첫 칸으로 쏙 들어간다
+  // → 그 뒤 호출자가 replaceShotId로 칸을 바꾼다. 액자의 왼쪽 아래 모서리가 (가로 1/3, 아래에서 1/3) 지점, 오른쪽·위는 PAD만 남긴다 (오너 2026-09-16)
   window.__demoDrop = (url, cellIndex) => new Promise(res => {
-    const cell = document.querySelectorAll('.cam-cell .cam-thumb')[cellIndex]; const st = document.querySelector('.stage').getBoundingClientRect();
+    const cell = document.querySelectorAll('.cam-cell .cam-thumb')[cellIndex];
     if (!cell) return res('no cell');
     const r = cell.getBoundingClientRect();
     const el = document.createElement('div'); el.id = 'demo-drop'; el.innerHTML = '<img src="' + url + '">';
-    const w = st.width - 36, imgH = Math.round((w - 16) * r.height / r.width), h = imgH + 8 + 28 + 4;
+    const VW = window.innerWidth, VH = window.innerHeight, PAD = 24;
+    const boxL = VW / 3, boxB = VH * 2 / 3, boxW = VW - PAD - boxL, boxH = boxB - PAD;
+    const ratio = r.height / r.width, chromeH = 8 + 28 + 4;                       // 액자 여백: 가로 16, 세로 위 8 + 아래 28 + 4
+    let w = boxW, h = Math.round((w - 16) * ratio) + chromeH;
+    if (h > boxH) { h = boxH; w = Math.round((h - chromeH) / ratio) + 16; }        // 세로가 먼저 닿으면 높이에 맞춘다
     el.style.width = w + 'px'; el.style.height = h + 'px';
-    const cx = st.left + st.width / 2, cy = st.top + st.height / 2 - 20;
-    el.style.left = (cx - w / 2) + 'px'; el.style.top = (cy - h / 2) + 'px';
+    const left = boxL, top = boxB - h, cx = left + w / 2, cy = top + h / 2;
+    el.style.left = left + 'px'; el.style.top = top + 'px';
     document.body.appendChild(el);
     const dx = (r.left + r.width / 2) - cx, dy = (r.top + r.height / 2) - cy, sx = r.width / w;
+    // 낙하 1728→2208ms, 서기 ≈2.9초(원래 1.9초 + 1초), 축소 672ms — 시간은 절대값으로 두고 offset만 계산
+    const D = 4800 + 1000, at = ms => ms / D;
     const a = el.animate([
-      { transform: 'translateY(' + (-(cy - st.top) - h) + 'px) rotate(-6deg)', opacity: 0 },
-      { transform: 'translateY(18px) rotate(2deg)', opacity: 1, offset: .36 },
-      { transform: 'translateY(0) rotate(0deg)', opacity: 1, offset: .46 },
-      { transform: 'translateY(0) rotate(0deg)', opacity: 1, offset: .86 },
+      { transform: 'translateY(' + (-(top + h)) + 'px) rotate(-6deg)', opacity: 0 },
+      { transform: 'translateY(18px) rotate(2deg)', opacity: 1, offset: at(1728) },
+      { transform: 'translateY(0) rotate(0deg)', opacity: 1, offset: at(2208) },
+      { transform: 'translateY(0) rotate(0deg)', opacity: 1, offset: at(4128 + 1000) },
       { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sx + ')', opacity: 1 },
-    ], { duration: 4800, easing: 'cubic-bezier(.3, .9, .3, 1)', fill: 'forwards' });   // 전체 화면으로 약 1.9초 서 있다가 첫 칸으로
+    ], { duration: D, easing: 'cubic-bezier(.3, .9, .3, 1)', fill: 'forwards' });
     a.onfinish = () => { setTimeout(() => { el.remove(); res('dropped'); }, 100); };
   });
   return 'injected';

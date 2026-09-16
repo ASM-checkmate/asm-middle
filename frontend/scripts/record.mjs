@@ -3,16 +3,16 @@
 // 로딩 중 프레임은 버린다(hold): goto·jump·ready 스텝 뒤 window.__demoReady()(폰트·지도 타일·시트 지도)가 참일 때까지.
 // 자막마다 TTS(나레이터: Yuna / 캐릭터: Yuna 높은 음)를 만들어 그 시점에 섞는다 — 다음 자막·전환은 목소리가 끝난 뒤.
 // steps: goto{url} · intro[독백] · introOff · say[나레이터, 독백] · click(셀렉터|[x,y]) · tapClick(셀렉터|[셀렉터,글자]) · eval · jump("HH:MM"|"+1 00:30")
-//        · scale(n) · waitUntil{expr,max} · hold{expr,max} · dropPhoto{url,cell} · wait(ms) · mark(라벨) · waitVoice(true — 앞 say의 목소리가 끝날 때까지)
+//        · scale(n) · waitUntil{expr,max} · hold{expr,max} · dropPhoto{url,cell} · wait(ms) · mark(라벨) · waitVoice(true — 앞 say의 목소리가 끝날 때까지) · cut(영상 분할점, PART=1|2)
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 const [outDir, stepsFile, untilArg] = process.argv.slice(2);
 const until = untilArg ? Number(untilArg) : Infinity;
-const steps = JSON.parse(readFileSync(stepsFile, 'utf8'));
+let steps = JSON.parse(readFileSync(stepsFile, 'utf8'));
 mkdirSync(join(outDir, 'frames'), { recursive: true });
 mkdirSync(join(outDir, 'tts'), { recursive: true });
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -24,19 +24,18 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const VOICE_N = process.env.VOICE_N || 'Yuna', VOICE_C = process.env.VOICE_C || 'Yuna';   // 이 맥에서 한국어를 읽는 건 Yuna뿐 — 모모는 말 속도로만 구분
 /** 읽을 글: 이모지·기호는 뺀다 (say가 이모지 이름을 읽는다) */
 const speakable = t => t.replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, '').replace(/\s+/g, ' ').trim();
-// 모모 목소리를 바깥 TTS(일레븐랩스 등)로: MOMO_TTS_DIR=<폴더> 에 대사 순서대로 01.mp3, 02.mp3 … (확장자 자유). 없는 번호는 say(Yuna)로 채운다.
-// 순서는 대본의 intro → say[1]이 있는 스텝 순 (DEMO.md "모모 대사 뽑기" 명령이 같은 순서로 번호를 매긴다)
-const MOMO_DIR = process.env.MOMO_TTS_DIR || '';
-let momoN = 0;
-const momoFile = () => {
-  const n = String(++momoN).padStart(2, '0');
-  if (!MOMO_DIR) return null;
-  const f = readdirSync(MOMO_DIR).find(x => x.startsWith(n + '.'));
-  if (!f) console.log(`momo voice: ${n}.* 없음 — say로 대신`);
-  return f ? join(MOMO_DIR, f) : null;
+// 목소리를 바깥 TTS(일레븐랩스 등)로: MOMO_TTS_DIR / NARR_TTS_DIR=<폴더> 에 대사 순서대로 01.mp3, 02.mp3 … (확장자 자유). 없는 번호는 say(Yuna)로 채운다.
+// 번호는 **전체 대본** 기준(PART로 잘라도 같다): 모모는 intro → say[1]이 있는 스텝 순, 나레이터는 say[0]이 있는 스텝 순 — scripts/demo-voice.mjs가 같은 순서로 만든다
+const EXT_DIR = { c: process.env.MOMO_TTS_DIR ? resolve(process.env.MOMO_TTS_DIR) : '', n: process.env.NARR_TTS_DIR ? resolve(process.env.NARR_TTS_DIR) : '' };
+const extFile = (who, idx) => {
+  const dir = EXT_DIR[who]; if (!dir) return null;
+  const n = String(idx).padStart(2, '0');
+  const f = readdirSync(dir).find(x => x.startsWith(n + '.'));
+  if (!f) console.log(`${who === 'c' ? 'momo' : 'narr'} voice: ${n}.* 없음 — say로 대신`);
+  return f ? join(dir, f) : null;
 };
-const tts = (raw, who) => {
-  const ext = who === 'c' ? momoFile() : null;
+const tts = (raw, who, idx) => {
+  const ext = idx ? extFile(who, idx) : null;
   if (ext) { const d = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', ext]); return { file: ext, dur: Number(String(d.stdout).trim()) || 1 }; }
   const text = speakable(raw);
   const voice = who === 'c' ? VOICE_C : VOICE_N;
@@ -49,7 +48,13 @@ const tts = (raw, who) => {
   const d = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]);
   return { file, dur: Number(String(d.stdout).trim()) || 1 };
 };
-for (const s of steps) { if (s.say) { s._tts = [s.say[0] ? tts(s.say[0], 'n') : null, s.say[1] ? tts(s.say[1], 'c') : null]; } if (s.intro) s._tts = [null, tts(s.intro, 'c')]; }
+// 번호 매기기는 전체 대본에서, 그 다음에 PART로 자른다
+let ni = 0, ci = 0;
+for (const s of steps) { if (s.intro) s._ci = ++ci; if (s.say) { if (s.say[0]) s._ni = ++ni; if (s.say[1]) s._ci = ++ci; } }
+// PART=1: `cut` 스텝 앞까지(조새호 끝) · PART=2: 첫 스텝(goto) + `cut` 뒤(포차부터 — jump가 앞 활동을 정산하고 hold라 안 보인다)
+const PART = Number(process.env.PART || 0);
+if (PART) { const i = steps.findIndex(s => s.cut); if (i >= 0) steps = PART === 1 ? steps.slice(0, i) : [steps[0], ...steps.slice(i + 1)]; }
+for (const s of steps) { if (s.say) { s._tts = [s.say[0] ? tts(s.say[0], 'n', s._ni) : null, s.say[1] ? tts(s.say[1], 'c', s._ci) : null]; } if (s.intro) s._tts = [null, tts(s.intro, 'c', s._ci)]; }
 console.log('tts ready');
 
 /** 페이지 주입: 폰 베젤 + 자막 패널 + 탭 표시 + 준비 판정 + 사진 떨구기 */

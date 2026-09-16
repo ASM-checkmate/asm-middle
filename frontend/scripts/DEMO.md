@@ -12,16 +12,17 @@ cp /tmp/rec/demo.mp4 ../design/out/nadeuli-demo-busan-$(date +%F).mp4     # desi
   · `click`(마우스 좌표 — 방 존·📷 칩·셔터) · `tapClick`(el.click — 크롬 버튼·탭·닫기) · `eval` · `jump "HH:MM"`(건너뛰는 활동은 먼저 정산한다) · `scale n`(배속, 이동은 200)
   · `waitUntil{expr,max}` · `hold{expr,max}`(준비될 때까지 프레임을 버린다 — 로딩 안 보이게) · `dropPhoto{url,cell}`(생성 사진 액자 드롭 + 필름 칸 교체) · `wait` · `mark`
   · `waitVoice: true`(앞 `say`의 목소리가 끝날 때까지 — `say`는 기다리지 않으니 말 끝나고 화면을 바꿀 `eval`·`tapClick` 앞에 둔다).
-- **광고/비광고 구분**(2026-09-16): 가게 방문 자체가 광고 지면이다. 시나리오의 조새호·삼진포차는 `sponsored: true`(`dev/scenario.ts`) → 시간표 카드·활동 장소 태그에 `AD`
-  알약(`ui/AdTag`, 지도의 동백택시 카드와 같은 것). 저녁·밤 블록은 **카드 3장**(`alts`)이고 광고 카드는 가운데 — 모모는 뷰·자리가 좋아서 고르고, 광고라는 말은 안 한다
+- **광고/비광고 구분**(2026-09-16): 가게 방문 자체가 광고 지면이다. 시나리오의 조새호·삼진포차는 `sponsored: true`(`dev/scenario.ts`) → **활동 화면 장소 태그에만** `AD`
+  알약(`ui/AdTag`, 지도의 동백택시 카드와 같은 것). 시간표 카드에는 안 단다(오너: 고르는 자리에서 광고광고 하지 않기). 저녁·밤 블록은 **카드 3장**(`alts`)이고 광고 카드는 가운데 — 모모는 뷰·자리가 좋아서 고르고, 광고라는 말은 안 한다
   (오너: "광고 중에서 고른다"로 들리면 안 됨, 광고광고 하지 말 것). 광고를 짚는 건 나레이션 한 줄뿐. 부산대 수업은 민수 일정(광고 아님), 귀가 택시는 제휴(광고).
   대본은 지하철에서 `.chrome-tt`로 시간표를 열어 `selectBlock('evening'|'night')`로 카드를 보여 준다. 블록은 `chosenBy: 'agent'`(캐릭터가 골랐어요).
 - **말 튼 친구도 사진에**: 카메라(`CameraOverlay`)가 `castAt`의 met·metAlso(루이·클로에)를 뒷줄 양끝에 세운다 — 드론쇼 컷은 넷(`UserShot.mets`에 id 저장).
 - 목소리는 macOS `say`. 이 맥에서 한국어를 읽는 건 **Yuna뿐**(다른 한국어 목소리는 무음) — 나레이터 165, 모모 205 속도. `VOICE_N`/`VOICE_C`로 바꾼다.
-  **모모 목소리를 일레븐랩스 등으로 바꾸기**: 대사 순서대로 `01.mp3`, `02.mp3` … 를 한 폴더에 두고 `MOMO_TTS_DIR=<폴더> node scripts/record.mjs …`.
-  번호 순서는 대본의 `intro` → `say[1]`이 있는 스텝 순. 뽑기: `node -e "const s=require('./scripts/demo-busan.json');let n=0;for(const st of s){if(st.intro)console.log(++n,st.intro);if(st.say&&st.say[1])console.log(++n,st.say[1])}"`.
-  없는 번호는 Yuna로 채운다. 나레이터는 그대로 Yuna. 파일은 `design/voice/momo/`(gitignore)에 둔다.
-  API로 만들기: `ELEVENLABS_API_KEY=… node scripts/momo-voice.mjs --list`로 목소리를 고르고 `… node scripts/momo-voice.mjs <voiceId|이름> ../design/voice/momo` — 15줄을 01~15.mp3로 저장(있는 번호는 건너뜀).
+  **목소리를 일레븐랩스로**: `ELEVENLABS_API_KEY=$(cat ~/.config/elevenlabs.key)`(키는 레포 밖 파일). 목록 `node scripts/demo-voice.mjs --list`.
+  모모 `node scripts/demo-voice.mjs 모모 ../design/voice/momo`, 나레이터 `node scripts/demo-voice.mjs Seonguk ../design/voice/narr --who n` — 대사 순서대로 01.mp3…(있는 번호는 건너뜀, 다시 만들려면 지운다).
+  녹화는 `MOMO_TTS_DIR=../design/voice/momo NARR_TTS_DIR=../design/voice/narr node scripts/record.mjs …`. 없는 번호는 Yuna로 채운다. `design/voice/`는 gitignore.
+- **영상 둘로**(오너 2026-09-16): 대본의 `{"cut": true}`가 분할점(조새호 장소 지도 닫은 뒤). `PART=1 …`은 그 앞까지, `PART=2 …`는 goto + 그 뒤(포차→잠).
+  결과는 `design/out/nadeuli-demo-busan-<날짜>-1.mp4`·`-2.mp4`. 대사 번호는 전체 대본 기준이라 PART를 나눠도 같은 파일을 쓴다.
 - 시나리오 URL에 `&day=2026-09-15`가 붙어 있다 — 마찰 굴림이 날짜에 묶여 있어 날짜가 바뀌면 밤 활동이 다른 곳으로 샌다. 그대로 둔다.
 - 생성 사진은 `public/demo/josaeho.png`·`pocha.png`(오너가 Gemini로 만든 것). 다른 장면 사진이 생기면 같은 이름 규칙으로 두고 `dropPhoto`를 더한다.
 - 확인: `ffmpeg -ss <초> -i demo.mp4 -frames:v 1 f.png`로 프레임을 뽑아 본다. 스텝 로그의 `[vt …s]`가 영상 시각이다.

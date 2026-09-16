@@ -137,6 +137,13 @@
     "wait": 2400
   },
   {
+    "dropPhoto": {
+      "url": "/demo/josaeho.png",
+      "cell": 0
+    },
+    "wait": 1500
+  },
+  {
     "tapClick": ".cam-x",
     "wait": 900
   },

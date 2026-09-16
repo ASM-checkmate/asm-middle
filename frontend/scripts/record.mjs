@@ -73,7 +73,7 @@ const OVERLAY = `(() => {
     .dc-c { display: flex; align-items: flex-end; gap: 10px; opacity: 0; transition: opacity .35s ease; }
     .dc-c.is-on { opacity: 1; }
     .dc-c .dc-face { flex: none; width: 56px; height: 56px; border-radius: 50%; background: #FFFFFF; border: 2px solid #2A2118; overflow: hidden; display: grid; place-items: center; }
-    .dc-c .dc-face svg { width: 84px; height: 84px; margin-top: 10px; }
+    .dc-c .dc-face svg { width: 50px; height: 50px; }   /* 얼굴 전체가 원 안에 (84px는 머리 위만 보였다) */
     .dc-c .dc-bubble { position: relative; background: #FFFFFF; border: 2px solid #2A2118; border-radius: 18px; padding: 12px 14px; box-shadow: 4px 4px 0 #2A2118; font-family: 'Jua', 'Noto Sans KR', sans-serif; font-size: 19px; line-height: 1.35; color: #2A2118; word-break: keep-all; }
     .dc-c .dc-bubble::before { content: ''; position: absolute; left: -12px; bottom: 16px; border: 6px solid transparent; border-right-color: #2A2118; border-left: 0; }
     .dc-c .dc-bubble::after { content: ''; position: absolute; left: -8px; bottom: 17px; border: 5px solid transparent; border-right-color: #FFFFFF; border-left: 0; }
@@ -145,13 +145,13 @@ const OVERLAY = `(() => {
     el.style.left = left + 'px'; el.style.top = top + 'px';
     document.body.appendChild(el);
     const dx = (r.left + r.width / 2) - cx, dy = (r.top + r.height / 2) - cy, sx = r.width / w;
-    // 낙하 1728→2208ms, 서기 ≈2.9초(원래 1.9초 + 1초), 축소 672ms — 시간은 절대값으로 두고 offset만 계산
-    const D = 4800 + 1000, at = ms => ms / D;
+    // 낙하 1728→2208ms, 서기 ≈3.3초, 축소 300ms(빠르게) — 총 5.8초는 그대로. 시간은 절대값으로 두고 offset만 계산
+    const D = 5800, at = ms => ms / D;
     const a = el.animate([
       { transform: 'translateY(' + (-(top + h)) + 'px) rotate(-6deg)', opacity: 0 },
       { transform: 'translateY(18px) rotate(2deg)', opacity: 1, offset: at(1728) },
       { transform: 'translateY(0) rotate(0deg)', opacity: 1, offset: at(2208) },
-      { transform: 'translateY(0) rotate(0deg)', opacity: 1, offset: at(4128 + 1000) },
+      { transform: 'translateY(0) rotate(0deg)', opacity: 1, offset: at(D - 300) },
       { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sx + ')', opacity: 1 },
     ], { duration: D, easing: 'cubic-bezier(.3, .9, .3, 1)', fill: 'forwards' });
     a.onfinish = () => { setTimeout(() => { el.remove(); res('dropped'); }, 100); };

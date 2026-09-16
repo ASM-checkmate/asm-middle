@@ -3,7 +3,7 @@
 // 로딩 중 프레임은 버린다(hold): goto·jump·ready 스텝 뒤 window.__demoReady()(폰트·지도 타일·시트 지도)가 참일 때까지.
 // 자막마다 TTS(나레이터: Yuna / 캐릭터: Yuna 높은 음)를 만들어 그 시점에 섞는다 — 다음 자막·전환은 목소리가 끝난 뒤.
 // steps: goto{url} · intro[독백] · introOff · say[나레이터, 독백] · click(셀렉터|[x,y]) · tapClick(셀렉터|[셀렉터,글자]) · eval · jump("HH:MM"|"+1 00:30")
-//        · scale(n) · waitUntil{expr,max} · hold{expr,max} · dropPhoto{url,cell} · wait(ms) · mark(라벨)
+//        · scale(n) · waitUntil{expr,max} · hold{expr,max} · dropPhoto{url,cell} · wait(ms) · mark(라벨) · waitVoice(true — 앞 say의 목소리가 끝날 때까지)
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -245,6 +245,8 @@ try {
       }
       if (!s.say[0] && !s.say[1]) await ev(`window.__demoSay('', '')`);
     }
+    // say는 목소리를 기다리지 않는다 — 말이 끝난 뒤에 화면을 바꿔야 하면(블록 선택·시트 닫기) 이 스텝을 앞에 둔다
+    if (s.waitVoice) await voiceDone();
     if (s.click) {
       const pt = Array.isArray(s.click) ? s.click : await centerOf(s.click);
       if (!pt) console.log('click: not found', s.click); else await clickAt(pt[0], pt[1]);

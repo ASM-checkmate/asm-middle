@@ -123,6 +123,16 @@ function scenarioDayStart(now: number, tz: string): number {
   const d = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('day') : null;
   return dayStartIn(d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T12:00:00Z`).getTime() : now, tz);
 }
+// 라이브 시연용 두 번째 열쇠 `?scenario=gongsi2`: 시간표에서 밤을 코인노래방으로 **이미 바꾼 뒤**의 하루 — 장면별 링크(DEMO-LIVE.md)로 코노·귀가에 바로 들어갈 때.
+// `reset=1`은 저장본을 지우니 `gongsi`의 20시 이후 링크는 집(넷플릭스)으로 간다 — 그래서 하나 더 둔다
+{
+  const g = SCENARIOS.gongsi;
+  const night = g.blocks.night!;
+  const kono = night.alts![0];
+  SCENARIOS.gongsi2 = { ...g, key: 'gongsi2', blocks: { ...g.blocks, night: { ...night, title: kono.title, reason: kono.reason, emoji: kono.emoji, placeId: kono.placeId,
+    alts: [{ title: night.title, reason: night.reason, emoji: night.emoji, placeId: night.placeId }, night.alts![1]] } } };
+}
+
 /**
  * 시연 브랜치(demo-live): 서버·Gemini 없이 "생성되는 척" — 배경(자리)마다 미리 만들어 둔 생성 컷 (scripts/shot-gen.mjs로 뽑아 검토한 것).
  * 시나리오(`?scenario=`)로 들어왔을 때만 shotgen이 이 표를 본다. 한 자리에 한 장이라 같은 자리에서 또 찍으면 같은 그림이다.

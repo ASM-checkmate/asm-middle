@@ -23,7 +23,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 // 나레이터 Yuna(차분히), 모모 Sandy(밝게) — 피치 조작은 안 한다 (오너: 극혐). VOICE_N / VOICE_C 환경변수로 바꾼다
 const VOICE_N = process.env.VOICE_N || 'Yuna', VOICE_C = process.env.VOICE_C || 'Yuna';   // 이 맥에서 한국어를 읽는 건 Yuna뿐 — 모모는 말 속도로만 구분
 /** 읽을 글: 이모지·기호는 뺀다 (say가 이모지 이름을 읽는다) */
-const speakable = t => t.replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, '').replace(/\s+/g, ' ').trim();
+const speakable = t => t.replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, '').replace(/\s*\|\s*/g, ', ').replace(/\s+/g, ' ').trim();
+/** 자막 글: 대사의 `|`(일레븐랩스 0.3초 쉼 표시)는 뗀다 */
+const caption = t => (t ?? '').replace(/\s*\|\s*/g, ' ');
 // 목소리를 바깥 TTS(일레븐랩스 등)로: MOMO_TTS_DIR / NARR_TTS_DIR=<폴더> 에 대사 순서대로 01.mp3, 02.mp3 … (확장자 자유). 없는 번호는 say(Yuna)로 채운다.
 // 번호는 **전체 대본** 기준(PART로 잘라도 같다): 모모는 intro → say[1]이 있는 스텝 순, 나레이터는 say[0]이 있는 스텝 순 — scripts/demo-voice.mjs가 같은 순서로 만든다
 const EXT_DIR = { c: process.env.MOMO_TTS_DIR ? resolve(process.env.MOMO_TTS_DIR) : '', n: process.env.NARR_TTS_DIR ? resolve(process.env.NARR_TTS_DIR) : '' };
@@ -170,12 +172,12 @@ const OVERLAY = `(() => {
     el.style.left = left + 'px'; el.style.top = top + 'px';
     document.body.appendChild(el);
     const dx = (r.left + r.width / 2) - cx, dy = (r.top + r.height / 2) - cy, sx = r.width / w;
-    // 낙하 1728→2208ms, 서기 ≈3.3초, 축소 300ms(빠르게) — 총 5.8초는 그대로. 시간은 절대값으로 두고 offset만 계산
-    const D = 5800, at = ms => ms / D;
+    // 낙하 600→850ms(찰칵 뒤 바로 — 오너 2026-09-17: 액자가 늦게 나와 답답), 서기 ≈3.3초, 축소 300ms(빠르게). 시간은 절대값으로 두고 offset만 계산
+    const D = 4500, at = ms => ms / D;
     const a = el.animate([
       { transform: 'translateY(' + (-(top + h)) + 'px) rotate(-6deg)', opacity: 0 },
-      { transform: 'translateY(18px) rotate(2deg)', opacity: 1, offset: at(1728) },
-      { transform: 'translateY(0) rotate(0deg)', opacity: 1, offset: at(2208) },
+      { transform: 'translateY(18px) rotate(2deg)', opacity: 1, offset: at(600) },
+      { transform: 'translateY(0) rotate(0deg)', opacity: 1, offset: at(850) },
       { transform: 'translateY(0) rotate(0deg)', opacity: 1, offset: at(D - 300) },
       { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sx + ')', opacity: 1 },
     ], { duration: D, easing: 'cubic-bezier(.3, .9, .3, 1)', fill: 'forwards' });
@@ -286,16 +288,16 @@ try {
     if (s.hold) { await voiceDone(); await holdUntil(s.hold.expr ?? s.hold, s.hold.max ?? 15000); }
     if (s.introShow) { await voiceDone(); await ev(`window.__demoIntroShow()`); await sleep(500); if (holding) { holding = false; lastKeptWall = Date.now(); } }
     // intro: 말풍선이 뜨면 인트로 아래 나레이션 자막(__demoSay가 인트로 위에서 쓰는 칸)은 지운다
-    if (s.intro !== undefined) { await voiceDone(); await ev(`window.__demoSay('', ''); window.__demoIntro(${JSON.stringify(s.intro)})`); await sleep(700); if (holding) { holding = false; lastKeptWall = Date.now(); } speak([s._tts?.[1]]); }
+    if (s.intro !== undefined) { await voiceDone(); await ev(`window.__demoSay('', ''); window.__demoIntro(${JSON.stringify(caption(s.intro))})`); await sleep(700); if (holding) { holding = false; lastKeptWall = Date.now(); } speak([s._tts?.[1]]); }
     // 인트로가 걷힐 때 자막 패널도 비운다 — 인트로 위에서 한 나레이션(introShow)의 자막이 폰 뒤에 남아 있다가 보이지 않게 (오너 2026-09-17)
     if (s.introOff) { await voiceDone(); await sleep(400); await ev(`window.__demoSay('', ''); window.__demoIntro('')`); await sleep(1700); }   // 인트로 페이드 + 폰 슬라이드인이 끝날 때까지
     if (s.say) {
       await voiceDone();
       const [nt, ct] = s._tts ?? [];
-      if (s.say[0]) { await ev(`window.__demoSay(${JSON.stringify(s.say[0])}, '')`); speak([nt]); }
+      if (s.say[0]) { await ev(`window.__demoSay(${JSON.stringify(caption(s.say[0]))}, '')`); speak([nt]); }
       if (s.say[1]) {
         const after = nt ? (nt.dur + 0.35) * 1000 : 0;
-        const showMomo = async () => { await ev(`window.__demoSay('', ${JSON.stringify(s.say[1])})`); speak([ct]); };
+        const showMomo = async () => { await ev(`window.__demoSay('', ${JSON.stringify(caption(s.say[1]))})`); speak([ct]); };
         if (after) setTimeout(showMomo, after); else await showMomo();
         if (after) voiceUntilWall = Math.max(voiceUntilWall, Date.now() + after + ((ct?.dur ?? 0) + 0.35) * 1000);
       }

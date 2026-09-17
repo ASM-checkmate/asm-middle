@@ -85,7 +85,7 @@
   },
   {
     "click": ".cam-shutter",
-    "wait": 2600
+    "wait": 900
   },
   {
     "dropPhoto": {
@@ -209,7 +209,7 @@
   },
   {
     "click": ".cam-shutter",
-    "wait": 2600
+    "wait": 900
   },
   {
     "dropPhoto": {

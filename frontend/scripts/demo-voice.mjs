@@ -33,7 +33,8 @@ if (!/^[A-Za-z0-9]{15,}$/.test(arg)) {
 const steps = JSON.parse(readFileSync(stepsFile, 'utf8'));
 const lines = [];
 for (const s of steps) { if (who === 'c') { if (s.intro) lines.push(s.intro); if (s.say && s.say[1]) lines.push(s.say[1]); } else if (s.say && s.say[0]) lines.push(s.say[0]); }
-const speakable = t => t.replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, '').replace(/\s+/g, ' ').trim();
+// 대사 속 `|`는 0.3초 쉼(SSML break) — 자막엔 안 보인다(record.mjs가 뗀다). "모모야! | 오늘 내 하루를…" (오너 2026-09-17)
+const speakable = t => t.replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, '').replace(/\s*\|\s*/g, ' <break time="0.3s" /> ').replace(/\s+/g, ' ').trim();
 mkdirSync(outDir, { recursive: true });
 
 const body = text => JSON.stringify({

@@ -13,10 +13,10 @@ cp /tmp/rec2/demo.mp4 ../design/out/nadeuli-demo-busan-$(date +%F)-2-v3.mp4
 
 - **1편 `demo-gwangalli.json`** (에이전트가 잘 노는 것): 첫 화면(모모 손 흔드는 인트로, 말풍선 없이)에서 **나레이션 "나들이는 …"을 화면 중앙 아래 자막으로**(`introShow` 스텝 — 인트로 위에선 `__demoSay`가 옆 패널 대신 인트로 아래 칸에 쓴다, 오너 2026-09-17) → 말풍선 "안녕 나는 모모야" → 부산대(민수) → 지하철 → **삼진포차**(18:37 도착, 저녁·밤 둘 다 포차라 20:00엔 이동 없이 활동만 바뀐다)
   → **"위하여~ 🍻" + 테이블 사진(`pocha-asahi.png`)** → 20:55 드론쇼 → 민수랑 둘이 사진 → "다음에 또 오자"로 끝. **조새호·해변·시간표·친구 마주침·귀가·SNS 없음**(오너 2026-09-17: 학교에서 바로 포차로, 광안리에서 놀고 끝).
-  술 광고는 포차 방·카메라 배경·생성 사진의 **아사히 제품 배치**(ADR-0032)로만 — 모모는 브랜드를 말하지 않는다. 그림은 `uv run --with pillow scripts/asahi-asset.py`가 만든다
-  (`public/demo/asahi-can.png`·`pocha-asahi.png`, `public/backdrops/busan/samjin-table.webp`를 `art/backdrops/samjin-table.orig.webp`에서 다시 그린다).
+  술 광고는 포차 방의 아사히 소품과 **생성 사진**(`public/demo/pocha-asahi.png`)으로만 — 모모는 브랜드를 말하지 않는다. 카메라 배경(`samjin-table.webp`)은 원본(소주병) 그대로.
+  생성 사진은 `scripts/shot-gen.mjs`(서버 프롬프트를 옮긴 오프라인 판)로: 배경 원본 + `char-png.mjs`로 뽑은 모모·민수 PNG + 실제 아사히 캔 사진(`art/backdrops/in/`, 위키미디어)을 참고로. 우리가 그린 캔 그림은 참고로 주지 않는다(결과가 그걸 따라간다 — 오너).
 - **2편 `demo-gongsi.json`** (기능 소개, 공시생의 하루): **인트로 없이 바로**(오너) 9:40 스타벅스 부산대점(에듀윌 교재·노트북, AD 태그 나레이션) → **시간표**(밤 카드를 집→코인노래방으로 사용자가 바꾼다)
-  → 사진(AI 배경이 없어 기본 카페 무대) → 10:40 현이와 친구 → 장소 지도 → 20:01 걸어서 코인노래방(코인 존 → 마이크 존) → 걸어서 귀가(택시 아님 — 걷는 거리면 제휴 택시를 안 부른다, 나레이션 없음) → 잠 화면 → SNS 친구 탭 → 잠. AD 태그 나레이션은 뺐다(오너).
+  → 사진(창가 자리 AI 배경 `starbucks-window.webp` + 생성 컷 `public/demo/starbucks.png` 드롭) → 10:40 현이와 친구 → 장소 지도 → 20:01 걸어서 코인노래방(코인 존 → 마이크 존 → '열창 인증샷' 생성 컷 `public/demo/noraebang.png` 드롭, AI 배경 `noraebang-mic.webp`) → 걸어서 귀가(택시 아님 — 걷는 거리면 제휴 택시를 안 부른다, 나레이션 없음) → 잠 화면 → SNS 친구 탭 → 잠. AD 태그 나레이션은 뺐다(오너).
   시나리오 블록: am·lunch·pm 셋 다 스타벅스(같은 곳이라 이동 없음), evening 집, night 코노. 현이는 강제 마주침(10:00–12:00, 10:20 말 틈).
   **귀가 함정**: 코노→집이 걸어서 5분이라 23:48에 닿는다 — 자정 전 도착은 집 방 눕는 장면(HomeNightScreen, `since > until-7h` 조건)이 없고 잔디 대기 화면이 뜬다.
   그래서 귀갓길은 `scale 45`로 짧게 보여 주고 지도가 사라지면(`!document.querySelector('.map-scene')`) 바로 `jump "+1 0:40"`(다음 날)으로 잠 화면에서 대사·SNS를 한다. (v2 1편처럼 택시가 28분이면 00:11 도착이라 집 방 장면이 있다.)
@@ -62,3 +62,6 @@ cp /tmp/rec/demo.mp4 ../design/out/nadeuli-demo-busan-$(date +%F)-1-v2.mp4
 - 자막 패널의 모모 얼굴(`.dc-face svg`)은 50px — 84px로 두면 원 밖으로 넘쳐 머리 위만 보인다.
 - **인트로**(오너 2026-09-17): 얼굴만이 아니라 몸 전체가 손을 흔든다 — `App.tsx`의 dev 훅 `window.__demoCharacter(el, 'wave', 340)`이 React로 그린다(DOM 복제는 그 시각 포즈·책을 끌고 와 실패). 말풍선은 오른쪽.
 - 도구 뼈대: `scripts/record.mjs`(CDP 스크린캐스트 760×1000@2x, 폰 베젤·자막 패널 주입, 벽시계 기준 싱크, hold 중 프레임 버림).
+- **AI 배경·생성 컷 만들기(2026-09-17 저녁)**: 배경은 `art/backdrops/manifest.json`에 job(참고 사진 없으면 글로만) → `node scripts/nano-banana.mjs art/backdrops/manifest.json --only <name>` → `cwebp -q 82 -resize 720 0` → `public/backdrops/busan/` + 두 manifest(`public/backdrops/manifest.json`·`src/sim/backdrops.demo.json`)에 자리·존 등록.
+  생성 컷은 `node scripts/shot-gen.mjs --bg <배경> --me <모모.png> [--friend <동행.png>] --place … --spot … [--sit] --me-pos x,y,scale --me-pose … [--ref <참고>] --extra "…" --out art/backdrops/gen/shot-<name>.png` — 한 장씩 뽑아 오너가 검토한다.
+  **한글 글자가 들어가는 컷(에듀윌 표지)은 `--model gemini-3-pro-image`** — flash는 한글을 뭉갠다; 글자는 깨끗이 찍은 제목 이미지(`art/backdrops/in/eduwill-title.png`)를 `--ref`로 준다. 캐릭터 PNG: `node scripts/char-png.mjs <out> idle friend '#5FC9A6' short`(민수).

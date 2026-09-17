@@ -88,6 +88,13 @@
     "wait": 2600
   },
   {
+    "dropPhoto": {
+      "url": "/demo/starbucks.png",
+      "cell": 0
+    },
+    "wait": 1500
+  },
+  {
     "tapClick": ".cam-x",
     "wait": 900
   },
@@ -181,6 +188,39 @@
       "스트레스 다 날아간다~ 한 곡 더! ♪"
     ],
     "wait": 5000
+  },
+  {
+    "say": [
+      "",
+      "열창 인증샷! 📸"
+    ],
+    "mark": "5 코노 사진",
+    "wait": 300
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 15000
+    }
+  },
+  {
+    "click": ".room-shoot",
+    "wait": 2200
+  },
+  {
+    "click": ".cam-shutter",
+    "wait": 2600
+  },
+  {
+    "dropPhoto": {
+      "url": "/demo/noraebang.png",
+      "cell": 0
+    },
+    "wait": 1500
+  },
+  {
+    "tapClick": ".cam-x",
+    "wait": 900
   },
   {
     "waitVoice": true,

@@ -16,8 +16,9 @@ ADR-0031은 광고를 "이름·한 줄 문구·아이콘 + `AD` 알약"으로 �
     거기는 ADR-0031 그대로 `AD` 알약뿐이다.
     *   삼진포차 방(`room/places/samjin.tsx`): 테이블의 소주 → 아사히 캔 둘 + 맥주잔, 카운터의 소주 상자 → 아사히 상자, 매대(카운터) 앞판에 큰 "Asahi SUPER DRY" 포스터(다리 위 현수막은 오너가 빼라 해서 없다).
     *   스타벅스 부산대점 방(`room/places/starbucks.tsx`, 새 방): 테이블에 "에듀윌 공무원" 인강이 켜진 노트북 + "에듀윌 기본서" 두 권. 간판·컵은 스타벅스.
-    *   포차 카메라 배경(`public/backdrops/busan/samjin-table.webp`)과 생성 사진(`public/demo/pocha-asahi.png`): 소주병 자리에 아사히 캔 —
-        `scripts/asahi-asset.py`(uv + Pillow)가 그려 얹는다. 원본은 `art/backdrops/samjin-table.orig.webp`·`public/demo/pocha.png`.
+    *   생성 사진(`public/demo/pocha-asahi.png`): 원본 배경 + 캐릭터 PNG + **실제 아사히 캔 사진**(참고)을 Gemini에 보내 캔을 들고 짠 하는 컷을 그렸다(`scripts/shot-gen.mjs`).
+        카메라 배경(`samjin-table.webp`)은 원본(소주병) 그대로다. 개정(2026-09-17 저녁): Pillow로 캔을 얹던 `asahi-asset.py` 합성은 결과가 그 그림을 따라가 버렸다 — 참고는 실물 사진만 준다(오너).
+    *   스타벅스 생성 컷(`public/demo/starbucks.png`): 에듀윌 공무원 교재 표지 글자가 읽히게 pro 이미지 모델 + 제목 참고 이미지로. 코인노래방 컷(`noraebang.png`)은 광고 없음.
 2.  **캐릭터의 말에는 브랜드도 광고도 없다.** 모모는 "위하여~", "짠!"이라고만 한다. 광고를 짚는 건 나레이션 한 줄뿐(2편 "가게 방문이 광고일 땐 장소 태그에 AD").
 3.  로고는 원칙적으로 **글자(워드마크)로 그린다** — 벡터 소품은 svg `<text>`(기울인 굵은 산세리프 + 아사히 빨강), 래스터는 Pillow 텍스트.
     예외(오너 2026-09-17): 스타벅스 사이렌은 그린 것이 '별'로 보여 **진짜 로고 파일**(`public/demo/starbucks-logo.svg`, 위키미디어의 2011 로고)을 `<image>`로 넣는다. 데모 한정.

@@ -366,7 +366,7 @@ export interface ScheduledActivity {
 /** 글의 컷 번호(PostCut.win)·NPC 컷 프레이밍이 아직 0~3을 쓴다 — 창(활동 시간 4등분)이 아니라 **앨범 안의 컷 순서**다 */
 export type ShotWin = 0 | 1 | 2 | 3;
 /** 카메라가 고르는 자세 — character/Character.tsx Pose의 부분집합 (sleep은 없다) */
-export type ShotPose = 'idle' | 'walk' | 'sit' | 'wave' | 'draw' | 'happy' | 'eat' | 'read' | 'think';
+export type ShotPose = 'idle' | 'walk' | 'sit' | 'wave' | 'draw' | 'happy' | 'eat' | 'read' | 'think' | 'sing';
 /**
  * 배경 위 인물 하나의 자리·크기·자세 (ADR-0029): x/y = **발이 닿는 점**(프레임 너비·높이 대비 %, 0~100), scale = 프레임 너비 대비
  * 캐릭터 상자 폭(0.25~1.2). 카메라가 손으로 옮기고, 굽기(photo/bake)와 만화(ShotStage)가 같은 숫자로 그린다

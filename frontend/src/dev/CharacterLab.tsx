@@ -9,7 +9,7 @@ import { LookLab } from './LookLab';
 import { FaceSheet } from './FaceSheet';
 
 const POSES: Pose[] = ['idle', 'walk', 'sit', 'sleep', 'wave', 'draw', 'happy', 'eat', 'read', 'think'];
-const POSE_KO: Record<Pose, string> = { idle: '가만히', walk: '걷기', sit: '앉기', sleep: '잠', wave: '인사', draw: '그리기', happy: '기쁨', eat: '먹기', read: '읽기', think: '생각' };
+const POSE_KO: Record<Pose, string> = { idle: '가만히', walk: '걷기', sit: '앉기', sleep: '잠', wave: '인사', draw: '그리기', happy: '기쁨', eat: '먹기', read: '읽기', think: '생각', sing: '노래' };
 const MODES: TransportMode[] = ['walk', 'car', 'plane', 'boat', 'train', 'subway'];
 const MODE_KO: Record<TransportMode, string> = { walk: '걷기', car: '자동차', plane: '비행기', boat: '배', train: '기차', subway: '지하철' };
 

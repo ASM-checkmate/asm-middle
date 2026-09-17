@@ -105,6 +105,7 @@ export const transitNote = (mode: TransportMode, destCity: string, zoneChanges: 
 export const poseFor = (opt: ActivityOption): Pose => {
   const t = opt.title;
   if (/그림/.test(t)) return 'draw';
+  if (/노래|코노/.test(t)) return 'sing';
   if (/산책|러닝|자전거|스케이트|오르기|걷기/.test(t)) return 'walk';
   if (/책 읽|읽기|독서|공부|강의|노트북|작업|출근|재택/.test(t)) return 'read';
   if (/먹|브런치|요리|밥|든든|메뉴/.test(t)) return 'eat';

@@ -23,7 +23,7 @@ export interface Cue {
   /** 표시 종류: 돈·마찰·음표 */
   kind?: 'money' | 'fx' | 'notes';
   /** 그 자리에서의 자세 (기본: 자리의 자세). sleep은 침대처럼 이불 밑에 누워 자는 것, lie는 소파처럼 옆으로 눕는 것(그림을 눕힌다) */
-  pose?: 'idle' | 'think' | 'sit' | 'happy' | 'sleep' | 'lie';
+  pose?: 'idle' | 'think' | 'sit' | 'happy' | 'sleep' | 'lie' | 'sing';
 }
 
 /**

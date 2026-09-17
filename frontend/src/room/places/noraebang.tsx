@@ -1,23 +1,12 @@
 // ─── 코인노래방 부산대점 (장소별 방, ADR-0015 개정 4 · 공시생 데모) ──────────────────
-// 390×560. 어두운 방. 뒷벽 0..96은 큰 화면(가사·점수)과 네온 띠, 바닥은 어두운 카펫. 내 자리는 화면 앞 마이크(서서 부른다 — seat이 'mic'),
-// 왼쪽 아래 소파와 낮은 테이블(노래책·탬버린·물), 오른쪽 위 코인 기계. 큐는 actlog의 오락실 문장(arcade)으로 — 코인 넣기·한 곡 더·점수.
+// 390×560. 어두운 방. 뒷벽 0..96은 큰 화면(가사·점수)과 네온 띠, 바닥은 어두운 카펫. 내 자리는 화면 앞(서서 핸드마이크로 부른다 — seat이 'mic', 자세 sing),
+// 왼쪽 아래 소파와 낮은 테이블(노래책·탬버린·물), 오른쪽 위 코인 기계. 마이크는 핸드마이크 — 캐릭터의 sing 자세가 손에 든다(스탠드 없음, 오너). 큐는 actlog의 오락실 문장(arcade)으로 — 코인 넣기·한 곡 더·점수.
 import type { Cue, RoomProp, RoomSpec, Zone } from '../Room';
 import { INK, INK2, Patterns, mat, prop } from '../parts';
 import type { LogLine } from '../../sim/actlog';
 
 const ID = 'rm-nrb';
 const NEON = '#FF5CC8', NEON2 = '#5CE1FF';
-
-/** 마이크 스탠드 (내 자리 소품 — 인물 앞에 선다) */
-const micStand = (x: number, y: number): RoomProp => prop('mic', x, y, 30, 96, (
-  <>
-    <ellipse cx="15" cy="90" rx="12" ry="4" fill="var(--night-2)" {...INK2} />
-    <path d="M15 88 v-60" fill="none" {...INK} />
-    <path d="M15 30 l10 -12" fill="none" {...INK2} />
-    <rect x="18" y="4" width="14" height="22" rx="7" transform="rotate(40 25 15)" fill="#8A8F99" {...INK2} />
-    <path d="M22 12 l6 4 M20 16 l6 4" stroke="var(--ink)" strokeWidth="1.5" opacity=".6" />
-  </>
-), { base: y + 4, cx: 15, cy: 92 });
 
 /** 소파 (등판은 인물 뒤, 앉는 판은 앞) */
 const SOFA_BACK: RoomProp = { key: 'sofa-back', x: 40, y: 400, w: 150, h: 40, base: 398, node: (
@@ -61,8 +50,6 @@ const PROPS: RoomProp[] = [
     </>
   ), { base: 500, cy: 44 }),
   SOFA_BACK, SOFA_SEAT,
-  // 마이크 스탠드: 내 자리(화면 앞) 바로 앞
-  micStand(178, 262),
   // 스피커 둘 (화면 양옆 바닥)
   prop('spk-l', 30, 170, 40, 70, (
     <>
@@ -133,8 +120,8 @@ const BACK = (
 /** 오락실 문장(actlog MIDDLE.arcade) → 큐: 코인은 기계로, 노래는 마이크에서 음표, 물은 소파에서 */
 const CUES: Record<string, Cue> = {
   '코인 넣음': { go: 'coin', then: 'mic', at: 'coin', say: '🪙', kind: 'money' },
-  '한 곡 더': { go: 'mic', say: '♪♪', kind: 'notes', pose: 'happy' },
-  '점수 97점': { say: '97점!', kind: 'notes', pose: 'happy' },
+  '한 곡 더': { go: 'mic', say: '♪♪', kind: 'notes', pose: 'sing' },
+  '점수 97점': { say: '97점!', kind: 'notes', pose: 'sing' },
   '물 마심': { go: 'sofa', then: 'mic', at: 'sofa', pose: 'sit', say: '💧' },
   '가만히 있음': { say: '…' },
   '주변 구경': { go: 'sofa', then: 'mic', pose: 'sit', say: '👀' },
@@ -150,7 +137,7 @@ function cueOf(line: LogLine): Cue | null {
 }
 
 const ZONES: Zone[] = [
-  { key: 'mic', x: 96, y: 150, w: 200, h: 120, spots: ['mic', 'mic2'], pose: 'happy', say: '🎤', label: '노래 부르기' },
+  { key: 'mic', x: 96, y: 150, w: 200, h: 120, spots: ['mic', 'mic2'], pose: 'sing', say: '🎤', label: '노래 부르기' },
   { key: 'coin', x: 262, y: 150, w: 120, h: 110, spots: ['coin'], say: '🪙 코인', label: '코인 넣기' },
   { key: 'sofa', x: 40, y: 360, w: 150, h: 100, spots: ['sofa', 'sofa2'], pose: 'sit', label: '소파' },
 ];

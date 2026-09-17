@@ -8,13 +8,9 @@ import { cueOf } from '../cafe';
 const ID = 'rm-sbux';
 const GREEN = '#00704A', GREEN2 = '#1E3932';
 
-/** 사이렌 로고를 단순화한 초록 원 (별 + 물결) */
+/** 스타벅스 사이렌 로고 (public/demo/starbucks-logo.svg — 오너: 진짜 로고로, ADR-0032 예외). r은 반지름 */
 const Siren = ({ x, y, r = 10 }: { x: number; y: number; r?: number }) => (
-  <g transform={`translate(${x} ${y})`}>
-    <circle r={r} fill={GREEN} stroke="var(--ink)" strokeWidth="2" />
-    <circle r={r * 0.68} fill="none" stroke="var(--card)" strokeWidth={r * 0.14} />
-    <path d={`M0 ${-r * 0.42} l${r * 0.14} ${r * 0.3} l${r * 0.32} 0 l-${r * 0.26} ${r * 0.2} l${r * 0.1} ${r * 0.32} l-${r * 0.3} -${r * 0.18} l-${r * 0.3} ${r * 0.18} l${r * 0.1} -${r * 0.32} l-${r * 0.26} -${r * 0.2} l${r * 0.32} 0 z`} fill="var(--card)" />
-  </g>
+  <image href="/demo/starbucks-logo.svg" x={x - r} y={y - r} width={r * 2} height={r * 2} />
 );
 
 /** 흰 종이컵 + 초록 로고 (한 모금 잔동작이 .room-cup을 들어 올린다) */
@@ -22,7 +18,7 @@ const PaperCup = ({ x, y }: { x: number; y: number }) => (
   <g className="room-cup" transform={`translate(${x} ${y})`}>
     <path d="M-8 -6 h16 l-2 16 h-12 z" fill="var(--card)" {...INK2} />
     <rect x="-9" y="-10" width="18" height="5" rx="2" fill={GREEN2} {...INK2} />
-    <circle cy="3" r="3.2" fill={GREEN} />
+    <Siren x={0} y={3} r={4} />
     <path d="M-3 -12 q2 -4 0 -8 M3 -12 q2 -4 0 -8" fill="none" stroke="var(--ink-3)" strokeWidth="2" strokeLinecap="round" opacity=".6" />
   </g>
 );
@@ -92,7 +88,7 @@ const PROPS: RoomProp[] = [
       <path d="M122 38 h18" stroke="var(--ink-3)" strokeWidth="2.5" strokeLinecap="round" />
       {/* 컵 탑 (흰 종이컵) */}
       <path d="M88 36 h12 l-1 12 h-10 z M90 26 h10 l-1 10 h-8 z" fill="var(--card)" {...INK2} />
-      <circle cx="94" cy="42" r="2.2" fill={GREEN} />
+      <Siren x={94} y={42} r={3} />
     </>
   ) },
   // 내 테이블 (왼쪽 가운데): 등받이 의자 둘 뒤에, 테이블 앞에 — 상판 위에 공시생 물건

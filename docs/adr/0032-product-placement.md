@@ -19,7 +19,8 @@ ADR-0031은 광고를 "이름·한 줄 문구·아이콘 + `AD` 알약"으로 �
     *   포차 카메라 배경(`public/backdrops/busan/samjin-table.webp`)과 생성 사진(`public/demo/pocha-asahi.png`): 소주병 자리에 아사히 캔 —
         `scripts/asahi-asset.py`(uv + Pillow)가 그려 얹는다. 원본은 `art/backdrops/samjin-table.orig.webp`·`public/demo/pocha.png`.
 2.  **캐릭터의 말에는 브랜드도 광고도 없다.** 모모는 "위하여~", "짠!"이라고만 한다. 광고를 짚는 건 나레이션 한 줄뿐(2편 "가게 방문이 광고일 땐 장소 태그에 AD").
-3.  로고는 **글자(워드마크)로 그린다** — 벡터 소품은 svg `<text>`(기울인 굵은 산세리프 + 아사히 빨강), 래스터는 Pillow 텍스트. 공식 로고 파일을 들여오지 않는다.
+3.  로고는 원칙적으로 **글자(워드마크)로 그린다** — 벡터 소품은 svg `<text>`(기울인 굵은 산세리프 + 아사히 빨강), 래스터는 Pillow 텍스트.
+    예외(오너 2026-09-17): 스타벅스 사이렌은 그린 것이 '별'로 보여 **진짜 로고 파일**(`public/demo/starbucks-logo.svg`, 위키미디어의 2011 로고)을 `<image>`로 넣는다. 데모 한정.
 
 ## 근거
 
@@ -34,4 +35,4 @@ ADR-0031은 광고를 "이름·한 줄 문구·아이콘 + `AD` 알약"으로 �
 *   취침 전 이동(ADR-0030)의 제휴 택시(ADR-0031)는 **걸어갈 거리가 아닐 때만** 부른다 — 추정 여정이 걷기뿐이면 그대로 걷는다(`sim/timeline.ts`). 공시생 데모의 코인노래방→집(5분)이 그 경우다.
 *   실제 제휴·과금은 없다(데모). 광고주 제품이 바뀌면 방 소품과 `asahi-asset.py`의 자리 값을 손으로 다시 잰다.
 *   새 장소: `starbucks-pnu`(카페)·`coin-noraebang-pnu`(arcade)·`pnu-library`·`oncheoncheon`(공시생 시나리오 카드용). 1편 시나리오(`gwangalli`)는 저녁·밤을 모두 삼진포차로 둔다 — 같은 곳이 이어지면 이동 없이 활동만 바뀐다. 코인노래방 방(`room/places/noraebang.tsx`)은
-    광고가 아니라 장면이다. `actlog`에 arcade 문장(코인 넣음·한 곡 더·점수)이 생겼다.
+    광고가 아니라 장면이다. `actlog`에 arcade 문장(코인 넣음·한 곡 더·점수)이 생겼다. 캐릭터에 **노래 자세 `sing`**(오른손에 핸드마이크, 음표 fx)이 생겼다 — 제목에 노래·코노가 있으면 `poseFor`가 고른다. 스탠드 마이크는 없다(오너).

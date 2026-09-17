@@ -183,6 +183,13 @@
     "wait": 2600
   },
   {
+    "dropPhoto": {
+      "url": "/demo/drone.png",
+      "cell": 0
+    },
+    "wait": 1500
+  },
+  {
     "tapClick": ".cam-x",
     "wait": 900
   },

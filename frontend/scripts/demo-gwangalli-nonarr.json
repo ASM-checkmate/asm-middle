@@ -1,0 +1,198 @@
+[
+  {
+    "goto": "http://localhost:5173/?scenario=gwangalli&reset=1&day=2026-09-15",
+    "load": 7000,
+    "keepHold": true,
+    "mark": "0 인트로"
+  },
+  {
+    "intro": "안녕 나는 모모야! 오늘 내 하루를 구경해볼래?",
+    "wait": 600
+  },
+  {
+    "introOff": true,
+    "wait": 300
+  },
+  {
+    "jump": "16:20",
+    "say": [
+      "",
+      "민수야, 수업 끝나면 광안리 포차 가자! 오늘 드론쇼 한대! 🚁"
+    ],
+    "mark": "1 부산대",
+    "wait": 800
+  },
+  {
+    "waitVoice": true,
+    "wait": 1200
+  },
+  {
+    "jump": "18:10",
+    "scale": 30,
+    "say": [
+      "",
+      "광안리로 슝! 🚇"
+    ],
+    "mark": "2 지하철",
+    "wait": 500
+  },
+  {
+    "scale": 400,
+    "mark": "2 이동"
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.act') && !document.querySelector('.map-scene')",
+      "max": 45000
+    },
+    "mark": "2 도착"
+  },
+  {
+    "scale": 30
+  },
+  {
+    "hold": {
+      "expr": "!!document.querySelector('.room')",
+      "max": 8000
+    },
+    "wait": 800
+  },
+  {
+    "say": [
+      "",
+      "역시 밤에는 포차지! 드론쇼 잘 보이는 자리 잡았다!"
+    ],
+    "mark": "4 포차",
+    "wait": 300
+  },
+  {
+    "eval": "document.querySelectorAll('.room-zone')[2].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 9000
+    },
+    "wait": 400
+  },
+  {
+    "say": [
+      "",
+      "민수야, 오늘 수고했어! 짠! 🍻"
+    ],
+    "mark": "4 짠",
+    "wait": 300
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 15000
+    }
+  },
+  {
+    "waitVoice": true,
+    "say": [
+      "",
+      "이 순간은 찍어 둬야지! 📸"
+    ],
+    "wait": 200
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 15000
+    }
+  },
+  {
+    "click": ".room-shoot",
+    "wait": 2200
+  },
+  {
+    "click": ".cam-shutter",
+    "wait": 2400
+  },
+  {
+    "dropPhoto": {
+      "url": "/demo/pocha-asahi.png",
+      "cell": 0
+    },
+    "wait": 1500
+  },
+  {
+    "tapClick": ".cam-x",
+    "wait": 900
+  },
+  {
+    "say": [
+      "",
+      "와, 드론쇼 시작한다! 드론 너무 예쁘다!"
+    ],
+    "mark": "5 드론쇼",
+    "wait": 300,
+    "jump": "20:55"
+  },
+  {
+    "eval": "document.querySelectorAll('.room-zone')[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
+  },
+  {
+    "wait": 9000
+  },
+  {
+    "say": [
+      "",
+      "민수야, 사진 한 장 찍자! 📸"
+    ],
+    "mark": "5 드론쇼 사진",
+    "wait": 300
+  },
+  {
+    "eval": "document.querySelectorAll('.room-zone')[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 9000
+    },
+    "wait": 400
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 15000
+    }
+  },
+  {
+    "click": ".room-shoot",
+    "wait": 2200
+  },
+  {
+    "click": ".cam-shutter",
+    "wait": 2600
+  },
+  {
+    "dropPhoto": {
+      "url": "/demo/drone.png",
+      "cell": 0
+    },
+    "wait": 1500
+  },
+  {
+    "tapClick": ".cam-x",
+    "wait": 900
+  },
+  {
+    "say": [
+      "",
+      "오늘 진짜 잘 놀았다! 민수야, 다음에 또 오자! 🌉"
+    ],
+    "mark": "6 끝",
+    "wait": 4000
+  },
+  {
+    "say": [
+      "",
+      ""
+    ],
+    "wait": 800
+  }
+]

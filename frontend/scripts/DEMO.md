@@ -20,7 +20,10 @@ cp /tmp/rec2/demo.mp4 ../design/out/nadeuli-demo-busan-$(date +%F)-2-v3.mp4
   시나리오 블록: am·lunch·pm 셋 다 스타벅스(같은 곳이라 이동 없음), evening 집, night 코노. 현이는 강제 마주침(10:00–12:00, 10:20 말 틈).
   **귀가 함정**: 코노→집이 걸어서 5분이라 23:48에 닿는다 — 자정 전 도착은 집 방 눕는 장면(HomeNightScreen, `since > until-7h` 조건)이 없고 잔디 대기 화면이 뜬다.
   그래서 귀갓길은 `scale 45`로 짧게 보여 주고 지도가 사라지면(`!document.querySelector('.map-scene')`) 바로 `jump "+1 0:40"`(다음 날)으로 잠 화면에서 대사·SNS를 한다. (v2 1편처럼 택시가 28분이면 00:11 도착이라 집 방 장면이 있다.)
-- 두 대본은 `cut`/`PART` 없이 각각 통째로 한 편이다. 일레븐랩스 번호도 대본별로 따로(`design/voice/v3-1/{momo,narr}`·`v3-2/…`처럼 폴더를 나눈다 — `demo-voice.mjs`의 마지막 인자에 대본 파일).
+- 두 대본은 `cut`/`PART` 없이 각각 통째로 한 편이다. 일레븐랩스 번호도 대본별로 따로(`design/voice/v3-1/{momo,narr}`·`v3-2/…` — `demo-voice.mjs`의 마지막 인자에 대본 파일).
+- **1편은 둘**(오너 2026-09-17 밤): 나레이션 있는 `demo-gwangalli.json` → `-1-v3.mp4`, 없는 `demo-gwangalli-nonarr.json`(introShow·첫 나레이션만 뺀 사본, 모모 번호는 같아 `v3-1/momo`를 그대로 쓴다) → `-1-v3-no-narration.mp4`.
+  **최종본(2026-09-17 밤)**: `ELEVENLABS_API_KEY=$(cat ~/.config/elevenlabs.key)`로 v3-1·v3-2 목소리를 만들고
+  `MOMO_TTS_DIR=../design/voice/v3-1/momo NARR_TTS_DIR=../design/voice/v3-1/narr node scripts/record.mjs /tmp/rec1 scripts/demo-gwangalli.json`(2편은 v3-2·demo-gongsi.json)로 뽑았다 — 로그에 `없음` 없음. 옛 목소리는 `design/voice/old-2026-09-17b/`.
 - 아래는 v2 대본(`demo-busan.json`, 조새호 포함) 절차 — 그대로 남긴다.
 
 ```

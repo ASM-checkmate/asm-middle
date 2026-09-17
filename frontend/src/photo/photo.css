@@ -9,3 +9,6 @@
 }
 @keyframes photo-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .photo--wait::after { animation: none; } }
+
+/* 서버 생성 컷(ADR-0029)은 2:3 세로라 1/1.08 컷 안에서 위아래가 잘린다 — 인물이 아래쪽에 있으니 아래를 기준으로 맞춘다 */
+.photo { object-position: 50% 88%; }

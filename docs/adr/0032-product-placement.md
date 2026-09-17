@@ -14,7 +14,7 @@ ADR-0031은 광고를 "이름·한 줄 문구·아이콘 + `AD` 알약"으로 �
 
 1.  **제품 배치는 방(RoomSpec)의 소품과 카메라 배경·생성 사진 안에서만 한다.** UI(시간표 카드·태그·칩·지도 카드)에는 로고를 넣지 않는다 —
     거기는 ADR-0031 그대로 `AD` 알약뿐이다.
-    *   삼진포차 방(`room/places/samjin.tsx`): 테이블의 소주 → 아사히 캔 둘 + 맥주잔, 카운터의 소주 상자 → 아사히 상자, 전구 줄에 "Asahi SUPER DRY" 현수막.
+    *   삼진포차 방(`room/places/samjin.tsx`): 테이블의 소주 → 아사히 캔 둘 + 맥주잔, 카운터의 소주 상자 → 아사히 상자, 매대(카운터) 앞판에 큰 "Asahi SUPER DRY" 포스터(다리 위 현수막은 오너가 빼라 해서 없다).
     *   스타벅스 부산대점 방(`room/places/starbucks.tsx`, 새 방): 테이블에 "에듀윌 공무원" 인강이 켜진 노트북 + "에듀윌 기본서" 두 권. 간판·컵은 스타벅스.
     *   포차 카메라 배경(`public/backdrops/busan/samjin-table.webp`)과 생성 사진(`public/demo/pocha-asahi.png`): 소주병 자리에 아사히 캔 —
         `scripts/asahi-asset.py`(uv + Pillow)가 그려 얹는다. 원본은 `art/backdrops/samjin-table.orig.webp`·`public/demo/pocha.png`.

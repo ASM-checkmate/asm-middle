@@ -79,6 +79,15 @@ const PROPS: RoomProp[] = [
       <path d="M8 44 v52 M156 44 v52" fill="none" {...INK2} />
       <rect x="4" y="86" width="156" height="50" rx="6" fill="var(--rm-wood)" {...INK} />
       <rect x="4" y="86" width="156" height="10" fill="var(--rm-wood-2)" />
+      {/* 아사히 포스터 — 매대 앞판에 크게 (ADR-0032; 다리 위 현수막은 뺐다, 오너 2026-09-17) */}
+      <g transform="translate(14 98)">
+        <rect x="0" y="0" width="136" height="36" rx="3" fill="var(--card)" {...INK2} />
+        <rect x="0" y="0" width="136" height="36" rx="3" fill={ASAHI_SILVER} opacity=".35" />
+        <AsahiCan x={18} y={30} />
+        <AsahiWord x={78} y={20} size={20} />
+        <text x="78" y="30" textAnchor="middle" fontSize="6.5" fontWeight="700" fontFamily="'Helvetica Neue', Arial, sans-serif" letterSpacing=".2em" fill="var(--ink)">SUPER DRY</text>
+        <path d="M4 4 l4 0 M4 4 l0 4 M132 4 l-4 0 M132 4 l0 4 M4 32 l4 0 M4 32 l0 -4 M132 32 l-4 0 M132 32 l0 -4" stroke="var(--ink)" strokeWidth="1.2" opacity=".5" />
+      </g>
       <rect x="2" y="66" width="160" height="26" rx="8" fill="var(--rm-cream)" {...INK} />
       {/* 냄비 (어묵탕) + 김 */}
       <rect x="20" y="52" width="40" height="18" rx="4" fill="var(--night-2)" {...INK2} />
@@ -144,13 +153,6 @@ const BACK = (
     {/* 전구 줄 (천막 처마) */}
     <path d="M0 8 Q98 22 195 10 Q292 22 390 8" fill="none" stroke="var(--ink)" strokeWidth="2" />
     <g fill="var(--sun)" stroke="var(--ink)" strokeWidth="1.5"><circle cx="50" cy="16" r="4" /><circle cx="120" cy="18" r="4" /><circle cx="195" cy="12" r="4" /><circle cx="270" cy="18" r="4" /><circle cx="340" cy="15" r="4" /></g>
-    {/* 아사히 현수막 (ADR-0032): 전구 줄에 매단 흰 천 — 오른쪽 위, 드론쇼(x 169..221)를 가리지 않는다 */}
-    <g transform="translate(300 40)">
-      <path d="M-48 -22 l4 -6 M48 -22 l-4 -6" stroke="var(--ink)" strokeWidth="1.5" />
-      <path d="M-50 -22 h100 v40 q-50 5 -100 0 z" fill="var(--card)" stroke="var(--ink)" strokeWidth="2.5" strokeLinejoin="round" />
-      <AsahiWord x={0} y={4} size={22} />
-      <text x="0" y="15" textAnchor="middle" fontSize="7" fontWeight="700" fontFamily="'Helvetica Neue', Arial, sans-serif" letterSpacing=".18em" fill="var(--ink)">SUPER DRY</text>
-    </g>
     {/* 유리 바람막이 + 난간 (풍경이 비쳐 보인다) */}
     <rect x="0" y="96" width="390" height="60" fill="var(--sky)" opacity=".18" />
     <path d="M0 98 h390" stroke="var(--ink)" strokeWidth="3" />

@@ -2,7 +2,7 @@
 // 셔터 뒤: 단순 합성본(크게) + 캐릭터 투명 PNG를 서버에 보내고, 배경 화풍으로 캐릭터를 다시 그린 새 media id를 받아 샷·앨범의 참조를
 // 바꾼다(store.replaceShotId). 그동안 샷은 gen 'pending'(폴라로이드 현상 중), 실패하면 'plain' — 단순 합성본이 그대로 사진이다.
 // 서버가 없거나 사용자가 없으면(오프라인) 그냥 plain. 폰 캐시에 없는 새 id는 PhotoImg가 GET /api/media/{id}로 받는다.
-import { api, currentUser } from './api';
+import { ApiError, api, currentUser } from './api';
 import { useWorld } from './store';
 import type { Look, ShotPose } from './types';
 import { bakeComposite, bakeFigure, type BakeInput } from '../photo/bake';
@@ -54,7 +54,16 @@ export async function requestShotGen(shotId: string, input: BakeInput, meta: Sho
       ...(byText ? { background: anchor, mePos: pos(input.me), friendPos: pos(input.friendPos) } : { composite: anchor }),
       me, ...(friend ? { friend } : {}), place: meta.place, spot: meta.spot, sit: !!meta.sit, mePose: meta.mePose, friendPose: meta.friendPose, backdrop: meta.backdrop,
     };
-    const r = await api<Response>(`/api/shots/${shotId}/generate`, { method: 'POST', body, timeoutMs: SHOTGEN_TIMEOUT_MS });
+    // 서버가 502(모델 속도 제한 등)면 한 번 더 — Gemini 429는 잠깐이면 풀린다
+    let r: Response;
+    try {
+      r = await api<Response>(`/api/shots/${shotId}/generate`, { method: 'POST', body, timeoutMs: SHOTGEN_TIMEOUT_MS });
+    } catch (e) {
+      if (!(e instanceof ApiError) || e.status !== 502) throw e;
+      console.info(`shotgen: 서버가 502 — 20초 뒤 한 번 더 (${shotId})`);
+      await new Promise(res => setTimeout(res, 20_000));
+      r = await api<Response>(`/api/shots/${shotId}/generate`, { method: 'POST', body, timeoutMs: SHOTGEN_TIMEOUT_MS });
+    }
     if (!r || typeof r.shotId !== 'string') throw new Error('shotgen: bad response');
     useWorld.getState().replaceShotId(shotId, r.shotId);
     return r.shotId;

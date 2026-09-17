@@ -86,8 +86,14 @@ public class GeminiImageClient {
         throw new GeminiException(502, "gemini: interrupted");
       }
       if (res.statusCode() == 429 || res.statusCode() >= 500) {
-        log.warn("gemini {} — retry {}/3", res.statusCode(), attempt);
-        try { Thread.sleep(attempt == 1 ? 3000 : 8000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new GeminiException(502, "gemini: interrupted"); }
+        // 429는 retry-after(초)를 따른다 — 없으면 6·15·30초. 폰의 제한 시간(120 s) 안에서 세 번
+        long wait = res.headers().firstValueAsLong("retry-after").orElse(0L) * 1000L;
+        if (wait <= 0) wait = attempt == 1 ? 6000 : attempt == 2 ? 15000 : 30000;
+        wait = Math.min(wait, 30000);
+        lastText = "http " + res.statusCode() + (res.statusCode() == 429 ? " rate limited" : "");
+        log.warn("gemini {} — retry {}/3 in {} ms", res.statusCode(), attempt, wait);
+        if (attempt == 3) break;
+        try { Thread.sleep(wait); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new GeminiException(502, "gemini: interrupted"); }
         continue;
       }
       JsonNode json;

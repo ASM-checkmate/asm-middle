@@ -34,6 +34,14 @@
 .tt-hill { position: absolute; top: 410px; left: -70px; right: -70px; height: 640px; border-radius: 50%; background: color-mix(in srgb, var(--leaf) 40%, var(--paper)); }
 .tt-hill2 { position: absolute; top: 442px; left: -140px; right: 46%; height: 200px; border-radius: 50%; background: color-mix(in srgb, var(--leaf) 56%, var(--paper)); }
 .tt-yard { position: absolute; left: 0; right: 0; top: 374px; height: 120px; pointer-events: none; z-index: 2; }
+/* 밤의 마당 (19시~6시): 밤하늘·달·어두운 언덕, 구름은 옅게 */
+.tt.is-night .tt-sky { background: linear-gradient(180deg, var(--night) 0%, var(--night-2) 55%, #6B6A8A 100%); }
+.tt.is-night .tt-sun { background: var(--sun-2); box-shadow: 0 0 0 7px color-mix(in srgb, var(--sun-2) 22%, transparent), 0 0 24px 6px color-mix(in srgb, var(--sun-2) 35%, transparent); }
+.tt.is-night .tt-sun::after { content: ''; position: absolute; top: -4px; left: 6px; width: 34px; height: 34px; border-radius: 50%; background: var(--night); }   /* 초승달: 어두운 원으로 가린다 */
+.tt.is-night .tt-cloud { opacity: .18; }
+.tt.is-night .tt-hill { background: color-mix(in srgb, var(--leaf) 30%, var(--night-2)); }
+.tt.is-night .tt-hill2 { background: color-mix(in srgb, var(--leaf) 40%, var(--night-2)); }
+.tt.is-night .tt-sky::after { content: ''; position: absolute; inset: 0; background-image: radial-gradient(circle, var(--card) 1.2px, transparent 1.6px), radial-gradient(circle, var(--card) 1px, transparent 1.4px); background-size: 120px 90px, 170px 130px; background-position: 20px 30px, 80px 60px; opacity: .8; height: 320px; }
 .tt-chara {
   /* 활동 화면의 캐릭터와 같은 자리(.act-chara): 머리가 ≈ y 200에서 시작해 말풍선(top 62)을 비킨다 */
   position: absolute; top: 140px; left: 50%; width: 350px; height: 350px; margin-left: -175px; z-index: 3;

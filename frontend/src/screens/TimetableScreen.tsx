@@ -412,8 +412,11 @@ export function TimetableScreen({ phase, asSheet, onClose, world, leaving }: { p
     );
   }
 
+  // 마당은 밤이면 밤하늘 — 귀가 뒤 자정까지 기다리는 화면이 낮처럼 보이지 않게 (오너 2026-09-17). 19시부터 6시 전까지
+  const hour = Number(hhmmIn(now, tz).slice(0, 2));
+  const night = hour >= 19 || hour < 6;
   return (
-    <div className={`tt ${verdict ? 'is-judging' : ''} ${skEntry ? 'has-sk-entry' : ''} ${room ? 'has-room' : ''}`}>
+    <div className={`tt ${verdict ? 'is-judging' : ''} ${skEntry ? 'has-sk-entry' : ''} ${room ? 'has-room' : ''} ${night ? 'is-night' : ''}`}>
       {room ? (
         <RoomStage room={room} log={[]} seatPose="sit" companions={[]} seed={`wait:${phase.at.id}:${phase.nextStartAt ?? 0}`} leaving={leaving} />
       ) : away ? (

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useWorld } from '../sim/store';
 import type { Phase } from '../sim/types';
-import { blockAtIn, nextBlockId } from '../sim/blocks';
+import { blockAtIn, hhmmIn, nextBlockId } from '../sim/blocks';
 import { movingPhase } from '../sim/timeline';
 import { placeById } from '../sim/places';
 import { sceneTypeFor } from '../scenes';
@@ -237,10 +237,12 @@ export function Home() {
   // 비행처럼 긴 이동을 하면 카드가 이동 내내 숨어 마감(dueAt)이 지나가 버린다 (ADR-0001 §1의 "한 번에 하나"는 보이는 것끼리의 규칙)
   const sayVisible = !!say && !showChat && !snsOpen && !activeCall && !summaryItems?.length && screen !== 'map';
 
+  // 밤(19시~6시)에 집 마당에서 기다리는 화면은 밤하늘(TimetableScreen .is-night)이라 시계 글자도 밝게
+  const nightYard = phase.kind === 'waiting' && phase.at.type === 'home' && (() => { const h = Number(hhmmIn(now, phase.tz).slice(0, 2)); return h >= 19 || h < 6; })();
   return (
     <div className={`home home--${screen}`}>
       {layers.map(l => <div key={l.key} className={l.cls}>{l.node}</div>)}
-      <TopChrome now={now} tz={phase.tz} label={chromeLabel(now, phase, homeCity)} tone={screen === 'sleep' ? 'paper' : 'ink'} onBook={() => setBookOpen(true)} onTimetable={() => setTtOpen(true)} onSns={() => setSnsOpen(true)} snsBadge={snsDraft !== null} onChat={() => setChatOpen(true)} unread={unread} scale={scale} />
+      <TopChrome now={now} tz={phase.tz} label={chromeLabel(now, phase, homeCity)} tone={screen === 'sleep' || nightYard ? 'paper' : 'ink'} onBook={() => setBookOpen(true)} onTimetable={() => setTtOpen(true)} onSns={() => setSnsOpen(true)} snsBadge={snsDraft !== null} onChat={() => setChatOpen(true)} unread={unread} scale={scale} />
       {showChat && <ChatOverlay tz={phase.tz} onClose={() => setChatOpen(false)} />}
       {/* 혼잣말: 대가 없이 지나가는 1단계 (ADR-0001 §1). 시트가 떠 있으면 자리를 비켜 주고, 지도 위(이동 중·도착 홀드)에는 안 띄운다 —
           도착 혼잣말(store tick 'arrive-ask', ADR-0004 오너 결정 6)은 활동 화면에서 보인다 */}

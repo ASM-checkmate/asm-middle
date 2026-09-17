@@ -2,7 +2,7 @@
 // 창 760×1000 @2x — `.stage`가 둥근 폰 무대가 되고(index.css @media), 왼쪽에 폰·오른쪽에 자막 패널(나레이터 + 캐릭터 독백)을 주입한다.
 // 로딩 중 프레임은 버린다(hold): goto·jump·ready 스텝 뒤 window.__demoReady()(폰트·지도 타일·시트 지도)가 참일 때까지.
 // 자막마다 TTS(나레이터: Yuna / 캐릭터: Yuna 높은 음)를 만들어 그 시점에 섞는다 — 다음 자막·전환은 목소리가 끝난 뒤.
-// steps: goto{url} · intro[독백] · introOff · say[나레이터, 독백] · click(셀렉터|[x,y]) · tapClick(셀렉터|[셀렉터,글자]) · eval · jump("HH:MM"|"+1 00:30")
+// steps: goto{url} · introShow(말풍선 없는 인트로 화면 — 그 위에서 say 나레이션은 자막 없이 목소리만) · intro[독백] · introOff · say[나레이터, 독백] · click(셀렉터|[x,y]) · tapClick(셀렉터|[셀렉터,글자]) · eval · jump("HH:MM"|"+1 00:30")
 //        · scale(n) · waitUntil{expr,max} · hold{expr,max} · dropPhoto{url,cell} · wait(ms) · mark(라벨) · waitVoice(true — 앞 say의 목소리가 끝날 때까지) · cut(영상 분할점, PART=1|2)
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -120,9 +120,12 @@ const OVERLAY = `(() => {
     else { N.classList.remove('is-on'); C.classList.remove('is-on'); }
   };
   window.__demoTap = (x, y) => { tap.style.left = x + 'px'; tap.style.top = y + 'px'; tap.classList.remove('is-on'); void tap.offsetWidth; tap.classList.add('is-on'); };
+  // 인트로 화면(캔버스 전체, 손 흔드는 모모)을 말풍선 없이 먼저 띄운다 — 첫 나레이션은 자막 없이 목소리만 (오너 2026-09-17). 그 뒤 __demoIntro(text)가 말풍선을 켠다
+  window.__demoIntroShow = () => { window.__demoIntro('\u200b'); const b = document.querySelector('#demo-intro .dc-bubble'); if (b) b.style.visibility = 'hidden'; };
   window.__demoIntro = (text) => {
     let el = document.getElementById('demo-intro');
     if (!text) { if (el) { el.classList.add('is-off'); document.querySelector('.stage')?.classList.add('demo-in'); document.getElementById('demo-notch')?.classList.add('demo-in'); setTimeout(() => el.remove(), 550); } return; }
+    if (el) { const b = el.querySelector('.dc-bubble'); b.style.visibility = ''; }
     if (!el) {
       // 몸 전체가 손을 흔든다: 앱의 데모 훅(App.tsx __demoCharacter)이 React로 wave 포즈를 그린다. 없으면 얼굴만
       el = document.createElement('div'); el.id = 'demo-intro'; el.innerHTML = '<div class="di-row"><div class="di-chara"></div><div class="dc-bubble"></div></div><small>나들이 · DEMO</small>'; document.body.appendChild(el);   // 캔버스 전체에 — 폰 안이 아니라
@@ -271,6 +274,7 @@ try {
     }
     if (s.scale) { await ev(`window.__world.getState().setScale(${Number(s.scale)})`); }
     if (s.hold) { await voiceDone(); await holdUntil(s.hold.expr ?? s.hold, s.hold.max ?? 15000); }
+    if (s.introShow) { await voiceDone(); await ev(`window.__demoIntroShow()`); await sleep(500); if (holding) { holding = false; lastKeptWall = Date.now(); } }
     if (s.intro !== undefined) { await voiceDone(); await ev(`window.__demoIntro(${JSON.stringify(s.intro)})`); await sleep(700); if (holding) { holding = false; lastKeptWall = Date.now(); } speak([s._tts?.[1]]); }
     if (s.introOff) { await voiceDone(); await sleep(400); await ev(`window.__demoIntro('')`); await sleep(1700); }   // 인트로 페이드 + 폰 슬라이드인이 끝날 때까지
     if (s.say) {

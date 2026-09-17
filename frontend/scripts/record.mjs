@@ -2,7 +2,7 @@
 // 창 760×1000 @2x — `.stage`가 둥근 폰 무대가 되고(index.css @media), 왼쪽에 폰·오른쪽에 자막 패널(나레이터 + 캐릭터 독백)을 주입한다.
 // 로딩 중 프레임은 버린다(hold): goto·jump·ready 스텝 뒤 window.__demoReady()(폰트·지도 타일·시트 지도)가 참일 때까지.
 // 자막마다 TTS(나레이터: Yuna / 캐릭터: Yuna 높은 음)를 만들어 그 시점에 섞는다 — 다음 자막·전환은 목소리가 끝난 뒤.
-// steps: goto{url} · introShow(말풍선 없는 인트로 화면 — 그 위에서 say 나레이션은 자막 없이 목소리만) · intro[독백] · introOff · say[나레이터, 독백] · click(셀렉터|[x,y]) · tapClick(셀렉터|[셀렉터,글자]) · eval · jump("HH:MM"|"+1 00:30")
+// steps: goto{url} · introShow(말풍선 없는 인트로 화면 — 그 위에서 say 나레이션은 인트로 중앙 아래 자막으로) · intro[독백] · introOff · say[나레이터, 독백] · click(셀렉터|[x,y]) · tapClick(셀렉터|[셀렉터,글자]) · eval · jump("HH:MM"|"+1 00:30")
 //        · scale(n) · waitUntil{expr,max} · hold{expr,max} · dropPhoto{url,cell} · wait(ms) · mark(라벨) · waitVoice(true — 앞 say의 목소리가 끝날 때까지) · cut(영상 분할점, PART=1|2)
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -97,6 +97,10 @@ const OVERLAY = `(() => {
     #demo-intro .dc-bubble::before { content: ''; position: absolute; left: 50%; top: -14px; margin-left: -8px; border: 8px solid transparent; border-bottom-color: #2A2118; border-top: 0; }
     #demo-intro .dc-bubble::after { content: ''; position: absolute; left: 50%; top: -10px; margin-left: -6px; border: 6px solid transparent; border-bottom-color: #FFFFFF; border-top: 0; }
     #demo-intro small { font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; letter-spacing: .14em; color: #A08C76; }
+    /* 인트로 위의 나레이션 자막 — 화면 중앙 아래 (오너 2026-09-17: 첫 나레이션은 인트로에서, 자막은 중앙 아래) */
+    #demo-intro .di-narr { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); width: 560px; background: rgba(42,33,24,.86); border-radius: 16px; padding: 16px 22px; opacity: 0; transition: opacity .3s ease; }
+    #demo-intro .di-narr.is-on { opacity: 1; }
+    #demo-intro .di-narr p { margin: 0; font-size: 22px; line-height: 1.5; color: #FFF6E6; font-weight: 500; text-align: center; word-break: keep-all; }
     #demo-drop { position: fixed; z-index: 10001; pointer-events: none; background: #FFFFFF; border: 2px solid #2A2118; border-radius: 6px; padding: 8px 8px 28px; box-shadow: 6px 8px 0 rgba(42,33,24,.35); }
     #demo-drop img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 3px; }
   \`;
@@ -115,6 +119,12 @@ const OVERLAY = `(() => {
   // 한 번에 하나: 나레이터 자막이 뜨면 모모는 숨고, 모모 차례엔 얼굴+대사만
   window.__demoSay = (n, c) => {
     const N = cap.querySelector('.dc-n'), C = cap.querySelector('.dc-c');
+    const intro = document.getElementById('demo-intro');
+    if (intro) {   // 인트로 화면 위에서는 옆 패널이 안 보인다 — 나레이션은 인트로 중앙 아래 칸에
+      let d = intro.querySelector('.di-narr'); if (!d) { d = document.createElement('div'); d.className = 'di-narr'; d.innerHTML = '<p></p>'; intro.appendChild(d); }
+      if (n) { d.querySelector('p').textContent = n; d.classList.add('is-on'); } else d.classList.remove('is-on');
+      N.classList.remove('is-on'); C.classList.remove('is-on'); return;
+    }
     if (n) { N.querySelector('p').textContent = n; N.classList.add('is-on'); C.classList.remove('is-on'); }
     else if (c) { C.querySelector('.dc-bubble').textContent = c; C.classList.add('is-on'); N.classList.remove('is-on'); }
     else { N.classList.remove('is-on'); C.classList.remove('is-on'); }
@@ -275,7 +285,8 @@ try {
     if (s.scale) { await ev(`window.__world.getState().setScale(${Number(s.scale)})`); }
     if (s.hold) { await voiceDone(); await holdUntil(s.hold.expr ?? s.hold, s.hold.max ?? 15000); }
     if (s.introShow) { await voiceDone(); await ev(`window.__demoIntroShow()`); await sleep(500); if (holding) { holding = false; lastKeptWall = Date.now(); } }
-    if (s.intro !== undefined) { await voiceDone(); await ev(`window.__demoIntro(${JSON.stringify(s.intro)})`); await sleep(700); if (holding) { holding = false; lastKeptWall = Date.now(); } speak([s._tts?.[1]]); }
+    // intro: 말풍선이 뜨면 인트로 아래 나레이션 자막(__demoSay가 인트로 위에서 쓰는 칸)은 지운다
+    if (s.intro !== undefined) { await voiceDone(); await ev(`window.__demoSay('', ''); window.__demoIntro(${JSON.stringify(s.intro)})`); await sleep(700); if (holding) { holding = false; lastKeptWall = Date.now(); } speak([s._tts?.[1]]); }
     // 인트로가 걷힐 때 자막 패널도 비운다 — 인트로 위에서 한 나레이션(introShow)의 자막이 폰 뒤에 남아 있다가 보이지 않게 (오너 2026-09-17)
     if (s.introOff) { await voiceDone(); await sleep(400); await ev(`window.__demoSay('', ''); window.__demoIntro('')`); await sleep(1700); }   // 인트로 페이드 + 폰 슬라이드인이 끝날 때까지
     if (s.say) {

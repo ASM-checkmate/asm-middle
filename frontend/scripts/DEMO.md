@@ -11,7 +11,7 @@ cp /tmp/rec1/demo.mp4 ../design/out/nadeuli-demo-busan-$(date +%F)-1-v3.mp4   # 
 cp /tmp/rec2/demo.mp4 ../design/out/nadeuli-demo-busan-$(date +%F)-2-v3.mp4
 ```
 
-- **1편 `demo-gwangalli.json`** (에이전트가 잘 노는 것): 첫 화면(모모 손 흔드는 인트로, 말풍선 없이)에서 **나레이션 "나들이는 …"을 자막 없이 목소리만**(`introShow` 스텝, 오너 2026-09-17) → 말풍선 "안녕 나는 모모야" → 부산대(민수) → 지하철 → **삼진포차**(18:37 도착, 저녁·밤 둘 다 포차라 20:00엔 이동 없이 활동만 바뀐다)
+- **1편 `demo-gwangalli.json`** (에이전트가 잘 노는 것): 첫 화면(모모 손 흔드는 인트로, 말풍선 없이)에서 **나레이션 "나들이는 …"을 화면 중앙 아래 자막으로**(`introShow` 스텝 — 인트로 위에선 `__demoSay`가 옆 패널 대신 인트로 아래 칸에 쓴다, 오너 2026-09-17) → 말풍선 "안녕 나는 모모야" → 부산대(민수) → 지하철 → **삼진포차**(18:37 도착, 저녁·밤 둘 다 포차라 20:00엔 이동 없이 활동만 바뀐다)
   → **"위하여~ 🍻" + 테이블 사진(`pocha-asahi.png`)** → 20:55 드론쇼 → 민수랑 둘이 사진 → "다음에 또 오자"로 끝. **조새호·해변·시간표·친구 마주침·귀가·SNS 없음**(오너 2026-09-17: 학교에서 바로 포차로, 광안리에서 놀고 끝).
   술 광고는 포차 방·카메라 배경·생성 사진의 **아사히 제품 배치**(ADR-0032)로만 — 모모는 브랜드를 말하지 않는다. 그림은 `uv run --with pillow scripts/asahi-asset.py`가 만든다
   (`public/demo/asahi-can.png`·`pocha-asahi.png`, `public/backdrops/busan/samjin-table.webp`를 `art/backdrops/samjin-table.orig.webp`에서 다시 그린다).

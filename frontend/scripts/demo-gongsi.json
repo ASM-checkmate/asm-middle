@@ -1,0 +1,290 @@
+[
+  {
+    "goto": "http://localhost:5173/?scenario=gongsi&reset=1&day=2026-09-15",
+    "load": 7000,
+    "keepHold": true,
+    "mark": "0 인트로"
+  },
+  {
+    "intro": "안녕 나는 모모야! 오늘은 공부하는 날이야 📚",
+    "wait": 600
+  },
+  {
+    "introOff": true,
+    "wait": 300
+  },
+  {
+    "jump": "9:40",
+    "say": [
+      "나들이의 캐릭터는 스스로 하루를 계획하고, 그대로 살아갑니다.",
+      "스타벅스에서 공부 시작! 아메리카노 한 잔 ☕"
+    ],
+    "mark": "1 스타벅스",
+    "wait": 800
+  },
+  {
+    "waitVoice": true,
+    "say": [
+      "가게 방문이 광고일 땐 장소 태그에 AD 표시가 붙습니다.",
+      ""
+    ],
+    "wait": 300
+  },
+  {
+    "eval": "window.__world.getState().chooseOption('night', 'gongsi-night-alt0', 'agent')"
+  },
+  {
+    "waitVoice": true,
+    "say": [
+      "하루 일정은 캐릭터가 취향대로 짜 두고, 사용자는 카드로 바꿀 수 있습니다.",
+      ""
+    ],
+    "wait": 400
+  },
+  {
+    "tapClick": ".chrome-tt",
+    "wait": 400
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.tt-sheet')",
+      "max": 5000
+    },
+    "wait": 1600
+  },
+  {
+    "eval": "window.__world.getState().selectBlock('night')",
+    "wait": 900
+  },
+  {
+    "waitVoice": true,
+    "say": [
+      "",
+      "밤엔 스트레스 풀러 코노 가자! 🎤"
+    ],
+    "mark": "1 시간표 밤",
+    "wait": 900
+  },
+  {
+    "tapClick": [
+      ".opt",
+      "코인노래방"
+    ],
+    "wait": 900
+  },
+  {
+    "tapClick": ".tt-cta",
+    "wait": 1200
+  },
+  {
+    "waitVoice": true,
+    "tapClick": ".tt-close",
+    "wait": 700
+  },
+  {
+    "say": [
+      "기록하고 싶은 순간엔 사진을 찍어 앨범에 남깁니다.",
+      "공부 인증샷 한 장 📸"
+    ],
+    "mark": "2 사진",
+    "wait": 300
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 15000
+    }
+  },
+  {
+    "waitVoice": true,
+    "click": ".room-shoot",
+    "wait": 2200
+  },
+  {
+    "click": ".cam-shutter",
+    "wait": 2600
+  },
+  {
+    "tapClick": ".cam-x",
+    "wait": 900
+  },
+  {
+    "jump": "10:40",
+    "say": [
+      "근처의 에이전트와 친구가 될 수 있습니다.",
+      "현이도 공시생이래! 우리 같이 힘내자 💪"
+    ],
+    "mark": "3 친구",
+    "wait": 3500
+  },
+  {
+    "waitVoice": true,
+    "say": [
+      "한번 가보고 싶다면 지도에서 가게를 바로 찾아보세요.",
+      ""
+    ],
+    "mark": "3 장소 지도",
+    "wait": 400
+  },
+  {
+    "click": ".act-map-btn"
+  },
+  {
+    "hold": {
+      "expr": "window.__demoReady && window.__demoReady()",
+      "max": 15000
+    },
+    "wait": 3000
+  },
+  {
+    "tapClick": ".ps-x",
+    "wait": 900
+  },
+  {
+    "say": [
+      "",
+      "공부 끝! 코노로 출발 🚶"
+    ],
+    "mark": "4 출발",
+    "wait": 600
+  },
+  {
+    "waitVoice": true,
+    "scale": 5
+  },
+  {
+    "jump": "20:01",
+    "scale": 15,
+    "say": [
+      "이동은 진짜 지도 위에서 하고, 실제 걸리는 시간만큼 걸립니다.",
+      ""
+    ],
+    "mark": "4 걸어서 이동"
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.act') && !document.querySelector('.map-scene')",
+      "max": 60000
+    },
+    "mark": "4 도착"
+  },
+  {
+    "scale": 30,
+    "hold": {
+      "expr": "!!document.querySelector('.room')",
+      "max": 8000
+    },
+    "wait": 800
+  },
+  {
+    "say": [
+      "",
+      "코노 도착! 오늘은 목 터져라 부른다 🎤"
+    ],
+    "mark": "5 코인노래방",
+    "wait": 300
+  },
+  {
+    "eval": "document.querySelectorAll('.room-zone')[1].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))",
+    "wait": 4000
+  },
+  {
+    "eval": "document.querySelectorAll('.room-zone')[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))",
+    "wait": 3500
+  },
+  {
+    "say": [
+      "",
+      "스트레스 다 날아간다~ 한 곡 더! ♪"
+    ],
+    "wait": 5000
+  },
+  {
+    "waitVoice": true,
+    "scale": 5
+  },
+  {
+    "jump": "23:44",
+    "scale": 45,
+    "say": [
+      "귀가 택시는 제휴 광고입니다.",
+      ""
+    ],
+    "mark": "6 택시"
+  },
+  {
+    "waitUntil": {
+      "expr": "!document.querySelector('.map-scene')",
+      "max": 30000
+    },
+    "mark": "6 도착"
+  },
+  {
+    "waitVoice": true,
+    "scale": 30
+  },
+  {
+    "jump": "+1 0:40",
+    "mark": "7 잠 화면"
+  },
+  {
+    "hold": {
+      "expr": "window.__demoReady && window.__demoReady()",
+      "max": 8000
+    },
+    "wait": 300
+  },
+  {
+    "say": [
+      "",
+      "아, 스트레스 다 풀렸다. 내일도 공부 화이팅."
+    ],
+    "mark": "7 집",
+    "wait": 4500
+  },
+  {
+    "say": [
+      "",
+      "자기 전에 SNS나 한번 봐 볼까?"
+    ],
+    "mark": "7 SNS",
+    "wait": 300
+  },
+  {
+    "tapClick": ".chrome-sns",
+    "wait": 1500
+  },
+  {
+    "tapClick": [
+      ".sns-tabs button",
+      "친구"
+    ],
+    "wait": 600
+  },
+  {
+    "say": [
+      "친구의 활동을 SNS에서 확인할 수 있습니다.",
+      ""
+    ],
+    "wait": 3200
+  },
+  {
+    "eval": "(() => { const b = [...document.querySelectorAll('button[aria-label=\"닫기\"]')].at(-1); if (!b) return 'no close'; const r = b.getBoundingClientRect(); window.__demoTap(r.left + r.width / 2, r.top + r.height / 2); setTimeout(() => b.click(), 150); return 'sns closed'; })()",
+    "wait": 1200
+  },
+  {
+    "say": [
+      "",
+      "나 이제 졸려. 잘게 😴"
+    ],
+    "mark": "8 잠",
+    "wait": 3500
+  },
+  {
+    "say": [
+      "",
+      ""
+    ],
+    "wait": 800
+  }
+]

@@ -1,0 +1,298 @@
+[
+  {
+    "goto": "http://localhost:5173/?scenario=gwangalli&reset=1&day=2026-09-15",
+    "load": 7000,
+    "keepHold": true,
+    "mark": "0 인트로"
+  },
+  {
+    "intro": "안녕 나는 모모야! 오늘 내 하루를 구경해볼래?",
+    "wait": 600
+  },
+  {
+    "introOff": true,
+    "wait": 300
+  },
+  {
+    "jump": "16:20",
+    "say": [
+      "나들이는 능동적으로 살아가는 에이전트의 세계입니다. 우리 캐릭터는 스스로 하루를 살아갑니다.",
+      "민수야, 수업 끝나면 광안리 가자! 오늘 드론쇼 한대 🚁"
+    ],
+    "mark": "1 부산대",
+    "wait": 800
+  },
+  {
+    "waitVoice": true,
+    "wait": 1200
+  },
+  {
+    "jump": "18:10",
+    "scale": 30,
+    "say": [
+      "",
+      "광안리로 슝~ 🚇"
+    ],
+    "mark": "2 지하철",
+    "wait": 500
+  },
+  {
+    "scale": 400,
+    "mark": "2 이동"
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.act') && !document.querySelector('.map-scene')",
+      "max": 45000
+    },
+    "mark": "2 도착"
+  },
+  {
+    "scale": 30
+  },
+  {
+    "hold": {
+      "expr": "!!document.querySelector('.room')",
+      "max": 8000
+    },
+    "wait": 800
+  },
+  {
+    "say": [
+      "",
+      "바다다~! 파도 소리 들린다 🌊"
+    ],
+    "mark": "3 광안리 해변",
+    "wait": 300
+  },
+  {
+    "eval": "document.querySelectorAll('.room-zone')[1].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))",
+    "wait": 5000
+  },
+  {
+    "say": [
+      "",
+      "발 담그니까 시원해. 해 지는 것 좀 봐 🌅"
+    ],
+    "wait": 4500
+  },
+  {
+    "say": [
+      "",
+      "배고프다~ 포차로 슬슬 가자 🚶"
+    ],
+    "mark": "3 해변 출발",
+    "wait": 600
+  },
+  {
+    "waitVoice": true,
+    "scale": 5
+  },
+  {
+    "jump": "20:01",
+    "scale": 15,
+    "mark": "3 걸어서 이동"
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.act') && !document.querySelector('.map-scene')",
+      "max": 60000
+    },
+    "mark": "3 도착"
+  },
+  {
+    "scale": 30,
+    "hold": {
+      "expr": "!!document.querySelector('.room')",
+      "max": 8000
+    },
+    "wait": 800
+  },
+  {
+    "say": [
+      "",
+      "역시 밤에는 포차지~ 드론쇼 잘 보이는 자리 잡았다!"
+    ],
+    "mark": "4 포차",
+    "wait": 300
+  },
+  {
+    "eval": "document.querySelectorAll('.room-zone')[2].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 9000
+    },
+    "wait": 400
+  },
+  {
+    "say": [
+      "",
+      "민수야, 오늘 수고했어. 위하여~ 🍻"
+    ],
+    "mark": "4 짠",
+    "wait": 300
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 15000
+    }
+  },
+  {
+    "waitVoice": true,
+    "say": [
+      "",
+      "짠! 이 순간은 찍어 둬야지 📸"
+    ],
+    "wait": 200
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 15000
+    }
+  },
+  {
+    "click": ".room-shoot",
+    "wait": 2200
+  },
+  {
+    "click": ".cam-shutter",
+    "wait": 2400
+  },
+  {
+    "dropPhoto": {
+      "url": "/demo/pocha-asahi.png",
+      "cell": 0
+    },
+    "wait": 1500
+  },
+  {
+    "tapClick": ".cam-x",
+    "wait": 900
+  },
+  {
+    "say": [
+      "",
+      "와, 드론쇼 시작한다! 드론 너무 예쁘다. 사람도 완전 많아."
+    ],
+    "mark": "5 드론쇼",
+    "wait": 300,
+    "jump": "20:55"
+  },
+  {
+    "eval": "document.querySelectorAll('.room-zone')[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
+  },
+  {
+    "wait": 9000
+  },
+  {
+    "say": [
+      "",
+      "봉주르~ 우리 친구해요!"
+    ],
+    "mark": "5 친구",
+    "wait": 3000
+  },
+  {
+    "waitUntil": {
+      "expr": "(() => { const d = new Date(window.__world.getState().now); return d.getHours() * 60 + d.getMinutes() >= 21 * 60 + 5; })()",
+      "max": 30000
+    }
+  },
+  {
+    "say": [
+      "",
+      "다같이 치즈~ 📸"
+    ],
+    "mark": "5 드론쇼 사진",
+    "wait": 300
+  },
+  {
+    "eval": "document.querySelectorAll('.room-zone')[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 9000
+    },
+    "wait": 400
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 15000
+    }
+  },
+  {
+    "click": ".room-shoot",
+    "wait": 2200
+  },
+  {
+    "click": ".cam-shutter",
+    "wait": 2600
+  },
+  {
+    "tapClick": ".cam-x",
+    "wait": 900
+  },
+  {
+    "say": [
+      "",
+      ""
+    ],
+    "wait": 1500
+  },
+  {
+    "jump": "23:44",
+    "scale": 150,
+    "say": [
+      "",
+      "오늘 진짜 잘 놀았다. 집 가자~ 🚕"
+    ],
+    "mark": "6 택시"
+  },
+  {
+    "waitUntil": {
+      "expr": "window.__world.getState().phase.kind === 'sleeping' && !!document.querySelector('.room')",
+      "max": 40000
+    },
+    "mark": "6 도착"
+  },
+  {
+    "scale": 30
+  },
+  {
+    "hold": {
+      "expr": "!!document.querySelector('.room')",
+      "max": 5000
+    },
+    "wait": 300
+  },
+  {
+    "say": [
+      "",
+      "아, 이제 누워야겠다. 민수랑 내일 또 놀아야지."
+    ],
+    "mark": "7 집",
+    "wait": 4500
+  },
+  {
+    "jump": "0:45",
+    "say": [
+      "",
+      "나 이제 졸려. 잘게 😴"
+    ],
+    "mark": "8 잠",
+    "wait": 3500
+  },
+  {
+    "say": [
+      "",
+      ""
+    ],
+    "wait": 800
+  }
+]

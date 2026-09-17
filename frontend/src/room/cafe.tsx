@@ -121,7 +121,7 @@ const CUES: Record<string, Cue> = {
   '두 잔째 고민 중': { go: 'counter', then: 'seat', at: 'counter', say: '☕ 한 잔 더?', pose: 'think' },
   '창밖 구경': { go: 'window', pose: 'think', say: '👀' },
 };
-function cueOf(line: LogLine): Cue | null {
+export function cueOf(line: LogLine): Cue | null {
   if (line.fx) return { kind: 'fx' };
   if (line.text.startsWith('도착')) return { go: 'counter', then: 'seat', at: 'counter', say: '주문할게요' };
   if (/원 씀$/.test(line.text)) return { go: 'counter', then: 'seat', at: 'counter', say: `−${line.text.replace(' 씀', '')}`, kind: 'money' };

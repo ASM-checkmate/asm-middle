@@ -109,6 +109,11 @@ export const PLACES: Place[] = [
   // 손님 NPC의 집 (ADR-0031 — 부산 데모의 프랑스 관광객 루이·클로에). 활동 장소로는 안 뽑힌다 (home)
   P('paris-home', '파리 집', 'home', 2.3522, 48.8566, '마레', 'paris', 'FR', '🏠'),
   P('paradise-busan', '파라다이스 호텔 부산', 'hotel', 129.1655, 35.1592, '해운대', 'busan', 'KR', '🏨'),
+  // 공시생 데모 시나리오 (`?scenario=gongsi`): 부산대 앞 — 집(장전동)에서 다 걸어간다. 스타벅스·코인노래방은 장소별 방(room/places)이 있다
+  P('starbucks-pnu', '스타벅스 부산대점', 'cafe', 129.0866, 35.2308, '장전동', 'busan', 'KR', '☕'),
+  P('coin-noraebang-pnu', '코인노래방 부산대점', 'arcade', 129.0878, 35.2313, '장전동', 'busan', 'KR', '🎤'),
+  P('pnu-library', '부산대학교 도서관', 'library', 129.0829, 35.2340, '장전동', 'busan', 'KR', '📚'),
+  P('oncheoncheon', '온천천 시민공원', 'river', 129.0888, 35.2266, '장전동', 'busan', 'KR', '🌊'),
 
   // ── 강릉 ──────────────────────────────────────────────────────────────────
   P('gangneung-station', '강릉역', 'station', 128.8990, 37.7640, '교동', 'gangneung', 'KR', '🚄'),

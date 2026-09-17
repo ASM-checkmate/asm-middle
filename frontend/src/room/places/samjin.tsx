@@ -20,22 +20,44 @@ const CheckDefs = ({ id }: { id: string }) => (
   </defs>
 );
 
-/** 소주병 + 잔 둘 + 안주 접시 */
-const Soju = ({ x, y }: { x: number; y: number }) => (
+const ASAHI_RED = '#C8102E', ASAHI_SILVER = '#DCE1E7', ASAHI_SILVER2 = '#B9C1CB';
+/** 아사히 로고 글자 — 은색 캔·상자·현수막이 같은 것을 쓴다 (ADR-0032 제품 배치) */
+const AsahiWord = ({ x, y, size }: { x: number; y: number; size: number }) => (
+  <text x={x} y={y} textAnchor="middle" fontSize={size} fontWeight="900" fontStyle="italic" fontFamily="'Helvetica Neue', Arial, sans-serif" letterSpacing="-0.02em" fill={ASAHI_RED}>Asahi</text>
+);
+/** 아사히 슈퍼드라이 캔: 은색 몸통 + 빨간 로고 띠 */
+const AsahiCan = ({ x, y }: { x: number; y: number }) => (
   <g transform={`translate(${x} ${y})`}>
-    <path d="M-5 -6 h10 v-8 q0 -4 -5 -4 q-5 0 -5 4 z" fill="var(--leaf)" {...INK2} />
-    <rect x="-4" y="-22" width="8" height="6" rx="2" fill="var(--sun)" {...INK2} />
-    <rect x="-5" y="-6" width="10" height="16" rx="2" fill="#4B9C5A" {...INK2} />
-    <rect x="-3" y="-2" width="6" height="7" rx="1" fill="var(--card)" opacity=".9" />
-    <path d="M14 -2 h9 l-1 9 h-7 z" fill="var(--sky-2)" {...INK2} />
-    <path d="M-24 -2 h9 l-1 9 h-7 z" fill="var(--sky-2)" {...INK2} />
+    <rect x="-6" y="-24" width="12" height="30" rx="2.5" fill={ASAHI_SILVER} {...INK2} />
+    <rect x="-6" y="-24" width="12" height="3" rx="1.5" fill={ASAHI_SILVER2} />
+    <rect x="-6" y="-13" width="12" height="9" fill="var(--card)" />
+    <AsahiWord x={0} y={-6} size={5} />
+    <path d="M-3 -21 v20" stroke="var(--card)" strokeWidth="1.5" opacity=".7" />
+  </g>
+);
+/** 맥주잔: 노란 맥주 + 흰 거품 */
+const BeerGlass = ({ x, y }: { x: number; y: number }) => (
+  <g transform={`translate(${x} ${y})`}>
+    <path d="M-5 -10 h10 l-1 14 h-8 z" fill="var(--sun)" {...INK2} />
+    <path d="M-6 -10 h12 v3 h-12 z" fill="var(--card)" {...INK2} />
+    <path d="M5 -7 a4 4 0 0 1 0 8" fill="none" {...INK2} />
+  </g>
+);
+
+/** 아사히 캔 둘 + 맥주잔 둘 — 소주 대신 (데모 1편 v3의 술 광고) */
+const Asahi = ({ x, y }: { x: number; y: number }) => (
+  <g transform={`translate(${x} ${y})`}>
+    <AsahiCan x={-4} y={2} />
+    <AsahiCan x={10} y={4} />
+    <BeerGlass x={26} y={4} />
+    <BeerGlass x={-22} y={4} />
   </g>
 );
 
 const table = Desk({ w: 136, d: 46, top: `url(#${CHECK})`, side: 'var(--night-2)', children: (
   <>
     <CheckDefs id={CHECK} />
-    <Soju x={52} y={32} />
+    <Asahi x={52} y={30} />
     {/* 안주: 접시 위 꼬치 */}
     <ellipse cx="108" cy="30" rx="18" ry="8" fill="var(--card)" {...INK2} />
     <path d="M96 30 h24 M100 27 h16" stroke="var(--coral)" strokeWidth="4" strokeLinecap="round" />
@@ -62,9 +84,10 @@ const PROPS: RoomProp[] = [
       <rect x="20" y="52" width="40" height="18" rx="4" fill="var(--night-2)" {...INK2} />
       <rect x="16" y="48" width="48" height="7" rx="3" fill="var(--night)" {...INK2} />
       <g fill="none" stroke="var(--ink-3)" strokeWidth="2" strokeLinecap="round" className="room-steam"><path d="M32 46 q2 -4 0 -8" /><path d="M42 44 q2 -4 0 -8" /></g>
-      {/* 소주 상자 */}
-      <rect x="84" y="46" width="30" height="24" rx="3" fill="var(--leaf)" {...INK2} />
-      <path d="M90 52 v12 M99 52 v12 M108 52 v12" stroke="var(--ink)" strokeWidth="2" opacity=".5" />
+      {/* 아사히 맥주 상자 (ADR-0032) */}
+      <rect x="82" y="46" width="34" height="24" rx="3" fill={ASAHI_SILVER} {...INK2} />
+      <rect x="82" y="46" width="34" height="5" fill={ASAHI_SILVER2} />
+      <AsahiWord x={99} y={64} size={9} />
       {/* 잔 더미 */}
       <path d="M126 58 h10 l-1 12 h-8 z M138 58 h10 l-1 12 h-8 z" fill="var(--sky-2)" {...INK2} />
     </>
@@ -121,6 +144,13 @@ const BACK = (
     {/* 전구 줄 (천막 처마) */}
     <path d="M0 8 Q98 22 195 10 Q292 22 390 8" fill="none" stroke="var(--ink)" strokeWidth="2" />
     <g fill="var(--sun)" stroke="var(--ink)" strokeWidth="1.5"><circle cx="50" cy="16" r="4" /><circle cx="120" cy="18" r="4" /><circle cx="195" cy="12" r="4" /><circle cx="270" cy="18" r="4" /><circle cx="340" cy="15" r="4" /></g>
+    {/* 아사히 현수막 (ADR-0032): 전구 줄에 매단 흰 천 — 오른쪽 위, 드론쇼(x 169..221)를 가리지 않는다 */}
+    <g transform="translate(300 40)">
+      <path d="M-48 -22 l4 -6 M48 -22 l-4 -6" stroke="var(--ink)" strokeWidth="1.5" />
+      <path d="M-50 -22 h100 v40 q-50 5 -100 0 z" fill="var(--card)" stroke="var(--ink)" strokeWidth="2.5" strokeLinejoin="round" />
+      <AsahiWord x={0} y={4} size={22} />
+      <text x="0" y="15" textAnchor="middle" fontSize="7" fontWeight="700" fontFamily="'Helvetica Neue', Arial, sans-serif" letterSpacing=".18em" fill="var(--ink)">SUPER DRY</text>
+    </g>
     {/* 유리 바람막이 + 난간 (풍경이 비쳐 보인다) */}
     <rect x="0" y="96" width="390" height="60" fill="var(--sky)" opacity=".18" />
     <path d="M0 98 h390" stroke="var(--ink)" strokeWidth="3" />

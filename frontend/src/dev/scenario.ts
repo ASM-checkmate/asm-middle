@@ -52,6 +52,54 @@ export const SCENARIOS: Record<string, Scenario> = {
         meet: { agentIds: ['louis', 'chloe'], from: [21, 0], to: [23, 30], at: [21, 5] } },
     },
   },
+  // 데모 1편 v3 (2026-09-17, 오너): "에이전트가 잘 논다" — 조새호 없이 부산대 → 광안리 해변 → 삼진포차(아사히 짠, 드론쇼) → 집.
+  // 술 광고는 포차 방·사진의 아사히 제품 배치(ADR-0032)로 보인다 — 모모 대사엔 브랜드도 광고도 없다 ("짠", "위하여")
+  gwangalli: {
+    key: 'gwangalli',
+    startAt: [15, 55],
+    scale: 30,
+    home: 'busan-home',
+    blocks: {
+      pm: { title: '부산대에서 민수랑 수업 듣기', reason: '오후 수업, 끝나면 같이 광안리로', emoji: '🏫', placeId: 'pnu', category: 'study', friendId: 'minsu' },
+      // 저녁은 해변에서 놀기 (광고 아님) — 지하철로 광안리까지
+      evening: { title: '광안리에서 민수랑 바다 보기', reason: '해 지는 바다, 발 담그고', emoji: '🌉', placeId: 'gwangalli', category: 'play', friendId: 'minsu',
+        alts: [
+          { title: '해운대에서 민수랑 모래 놀이', reason: '넓은 해변', emoji: '🏖️', placeId: 'haeundae', friendId: 'minsu' },
+          { title: '동백섬 산책', reason: '바다 보면서 걷기', emoji: '🌺', placeId: 'dongbaek-island', friendId: 'minsu' },
+        ] },
+      // 밤은 해변 바로 옆 포차(광고 가게) — 걸어서 2분. 드론쇼(21:00)에 루이·클로에가 옆자리에
+      night: { title: '삼진포차에서 민수랑 한잔', reason: '드론쇼 보고 바다 앞에서', emoji: '🍻', placeId: 'samjin-pocha', category: 'play', friendId: 'minsu', sponsored: true,
+        alts: [
+          { title: '광안리 모래밭에서 민수랑 드론쇼', reason: '앉아서 보는 것도 좋지', emoji: '🚁', placeId: 'gwangalli', friendId: 'minsu' },
+          { title: '자갈치시장에서 민수랑 꼼장어', reason: '부산 왔으면 자갈치', emoji: '🦑', placeId: 'jagalchi-market', friendId: 'minsu' },
+        ],
+        meet: { agentIds: ['louis', 'chloe'], from: [21, 0], to: [23, 30], at: [21, 5] } },
+    },
+  },
+  // 데모 2편 v3 (2026-09-17, 오너): "기능 소개" — 공시생의 하루. 스타벅스에서 하루 종일 공부(에듀윌 교재, 광고 가게), 저녁은 집, 밤은 코인노래방.
+  // 시간표 장면에서 사용자가 밤 카드를 코인노래방으로 실제로 바꾼다. 10:20에 현이(책·공부·카페 취향)가 옆자리에서 말을 튼다
+  gongsi: {
+    key: 'gongsi',
+    startAt: [9, 30],
+    scale: 30,
+    home: 'busan-home',
+    blocks: {
+      am: { title: '스타벅스에서 에듀윌 기본서 공부', reason: '아침엔 머리가 제일 잘 돌아감', emoji: '📚', placeId: 'starbucks-pnu', category: 'study', sponsored: true,
+        alts: [
+          { title: '부산대 도서관에서 공부', reason: '조용한 열람실', emoji: '🏛️', placeId: 'pnu-library' },
+          { title: '집에서 인강 듣기', reason: '이불 밖은 위험', emoji: '💻', placeId: 'busan-home' },
+        ],
+        meet: { agentIds: ['hyeon'], from: [10, 0], to: [12, 0], at: [10, 20] } },
+      lunch: { title: '스타벅스에서 샌드위치로 점심', reason: '자리 뺏기기 싫어서', emoji: '🥪', placeId: 'starbucks-pnu', category: 'meal', sponsored: true },
+      pm: { title: '스타벅스에서 기출문제 풀기', reason: '오후엔 문제 풀이', emoji: '✏️', placeId: 'starbucks-pnu', category: 'study', sponsored: true },
+      evening: { title: '집에서 저녁 먹고 한숨 돌리기', reason: '엄마 반찬', emoji: '🍚', placeId: 'busan-home', category: 'meal' },
+      night: { title: '코인노래방에서 스트레스 풀기', reason: '하루 종일 공부했으니까', emoji: '🎤', placeId: 'coin-noraebang-pnu', category: 'play',
+        alts: [
+          { title: '집에서 넷플릭스 보기', reason: '누워서 한 편', emoji: '📺', placeId: 'busan-home' },
+          { title: '온천천에서 밤 산책', reason: '바람 쐬기', emoji: '🌊', placeId: 'oncheoncheon' },
+        ] },
+    },
+  },
 };
 
 /**

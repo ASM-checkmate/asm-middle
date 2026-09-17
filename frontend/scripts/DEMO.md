@@ -1,10 +1,31 @@
 # 데모 영상 만들기 (부산 시나리오)
 
+## v3 (2026-09-17, 오너): 대본 둘 — 1편 광안리(노는 것) · 2편 공시생(기능)
+
 ```
 cd frontend
 npm run dev                      # vite 5173이 떠 있어야 한다 (백엔드는 없어도 된다 — 로그인 화면이 뜨면 스크립트가 "오프라인으로 시작"을 누른다)
+node scripts/record.mjs /tmp/rec1 scripts/demo-gwangalli.json   # 1편 — ?scenario=gwangalli
+node scripts/record.mjs /tmp/rec2 scripts/demo-gongsi.json      # 2편 — ?scenario=gongsi
+cp /tmp/rec1/demo.mp4 ../design/out/nadeuli-demo-busan-$(date +%F)-1-v3.mp4   # design/out/ 은 gitignore. 같은 날 다시 뽑으면 덮어쓰지 말고 -v2, -v3… (오너)
+cp /tmp/rec2/demo.mp4 ../design/out/nadeuli-demo-busan-$(date +%F)-2-v3.mp4
+```
+
+- **1편 `demo-gwangalli.json`** (에이전트가 잘 노는 것): 인트로 → 부산대(민수, 나레이션 한 줄) → 지하철 → **광안리 해변**(놀기, 방은 기본 해변 방) → 걸어서 삼진포차
+  → **"위하여~ 🍻" + 테이블 사진(`pocha-asahi.png`)** → 20:55 드론쇼·루이·클로에·단체 사진 → 택시 → 집 → 잠. **조새호·시간표·SNS 없음.**
+  술 광고는 포차 방·카메라 배경·생성 사진의 **아사히 제품 배치**(ADR-0032)로만 — 모모는 브랜드를 말하지 않는다. 그림은 `uv run --with pillow scripts/asahi-asset.py`가 만든다
+  (`public/demo/asahi-can.png`·`pocha-asahi.png`, `public/backdrops/busan/samjin-table.webp`를 `art/backdrops/samjin-table.orig.webp`에서 다시 그린다).
+- **2편 `demo-gongsi.json`** (기능 소개, 공시생의 하루): 인트로 → 9:40 스타벅스 부산대점(에듀윌 교재·노트북, AD 태그 나레이션) → **시간표**(밤 카드를 집→코인노래방으로 사용자가 바꾼다)
+  → 사진(AI 배경이 없어 기본 카페 무대) → 10:40 현이와 친구 → 장소 지도 → 20:01 걸어서 코인노래방(코인 존 → 마이크 존) → 택시(제휴 광고 나레이션) → 집 → SNS 친구 탭 → 잠.
+  시나리오 블록: am·lunch·pm 셋 다 스타벅스(같은 곳이라 이동 없음), evening 집, night 코노. 현이는 강제 마주침(10:00–12:00, 10:20 말 틈).
+  **귀가 함정**: 코노→집 택시가 5분이라 23:48에 닿는다 — 자정 전 도착은 집 방 눕는 장면(HomeNightScreen, `since > until-7h` 조건)이 없고 잔디 대기 화면이 뜬다.
+  그래서 택시는 `scale 60`으로 짧게 보여 주고 `phase.kind === 'sleeping'`이 되면 바로 `jump "+1 0:40"`(다음 날)으로 잠 화면에서 대사·SNS를 한다. 1편은 택시가 28분이라 00:11 도착 → 집 방 장면이 있다.
+- 두 대본은 `cut`/`PART` 없이 각각 통째로 한 편이다. 일레븐랩스 번호도 대본별로 따로(`design/voice/v3-1/{momo,narr}`·`v3-2/…`처럼 폴더를 나눈다 — `demo-voice.mjs`의 마지막 인자에 대본 파일).
+- 아래는 v2 대본(`demo-busan.json`, 조새호 포함) 절차 — 그대로 남긴다.
+
+```
 node scripts/record.mjs /tmp/rec scripts/demo-busan.json
-cp /tmp/rec/demo.mp4 ../design/out/nadeuli-demo-busan-$(date +%F)-1-v2.mp4   # design/out/ 은 gitignore. 같은 날 다시 뽑으면 덮어쓰지 말고 -v2, -v3… (오너)
+cp /tmp/rec/demo.mp4 ../design/out/nadeuli-demo-busan-$(date +%F)-1-v2.mp4
 ```
 
 - 4~5분 걸린다. 결과: `/tmp/rec/demo.mp4`(1520×1826, 소리 포함), `video.mp4`(무음), `frames/`, `tts/`(문장별 aiff), `voices.json`(섞은 시각).

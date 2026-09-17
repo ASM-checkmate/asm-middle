@@ -23,6 +23,20 @@ if (import.meta.env.DEV) {
   w.__demoCharacter = (el, pose = 'wave', size = 340) => {
     createRoot(el).render(<OwnerLookContext.Provider value={useWorld.getState().memory.look}><Character pose={pose} size={size} /></OwnerLookContext.Provider>);
   };
+  // 라이브 시연 단축키(demo-live, 시나리오 URL일 때만): 링크를 바꾸지 않고 한 화면에서 장면을 넘긴다 — 화면엔 아무것도 안 뜬다 (scripts/DEMO-LIVE.md)
+  //   2 → 10:40 현이  3 → 20:01 코노 가는 길  4 → 20:20 코노  5 → 23:44 집 가는 길  6 → 23:57 잠   0 → x1  9 → x30
+  if (params.get('scenario')) {
+    const SCENES: Record<string, [number, number]> = { '2': [10, 40], '3': [20, 1], '4': [20, 20], '5': [23, 44], '6': [23, 57] };
+    window.addEventListener('keydown', e => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const st = useWorld.getState();
+      if (SCENES[e.key]) { const [h, m] = SCENES[e.key]; if (st.now < new Date(st.now).setHours(h, m, 0, 0)) st.jumpToHour(h, m); }
+      else if (e.key === '0') st.setScale(1);
+      else if (e.key === '9') st.setScale(30);
+    });
+  }
 }
 
 // `?lab=character` → src/dev/CharacterLab.tsx (built concurrently). Loaded through a glob so a missing file

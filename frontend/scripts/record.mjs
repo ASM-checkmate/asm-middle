@@ -276,7 +276,8 @@ try {
     if (s.hold) { await voiceDone(); await holdUntil(s.hold.expr ?? s.hold, s.hold.max ?? 15000); }
     if (s.introShow) { await voiceDone(); await ev(`window.__demoIntroShow()`); await sleep(500); if (holding) { holding = false; lastKeptWall = Date.now(); } }
     if (s.intro !== undefined) { await voiceDone(); await ev(`window.__demoIntro(${JSON.stringify(s.intro)})`); await sleep(700); if (holding) { holding = false; lastKeptWall = Date.now(); } speak([s._tts?.[1]]); }
-    if (s.introOff) { await voiceDone(); await sleep(400); await ev(`window.__demoIntro('')`); await sleep(1700); }   // 인트로 페이드 + 폰 슬라이드인이 끝날 때까지
+    // 인트로가 걷힐 때 자막 패널도 비운다 — 인트로 위에서 한 나레이션(introShow)의 자막이 폰 뒤에 남아 있다가 보이지 않게 (오너 2026-09-17)
+    if (s.introOff) { await voiceDone(); await sleep(400); await ev(`window.__demoSay('', ''); window.__demoIntro('')`); await sleep(1700); }   // 인트로 페이드 + 폰 슬라이드인이 끝날 때까지
     if (s.say) {
       await voiceDone();
       const [nt, ct] = s._tts ?? [];

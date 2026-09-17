@@ -118,7 +118,6 @@ export function scenarioPlans(sc: Scenario): Partial<Record<BlockId, BlockPlan>>
   return out;
 }
 
-const SEEDED_KEY = 'theworld.scenario.v1';
 /** `&day=YYYY-MM-DD`: 시나리오를 그 날짜로 산다 — 마찰 굴림(rollFriction)이 날짜에 묶여 있어 데모를 같은 날로 고정할 때 (녹화). 없으면 오늘 */
 function scenarioDayStart(now: number, tz: string): number {
   const d = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('day') : null;
@@ -128,6 +127,7 @@ function scenarioDayStart(now: number, tz: string): number {
  * 시연 브랜치(demo-live): 서버·Gemini 없이 "생성되는 척" — 배경(자리)마다 미리 만들어 둔 생성 컷 (scripts/shot-gen.mjs로 뽑아 검토한 것).
  * 시나리오(`?scenario=`)로 들어왔을 때만 shotgen이 이 표를 본다. 한 자리에 한 장이라 같은 자리에서 또 찍으면 같은 그림이다.
  */
+const SEEDED_KEY = 'theworld.scenario.v1';
 export const DEMO_SHOTS: Record<string, string> = {
   'busan:starbucks-window': '/demo/starbucks.png',
   'busan:noraebang-mic': '/demo/noraebang.png',
@@ -135,7 +135,12 @@ export const DEMO_SHOTS: Record<string, string> = {
   'busan:samjin-drone': '/demo/drone.png',
 };
 /** 시연 중이면(시나리오 URL) 그 배경의 미리 만든 컷 URL, 아니면 null */
-export const demoShotFor = (backdropId: string | null | undefined): string | null => (scenarioParam() && backdropId ? DEMO_SHOTS[backdropId] ?? null : null);
+export const demoShotFor = (backdropId: string | null | undefined): string | null => {
+  // URL의 ?scenario= 또는 이미 심은 시나리오 표식(localStorage) — 시연 중 주소에서 파라미터가 빠져도 켜져 있게
+  let seeded: string | null = null;
+  try { seeded = localStorage.getItem(SEEDED_KEY); } catch { /* ignore */ }
+  return (scenarioParam() || seeded) && backdropId ? DEMO_SHOTS[backdropId] ?? null : null;
+};
 
 export const scenarioParam = (): string | null => (typeof location !== 'undefined' ? new URLSearchParams(location.search).get('scenario') : null);
 export const scenarioSeeded = (key: string): boolean => { try { return localStorage.getItem(SEEDED_KEY) === key; } catch { return false; } };

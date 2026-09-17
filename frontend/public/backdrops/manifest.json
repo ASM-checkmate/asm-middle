@@ -125,6 +125,42 @@
     "y": 96,
     "scale": 0.44
    }
+  },
+  {
+   "id": "busan:starbucks-window",
+   "placeId": "starbucks-pnu",
+   "spot": "창가 자리",
+   "zone": "seat",
+   "url": "/backdrops/busan/starbucks-window.webp",
+   "sit": true,
+   "me": {
+    "x": 62,
+    "y": 78,
+    "scale": 0.44
+   },
+   "friend": {
+    "x": 40,
+    "y": 82,
+    "scale": 0.4
+   }
+  },
+  {
+   "id": "busan:noraebang-mic",
+   "placeId": "coin-noraebang-pnu",
+   "spot": "마이크 앞",
+   "zone": "mic",
+   "url": "/backdrops/busan/noraebang-mic.webp",
+   "sit": false,
+   "me": {
+    "x": 50,
+    "y": 94,
+    "scale": 0.5
+   },
+   "friend": {
+    "x": 72,
+    "y": 94,
+    "scale": 0.44
+   }
   }
  ]
 }

@@ -1,9 +1,11 @@
 // ─── 스타벅스 부산대점 (장소별 방, ADR-0015 개정 4 · 공시생 데모) ────────────────────
-// 390×560. 카페 방(cafe.tsx)과 같은 자리·같은 동선인데 초록 간판·초록 앞치마 카운터·흰 컵으로 그 가게처럼. 내 테이블엔 공시생의 물건 —
+// 390×560. 카페 방(cafe.tsx) 바탕인데 초록 간판·초록 앞치마 카운터·흰 컵으로 그 가게처럼. **내 테이블은 창가**(카메라 배경 '창가 자리'와 같은 자리, 오너). 내 테이블엔 공시생의 물건 —
 // 에듀윌 교재 두 권과 인강 켜 둔 노트북(ADR-0032 제품 배치: 광고주 제품이 방 안에 놓인다). 큐는 카페 방의 것 그대로.
 import type { RoomProp, RoomSpec, Zone } from '../Room';
 import { INK, INK2, Patterns, Table, chairBack, mat, plant } from '../parts';
-import { cueOf } from '../cafe';
+import { cueOf as cafeCueOf } from '../cafe';
+import type { Cue } from '../Room';
+import type { LogLine } from '../../sim/actlog';
 
 const ID = 'rm-sbux';
 const GREEN = '#00704A', GREEN2 = '#1E3932';
@@ -57,15 +59,6 @@ const StudyStuff = () => (
 );
 
 const PROPS: RoomProp[] = [
-  // 창가 벤치 (뒷벽 아래): 초록 방석
-  { key: 'bench', x: 20, y: 98, w: 136, h: 36, base: 130, node: (
-    <>
-      <rect x="4" y="14" width="128" height="18" rx="5" fill="var(--rm-wood-2)" {...INK} />
-      <rect x="2" y="2" width="132" height="18" rx="7" fill={GREEN} {...INK} />
-      <rect x="12" y="6" width="26" height="10" rx="4" fill="var(--sun-2)" {...INK2} />
-      <rect x="98" y="6" width="26" height="10" rx="4" fill="var(--mint-2)" {...INK2} />
-    </>
-  ) },
   plant(184, 150, GREEN2),
   // 카운터 (오른쪽 위): 초록 앞판 + 나무 윗판 + 커피머신·계산대·컵 탑·시럽
   { key: 'counter', x: 214, y: 116, w: 164, h: 114, base: 228, node: (
@@ -91,9 +84,9 @@ const PROPS: RoomProp[] = [
       <Siren x={94} y={42} r={3} />
     </>
   ) },
-  // 내 테이블 (왼쪽 가운데): 등받이 의자 둘 뒤에, 테이블 앞에 — 상판 위에 공시생 물건
-  chairBack(150, 368, GREEN2), chairBack(104, 368, GREEN2),
-  { key: 'table', x: 128 - main.cx, y: 376 - main.cy, w: main.w, h: main.h, base: 428, node: (
+  // 내 테이블 (왼쪽 위, 창가): 등받이 의자 둘 뒤에, 테이블 앞에 — 상판 위에 공시생 물건. 카메라 배경(창가 자리)과 같은 자리 (오너 2026-09-17)
+  chairBack(150, 192, GREEN2), chairBack(104, 192, GREEN2),
+  { key: 'table', x: 128 - main.cx, y: 200 - main.cy, w: main.w, h: main.h, base: 252, node: (
     <>
       {main.node}
       <g transform={`translate(${main.cx} ${main.cy})`}><StudyStuff /></g>
@@ -117,8 +110,8 @@ const BACK = (
     {/* 바닥: 타일 */}
     <rect x="0" y="96" width="390" height="464" fill={`url(#${ID}-tile)`} />
     <path d="M30 100 h116 l40 120 h-150 z" fill="var(--card)" opacity=".45" />
-    <ellipse cx="128" cy="396" rx="112" ry="52" fill="#CFE3D9" opacity=".8" />
-    <ellipse cx="128" cy="396" rx="96" ry="40" fill="none" stroke={GREEN} strokeWidth="3" strokeDasharray="10 8" opacity=".6" />
+    <ellipse cx="128" cy="222" rx="112" ry="52" fill="#CFE3D9" opacity=".8" />
+    <ellipse cx="128" cy="222" rx="96" ry="40" fill="none" stroke={GREEN} strokeWidth="3" strokeDasharray="10 8" opacity=".6" />
     {/* 뒷벽 */}
     <rect x="0" y="0" width="390" height="98" fill="#F3EBDD" />
     <rect x="0" y="0" width="390" height="14" fill={GREEN2} />
@@ -151,13 +144,21 @@ const BACK = (
   </svg>
 );
 
-/** 카페 방과 같은 존 */
+/** 카페 방의 존에서 창가 벤치를 빼고 내 자리를 창가로 */
 const ZONES: Zone[] = [
-  { key: 'window', x: 14, y: 90, w: 148, h: 72, spots: ['window', 'window2'], pose: 'think', say: '👀', label: '창밖 보기' },
   { key: 'counter', x: 214, y: 118, w: 164, h: 130, spots: ['counter', 'counter2'], say: '아메리카노 하나요', label: '주문하기' },
-  { key: 'seat', x: 56, y: 330, w: 144, h: 96, spots: ['seat', 'friend'], label: '내 자리' },
+  // 내 자리는 창가 — 카메라 배경 '창가 자리'(busan:starbucks-window)가 이 존에 뜬다
+  { key: 'seat', x: 56, y: 150, w: 144, h: 100, spots: ['seat', 'friend'], label: '창가 자리' },
   { key: 'side', x: 236, y: 380, w: 112, h: 92, spots: ['side', 'side2'], pose: 'sit', label: '옆 테이블' },
 ];
+
+/** 카페 큐 그대로 — 창가(window) 자리가 곧 내 자리라 그 걸음은 seat으로 */
+function cueOf(line: LogLine): Cue | null {
+  const c = cafeCueOf(line);
+  if (!c) return null;
+  const map = (k?: string) => (k === 'window' ? 'seat' : k);
+  return { ...c, ...(c.go ? { go: map(c.go) } : {}), ...(c.at ? { at: map(c.at) } : {}), ...(c.then ? { then: map(c.then) } : {}) };
+}
 
 export const STARBUCKS: RoomSpec = {
   w: 390, h: 560,
@@ -166,16 +167,15 @@ export const STARBUCKS: RoomSpec = {
   spots: {
     door: { x: 332, y: 548 },
     counter: { x: 270, y: 268 }, counter2: { x: 330, y: 268 },
-    seat: { x: 150, y: 372 },
-    friend: { x: 104, y: 372 },
-    window: { x: 62, y: 152 }, window2: { x: 118, y: 152 },
+    seat: { x: 150, y: 196 },
+    friend: { x: 104, y: 196 },
     side: { x: 262, y: 428 }, side2: { x: 322, y: 428 },
     met: { x: 352, y: 452 },
   },
   seat: 'seat', friendSeat: 'friend', metSpot: 'met', ghostSeat: 'side', door: 'door',
-  strolls: [{ spot: 'window', pose: 'think' }, { spot: 'counter', pose: 'idle' }, { spot: 'door', pose: 'idle' }],
+  strolls: [{ spot: 'counter', pose: 'idle' }, { spot: 'door', pose: 'idle' }],
   // 손의 책(SeatItem)은 상판 오른쪽 — 왼쪽의 노트북·교재와 안 겹친다
-  seatItem: { x: 158, y: 366, base: 429 },
+  seatItem: { x: 158, y: 190, base: 253 },
   zones: ZONES,
   cueOf,
 };

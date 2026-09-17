@@ -1,12 +1,12 @@
 // 캐릭터 한 명을 투명 PNG로 — ?lab=charpng 페이지를 헤드리스 크롬으로 찍는다 (카메라 배경 합성 시험용, 임시).
-//   node scripts/char-png.mjs <out.png> [pose=idle] [variant=me|friend] [color=#hex]
+//   node scripts/char-png.mjs <out.png> [pose=idle] [variant=me|friend] [color=#hex] [hair=short] — hair는 동행(NPC)의 머리 모양 (App.tsx charpng 분기)
 import { spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const [out, pose = 'idle', variant = 'me', color = ''] = process.argv.slice(2);
-const url = `http://localhost:5173/?lab=charpng&pose=${pose}&variant=${variant}${color ? `&color=${encodeURIComponent(color)}` : ''}`;
+const [out, pose = 'idle', variant = 'me', color = '', hair = ''] = process.argv.slice(2);
+const url = `http://localhost:5173/?lab=charpng&pose=${pose}&variant=${variant}${color ? `&color=${encodeURIComponent(color)}` : ''}${hair ? `&hair=${hair}` : ''}`;
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const port = 9222 + Math.floor(Math.random() * 500);
 const profile = mkdtempSync(join(tmpdir(), 'tw-chrome-'));

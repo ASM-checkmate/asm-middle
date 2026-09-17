@@ -2,9 +2,10 @@ import { Component, Suspense, lazy, useEffect, type ComponentType, type ReactNod
 import { createRoot } from 'react-dom/client';
 import { useWorld } from './sim/store';
 import { putLocal } from './sim/media';
+import { presentLook } from './screens/util';
 import { PLACES } from './sim/places';
 import { Character, CharacterDefs, OwnerLookContext, type Pose } from './character';
-import { DEFAULT_LOOK } from './sim/types';
+import { DEFAULT_LOOK, type Look } from './sim/types';
 import { SCENARIOS, markScenarioSeeded, scenarioParam, scenarioPlans, scenarioSeeded } from './dev/scenario';
 import { Home } from './screens/Home';
 import { DevPanel } from './dev/DevPanel';
@@ -92,11 +93,14 @@ export default function App() {
     const variant = q.get('variant') === 'friend' ? 'friend' : 'me';
     const color = q.get('color') ?? undefined;
     const food = q.get('food') === 'scallop' ? 'scallop' : undefined;   // `&food=scallop` — 먹기 자세의 손에 든 것
+    // `&hair=short` — 동행(NPC)의 머리 모양 (민수는 short). 생성 컷의 정체성 참고 PNG에 쓴다 (scripts/shot-gen.mjs)
+    const hair = q.get('hair');
+    const look = variant === 'friend' && hair ? presentLook(hair as Look['hairStyle']) : undefined;
     return (
       <OwnerLookContext.Provider value={ownerLook ?? DEFAULT_LOOK}>
         <CharacterDefs />
         <div style={{ background: 'transparent', width: 800, height: 800 }}>
-          <Character pose={pose} size={800} variant={variant} color={color} food={food} paused />
+          <Character pose={pose} size={800} variant={variant} color={color} food={food} look={look} paused />
         </div>
       </OwnerLookContext.Provider>
     );

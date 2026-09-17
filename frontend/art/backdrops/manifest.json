@@ -1,5 +1,5 @@
 {
-  "_": "부산 시나리오 배경 5장 — node scripts/nano-banana.mjs art/backdrops/manifest.json [--only a,b] [--force]. 입력 사진은 art/backdrops/in/ 에 아래 이름으로 둔다 (git 밖).",
+  "_": "부산 시나리오 배경 — node scripts/nano-banana.mjs art/backdrops/manifest.json [--only a,b] [--force]. 입력 사진은 art/backdrops/in/ 에 아래 이름으로 둔다 (git 밖). refs가 없는 job은 글로만 만든다 (공시생 데모, 2026-09-17).",
   "out": "art/backdrops/gen",
   "model": "gemini-3.1-flash-image",
   "aspect": "2:3",
@@ -7,33 +7,55 @@
   "jobs": [
     {
       "name": "gwangan-night",
-      "refs": ["art/backdrops/in/gwangan-night.jpg"],
+      "refs": [
+        "art/backdrops/in/gwangan-night.jpg"
+      ],
       "prompt": "Repaint this photograph as a high-quality anime background painting (semi-realistic anime film style, painterly but faithful, like a modern anime movie background). Keep the exact same scene, composition, time of day, colors and lighting: Gwangan Bridge at night with purple and white lights, city skyline on the left, calm sea with long light reflections. Reframe to a portrait 2:3 crop centered on the bridge, and extend the foreground downward so a sandy beach edge and a low seaside railing are visible at the bottom third — an empty spot where one person could stand for a photo. No people, no boats, no legible text, no watermark, no signature."
     },
     {
       "name": "pnu",
-      "refs": ["art/backdrops/in/pnu.jpg"],
+      "refs": [
+        "art/backdrops/in/pnu.jpg"
+      ],
       "prompt": "Repaint this photograph as a high-quality anime background painting (semi-realistic anime film style, painterly but faithful). Keep the same scene: the white stone university headquarters building with the tall tower on the right, clear blue sky with a thin cloud streak, green trees, and the wide red-brick plaza in front. Remove ALL people and remove the parked cars. The big blue banner on the building stays as a plain blue banner with an abstract white emblem but NO readable letters; the stone sign on the wall stays as a blank stone plate — no legible text anywhere. Keep the bottom third of the frame as open empty brick plaza where one person could stand for a photo. Afternoon light, around 4 pm. No watermark, no signature."
     },
     {
       "name": "gwangan-drone",
-      "refs": ["gwangan-night", "art/backdrops/in/drone.jpg"],
+      "refs": [
+        "gwangan-night",
+        "art/backdrops/in/drone.jpg"
+      ],
       "prompt": "Keep the first image exactly as it is — same painting, same bridge, same city lights, same sea and reflections, same beach foreground. Only add, in the night sky above the sea to the LEFT of the bridge, a drone light show forming a large glowing blue-and-white fairy-tale castle made of hundreds of tiny drone lights (like the second image), with two or three small bursts of fireworks above it. The castle should be large and clearly castle-shaped, floating over the water, and its lights should add faint blue reflections on the sea. Keep the same anime background painting style. No people, no text, no watermark."
     },
     {
       "name": "josaeho",
-      "refs": ["art/backdrops/in/josaeho-window.jpg"],
+      "refs": [
+        "art/backdrops/in/josaeho-window.jpg"
+      ],
       "prompt": "Repaint this photograph as a high-quality anime background painting (semi-realistic anime film style, painterly but faithful). It is a window seat in a Korean shellfish-grill restaurant on Gwangalli beach: through the large window you see the beach, the sea and Gwangan Bridge in daylight; in the foreground a round charcoal grill set into a steel table with grilled scallops on it, a foil tray of spicy food, and a small side dish. REMOVE every piece of text, the hashtag overlay, the logo and the watermark completely — repaint what is behind them. Pull the camera back slightly so that the bench seat along the window on the LEFT side of the table is visible and EMPTY, a place where one person could sit facing the camera with the bridge and sea behind them. Remove the tall tiered shellfish tower for now (leave the table top clear except the grill and the trays). Late afternoon light. No people, no text, no watermark."
     },
     {
       "name": "josaeho-tower",
-      "refs": ["josaeho", "art/backdrops/in/shell-tower.jpg"],
+      "refs": [
+        "josaeho",
+        "art/backdrops/in/shell-tower.jpg"
+      ],
       "prompt": "Keep the first image exactly as it is — same restaurant, same window, same bridge and sea, same grill, same empty bench seat on the left, same style. Only add, standing on the table to the RIGHT of the grill, the tall tiered steel shellfish tower from the second image: the same multi-tier stand with a center pole, loaded with scallops, clams, abalone, shrimp and cheese-topped shells, with a bit of green parsley garnish, painted in the same anime background style as the first image. It must not cover the window view of the bridge and must not cover the empty bench seat. No people, no text, no watermark."
     },
     {
       "name": "samjin",
-      "refs": ["art/backdrops/in/samjin.jpg"],
+      "refs": [
+        "art/backdrops/in/samjin.jpg"
+      ],
       "prompt": "Repaint this photograph as a high-quality anime background painting (semi-realistic anime film style, painterly but faithful). It is an open-air Korean pojangmacha (street food bar) at night on Gwangalli beach: red plastic stools and low tables with blue-and-red checkered covers, a clear glass wind screen along the edge, and beyond it the sea and Gwangan Bridge lit up in blue and white against the dark night sky. REMOVE ALL people completely — every person, every hand, every reflection of a person in the glass — and repaint the stools, tables and glass behind them. The nearest table in the foreground should be clearly visible with TWO empty red stools facing the camera side by side, where two friends could sit together with the bridge behind them; leave a soju bottle and two small cups on that table. No text, no watermark, no signature."
+    },
+    {
+      "name": "starbucks-window",
+      "prompt": "A high-quality anime background painting (semi-realistic anime film style, painterly but faithful, like a modern anime movie background). A window seat inside a Starbucks cafe near a university in Busan, Korea, in the morning. A round wooden table right by a large window; through the window a sunny tree-lined street and a low campus building. On the table: a white paper cup with the green Starbucks siren logo, a closed silver laptop, and a stack of two thick blue study books with a yellow band on the spine (no readable text on them). A green Starbucks sign with the siren logo is visible on the wall. The wooden chair on the near side of the table, facing the camera, is EMPTY — a place where one person could sit facing the camera with the window behind them; keep the table top in front of that chair clearly visible. Warm soft morning light. Portrait 2:3 composition. No people, no legible text except the Starbucks logo, no watermark, no signature."
+    },
+    {
+      "name": "noraebang-mic",
+      "prompt": "A high-quality anime background painting (semi-realistic anime film style, painterly but faithful, like a modern anime movie background). The inside of a small Korean coin karaoke booth (코인노래방) at night: dark purple-and-blue walls with pink and cyan neon light strips, a big wall-mounted screen showing a music video with a lyric bar and a score (no readable text, just glowing shapes), two speakers, a small mirror ball light scattering dots on the walls, a coin slot machine, and a red padded bench along the side wall with two wireless handheld microphones and a tambourine on a small table. In the middle of the floor, in front of the screen, is an EMPTY open space where one person could stand facing the camera and sing, lit by the colorful neon and the screen glow. Portrait 2:3 composition, camera at standing eye level. No people, no legible text, no watermark, no signature."
     }
   ]
 }

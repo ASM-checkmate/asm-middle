@@ -2,16 +2,7 @@
   {
     "goto": "http://localhost:5173/?scenario=gongsi&reset=1&day=2026-09-15",
     "load": 7000,
-    "keepHold": true,
-    "mark": "0 인트로"
-  },
-  {
-    "intro": "안녕 나는 모모야! 오늘은 공부하는 날이야 📚",
-    "wait": 600
-  },
-  {
-    "introOff": true,
-    "wait": 300
+    "mark": "0 시작"
   },
   {
     "jump": "9:40",

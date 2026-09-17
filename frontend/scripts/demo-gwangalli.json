@@ -241,52 +241,10 @@
   {
     "say": [
       "",
-      ""
+      "오늘 진짜 잘 놀았다. 민수야, 다음에 또 오자! 🌉"
     ],
-    "wait": 1500
-  },
-  {
-    "jump": "23:44",
-    "scale": 150,
-    "say": [
-      "",
-      "오늘 진짜 잘 놀았다. 집 가자~ 🚕"
-    ],
-    "mark": "6 택시"
-  },
-  {
-    "waitUntil": {
-      "expr": "window.__world.getState().phase.kind === 'sleeping' && !!document.querySelector('.room')",
-      "max": 40000
-    },
-    "mark": "6 도착"
-  },
-  {
-    "scale": 30
-  },
-  {
-    "hold": {
-      "expr": "!!document.querySelector('.room')",
-      "max": 5000
-    },
-    "wait": 300
-  },
-  {
-    "say": [
-      "",
-      "아, 이제 누워야겠다. 민수랑 내일 또 놀아야지."
-    ],
-    "mark": "7 집",
-    "wait": 4500
-  },
-  {
-    "jump": "0:45",
-    "say": [
-      "",
-      "나 이제 졸려. 잘게 😴"
-    ],
-    "mark": "8 잠",
-    "wait": 3500
+    "mark": "6 끝",
+    "wait": 4000
   },
   {
     "say": [

@@ -124,6 +124,19 @@ function scenarioDayStart(now: number, tz: string): number {
   const d = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('day') : null;
   return dayStartIn(d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T12:00:00Z`).getTime() : now, tz);
 }
+/**
+ * 시연 브랜치(demo-live): 서버·Gemini 없이 "생성되는 척" — 배경(자리)마다 미리 만들어 둔 생성 컷 (scripts/shot-gen.mjs로 뽑아 검토한 것).
+ * 시나리오(`?scenario=`)로 들어왔을 때만 shotgen이 이 표를 본다. 한 자리에 한 장이라 같은 자리에서 또 찍으면 같은 그림이다.
+ */
+export const DEMO_SHOTS: Record<string, string> = {
+  'busan:starbucks-window': '/demo/starbucks.png',
+  'busan:noraebang-mic': '/demo/noraebang.png',
+  'busan:samjin-table': '/demo/pocha-asahi.png',
+  'busan:samjin-drone': '/demo/drone.png',
+};
+/** 시연 중이면(시나리오 URL) 그 배경의 미리 만든 컷 URL, 아니면 null */
+export const demoShotFor = (backdropId: string | null | undefined): string | null => (scenarioParam() && backdropId ? DEMO_SHOTS[backdropId] ?? null : null);
+
 export const scenarioParam = (): string | null => (typeof location !== 'undefined' ? new URLSearchParams(location.search).get('scenario') : null);
 export const scenarioSeeded = (key: string): boolean => { try { return localStorage.getItem(SEEDED_KEY) === key; } catch { return false; } };
 export const markScenarioSeeded = (key: string | null) => { try { if (key) localStorage.setItem(SEEDED_KEY, key); else localStorage.removeItem(SEEDED_KEY); } catch { /* ignore */ } };

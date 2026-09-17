@@ -236,7 +236,7 @@ export function CameraOverlay({ act, nowMs, backdropId, preview, onClose }: Came
       const b = await bakeShot(i);
       await putLocal(id, b.blob, 'shot');
       // 서버 화풍 생성 (ADR-0029 결정 6): 그동안 필름 칸은 현상 중, 오면 그 픽셀로 바뀐다. 실패·오프라인이면 단순 합성본 그대로
-      void requestShotGen(id, i, { place: act.place.name, spot: backdrop?.spot, sit: backdrop?.sit, mePose: me.pose, friendPose: fr?.pose, friendColor: friend?.color, backdrop: !!backdrop });
+      void requestShotGen(id, i, { place: act.place.name, spot: backdrop?.spot, sit: backdrop?.sit, mePose: me.pose, friendPose: fr?.pose, friendColor: friend?.color, backdrop: !!backdrop, backdropId: backdrop?.id });
     }).catch((e: unknown) => {
       console.warn(`camera: 굽기 실패 — 옛 경로로 (${id})`, e);
       dropShotId(id);

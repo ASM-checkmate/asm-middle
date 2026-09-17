@@ -6,9 +6,13 @@ import { api, currentUser } from './api';
 import { useWorld } from './store';
 import type { Look, ShotPose } from './types';
 import { bakeComposite, bakeFigure, type BakeInput } from '../photo/bake';
+import { demoShotFor } from '../dev/scenario';
+import { putLocal } from './media';
 
 /** Gemini가 수십 초 걸린다 — 서버 timeout 90s + 여유 */
 export const SHOTGEN_TIMEOUT_MS = 120_000;
+/** 시연 브랜치: 미리 만든 컷도 폴라로이드가 "현상 중"으로 몇 초 흔들리게 */
+const DEMO_DEVELOP_MS = 5_000;
 
 export interface ShotGenMeta {
   place: string;
@@ -19,6 +23,8 @@ export interface ShotGenMeta {
   friendLook?: Look;
   friendColor?: string;
   backdrop: boolean;
+  /** 배경 id (시연 브랜치: 미리 만든 컷을 고르는 열쇠) */
+  backdropId?: string;
 }
 interface Pic { mime: string; data: string }
 interface Response { shotId: string; mime: string; bytes: number; ms: number }
@@ -38,6 +44,22 @@ const b64 = (blob: Blob): Promise<Pic> => new Promise((res, rej) => {
  */
 export async function requestShotGen(shotId: string, input: BakeInput, meta: ShotGenMeta): Promise<string | null> {
   const st = useWorld.getState();
+  // 시연 브랜치(demo-live): 시나리오로 들어왔고 그 자리에 미리 만든 컷이 있으면 서버·키 없이 그 그림을 "현상"한다 (dev/scenario DEMO_SHOTS)
+  const demo = demoShotFor(meta.backdropId);
+  if (demo) {
+    st.setShotGen(shotId, 'pending');
+    try {
+      const [blob] = await Promise.all([fetch(demo).then(r => { if (!r.ok) throw new Error(`demo shot ${r.status}`); return r.blob(); }), new Promise(r => setTimeout(r, DEMO_DEVELOP_MS))]);
+      const id = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+      await putLocal(id, blob, 'shot');
+      useWorld.getState().replaceShotId(shotId, id);
+      return id;
+    } catch (e) {
+      console.warn(`shotgen(demo): 미리 만든 컷을 못 읽었다 — 단순 합성본 그대로 (${shotId})`, e);
+      useWorld.getState().setShotGen(shotId, 'plain');
+      return null;
+    }
+  }
   // 서버 사용자가 없으면(오프라인으로 시작) 생성이 없다 — 바로 plain, 콘솔에 이유
   if (!currentUser()) { console.info(`shotgen: 로그인한 사용자가 없어 생성을 건너뛴다 (${shotId})`); st.setShotGen(shotId, 'plain'); return null; }
   st.setShotGen(shotId, 'pending');

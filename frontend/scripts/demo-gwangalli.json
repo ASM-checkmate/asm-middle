@@ -17,7 +17,7 @@
     "jump": "16:20",
     "say": [
       "나들이는 능동적으로 살아가는 에이전트의 세계입니다. 우리 캐릭터는 스스로 하루를 살아갑니다.",
-      "민수야, 수업 끝나면 광안리 가자! 오늘 드론쇼 한대 🚁"
+      "민수야, 수업 끝나면 광안리 포차 가자! 오늘 드론쇼 한대 🚁"
     ],
     "mark": "1 부산대",
     "wait": 800
@@ -51,57 +51,6 @@
     "scale": 30
   },
   {
-    "hold": {
-      "expr": "!!document.querySelector('.room')",
-      "max": 8000
-    },
-    "wait": 800
-  },
-  {
-    "say": [
-      "",
-      "바다다~! 파도 소리 들린다 🌊"
-    ],
-    "mark": "3 광안리 해변",
-    "wait": 300
-  },
-  {
-    "eval": "document.querySelectorAll('.room-zone')[1].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))",
-    "wait": 5000
-  },
-  {
-    "say": [
-      "",
-      "발 담그니까 시원해. 해 지는 것 좀 봐 🌅"
-    ],
-    "wait": 4500
-  },
-  {
-    "say": [
-      "",
-      "배고프다~ 포차로 슬슬 가자 🚶"
-    ],
-    "mark": "3 해변 출발",
-    "wait": 600
-  },
-  {
-    "waitVoice": true,
-    "scale": 5
-  },
-  {
-    "jump": "20:01",
-    "scale": 15,
-    "mark": "3 걸어서 이동"
-  },
-  {
-    "waitUntil": {
-      "expr": "!!document.querySelector('.act') && !document.querySelector('.map-scene')",
-      "max": 60000
-    },
-    "mark": "3 도착"
-  },
-  {
-    "scale": 30,
     "hold": {
       "expr": "!!document.querySelector('.room')",
       "max": 8000
@@ -191,21 +140,7 @@
   {
     "say": [
       "",
-      "봉주르~ 우리 친구해요!"
-    ],
-    "mark": "5 친구",
-    "wait": 3000
-  },
-  {
-    "waitUntil": {
-      "expr": "(() => { const d = new Date(window.__world.getState().now); return d.getHours() * 60 + d.getMinutes() >= 21 * 60 + 5; })()",
-      "max": 30000
-    }
-  },
-  {
-    "say": [
-      "",
-      "다같이 치즈~ 📸"
+      "민수야, 우리도 찍자! 치즈~ 📸"
     ],
     "mark": "5 드론쇼 사진",
     "wait": 300

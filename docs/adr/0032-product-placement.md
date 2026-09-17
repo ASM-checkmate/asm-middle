@@ -32,5 +32,5 @@ ADR-0031은 광고를 "이름·한 줄 문구·아이콘 + `AD` 알약"으로 �
 *   ADR-0031의 "브랜드 로고를 쓰지 않는다"는 **UI에 한해** 유효하다(이 ADR이 방·사진을 예외로 둔다). 0031은 고치지 않는다.
 *   부산 데모(`?scenario=busan`)의 포차 방·카메라 배경에도 아사히가 보인다 — 같은 방·같은 그림을 쓴다.
 *   실제 제휴·과금은 없다(데모). 광고주 제품이 바뀌면 방 소품과 `asahi-asset.py`의 자리 값을 손으로 다시 잰다.
-*   새 장소: `starbucks-pnu`(카페)·`coin-noraebang-pnu`(arcade)·`pnu-library`·`oncheoncheon`(공시생 시나리오 카드용). 코인노래방 방(`room/places/noraebang.tsx`)은
+*   새 장소: `starbucks-pnu`(카페)·`coin-noraebang-pnu`(arcade)·`pnu-library`·`oncheoncheon`(공시생 시나리오 카드용). 1편 시나리오(`gwangalli`)는 저녁·밤을 모두 삼진포차로 둔다 — 같은 곳이 이어지면 이동 없이 활동만 바뀐다. 코인노래방 방(`room/places/noraebang.tsx`)은
     광고가 아니라 장면이다. `actlog`에 arcade 문장(코인 넣음·한 곡 더·점수)이 생겼다.

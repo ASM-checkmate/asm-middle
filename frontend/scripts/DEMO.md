@@ -11,8 +11,8 @@ cp /tmp/rec1/demo.mp4 ../design/out/nadeuli-demo-busan-$(date +%F)-1-v3.mp4   # 
 cp /tmp/rec2/demo.mp4 ../design/out/nadeuli-demo-busan-$(date +%F)-2-v3.mp4
 ```
 
-- **1편 `demo-gwangalli.json`** (에이전트가 잘 노는 것): 인트로 → 부산대(민수, 나레이션 한 줄) → 지하철 → **광안리 해변**(놀기, 방은 기본 해변 방) → 걸어서 삼진포차
-  → **"위하여~ 🍻" + 테이블 사진(`pocha-asahi.png`)** → 20:55 드론쇼·루이·클로에·단체 사진 → "다음에 또 오자"로 끝. **조새호·시간표·귀가·SNS 없음**(오너: 광안리에서 놀고 끝).
+- **1편 `demo-gwangalli.json`** (에이전트가 잘 노는 것): 인트로 → 부산대(민수, 나레이션 한 줄) → 지하철 → **삼진포차**(18:37 도착, 저녁·밤 둘 다 포차라 20:00엔 이동 없이 활동만 바뀐다)
+  → **"위하여~ 🍻" + 테이블 사진(`pocha-asahi.png`)** → 20:55 드론쇼 → 민수랑 둘이 사진 → "다음에 또 오자"로 끝. **조새호·해변·시간표·친구 마주침·귀가·SNS 없음**(오너 2026-09-17: 학교에서 바로 포차로, 광안리에서 놀고 끝).
   술 광고는 포차 방·카메라 배경·생성 사진의 **아사히 제품 배치**(ADR-0032)로만 — 모모는 브랜드를 말하지 않는다. 그림은 `uv run --with pillow scripts/asahi-asset.py`가 만든다
   (`public/demo/asahi-can.png`·`pocha-asahi.png`, `public/backdrops/busan/samjin-table.webp`를 `art/backdrops/samjin-table.orig.webp`에서 다시 그린다).
 - **2편 `demo-gongsi.json`** (기능 소개, 공시생의 하루): **인트로 없이 바로**(오너) 9:40 스타벅스 부산대점(에듀윌 교재·노트북, AD 태그 나레이션) → **시간표**(밤 카드를 집→코인노래방으로 사용자가 바꾼다)

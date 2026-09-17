@@ -52,8 +52,8 @@ export const SCENARIOS: Record<string, Scenario> = {
         meet: { agentIds: ['louis', 'chloe'], from: [21, 0], to: [23, 30], at: [21, 5] } },
     },
   },
-  // 데모 1편 v3 (2026-09-17, 오너): "에이전트가 잘 논다" — 조새호 없이 부산대 → 광안리 해변 → 삼진포차(아사히 짠, 드론쇼) → 집.
-  // 술 광고는 포차 방·사진의 아사히 제품 배치(ADR-0032)로 보인다 — 모모 대사엔 브랜드도 광고도 없다 ("짠", "위하여")
+  // 데모 1편 v3 (2026-09-17, 오너): "에이전트가 잘 논다" — 조새호·해변 없이 부산대 → 지하철 → 삼진포차(아사히 짠, 드론쇼)로 끝. 친구 마주침도 없다(오너).
+  // 저녁·밤이 둘 다 포차라 20:00에 같은 자리에서 활동만 바뀐다(이동 없음). 술 광고는 포차 방·사진의 아사히 제품 배치(ADR-0032)로 보인다 — 모모 대사엔 브랜드도 광고도 없다
   gwangalli: {
     key: 'gwangalli',
     startAt: [15, 55],
@@ -61,19 +61,16 @@ export const SCENARIOS: Record<string, Scenario> = {
     home: 'busan-home',
     blocks: {
       pm: { title: '부산대에서 민수랑 수업 듣기', reason: '오후 수업, 끝나면 같이 광안리로', emoji: '🏫', placeId: 'pnu', category: 'study', friendId: 'minsu' },
-      // 저녁은 해변에서 놀기 (광고 아님) — 지하철로 광안리까지
-      evening: { title: '광안리에서 민수랑 바다 보기', reason: '해 지는 바다, 발 담그고', emoji: '🌉', placeId: 'gwangalli', category: 'play', friendId: 'minsu',
+      evening: { title: '삼진포차에서 민수랑 한잔', reason: '광안대교 앞 바다 자리', emoji: '🍻', placeId: 'samjin-pocha', category: 'play', friendId: 'minsu', sponsored: true,
         alts: [
-          { title: '해운대에서 민수랑 모래 놀이', reason: '넓은 해변', emoji: '🏖️', placeId: 'haeundae', friendId: 'minsu' },
-          { title: '동백섬 산책', reason: '바다 보면서 걷기', emoji: '🌺', placeId: 'dongbaek-island', friendId: 'minsu' },
-        ] },
-      // 밤은 해변 바로 옆 포차(광고 가게) — 걸어서 2분. 드론쇼(21:00)에 루이·클로에가 옆자리에
-      night: { title: '삼진포차에서 민수랑 한잔', reason: '드론쇼 보고 바다 앞에서', emoji: '🍻', placeId: 'samjin-pocha', category: 'play', friendId: 'minsu', sponsored: true,
-        alts: [
-          { title: '광안리 모래밭에서 민수랑 드론쇼', reason: '앉아서 보는 것도 좋지', emoji: '🚁', placeId: 'gwangalli', friendId: 'minsu' },
+          { title: '해운대시장에서 민수랑 회 한 접시', reason: '시장 구경하면서 저녁', emoji: '🐟', placeId: 'haeundae-market', friendId: 'minsu' },
           { title: '자갈치시장에서 민수랑 꼼장어', reason: '부산 왔으면 자갈치', emoji: '🦑', placeId: 'jagalchi-market', friendId: 'minsu' },
-        ],
-        meet: { agentIds: ['louis', 'chloe'], from: [21, 0], to: [23, 30], at: [21, 5] } },
+        ] },
+      night: { title: '삼진포차에서 민수랑 드론쇼', reason: '드론쇼 보고 바다 앞에서', emoji: '🚁', placeId: 'samjin-pocha', category: 'play', friendId: 'minsu', sponsored: true,
+        alts: [
+          { title: '광안리 모래밭에서 민수랑 드론쇼', reason: '앉아서 보는 것도 좋지', emoji: '🌉', placeId: 'gwangalli', friendId: 'minsu' },
+          { title: '동백섬 밤 산책', reason: '바다 보면서 걷기', emoji: '🌺', placeId: 'dongbaek-island', friendId: 'minsu' },
+        ] },
     },
   },
   // 데모 2편 v3 (2026-09-17, 오너): "기능 소개" — 공시생의 하루. 스타벅스에서 하루 종일 공부(에듀윌 교재, 광고 가게), 저녁은 집, 밤은 코인노래방.

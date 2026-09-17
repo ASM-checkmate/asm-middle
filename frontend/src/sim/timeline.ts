@@ -101,9 +101,11 @@ export function buildTimeline(anchor: Anchor, days: Days, memory: Memory, journe
     if (slot.id === 'sleep') {
       const bed = cursor.free < slot.end ? bedPlaceFor(cursor.place, memory) : null;
       if (bed) {
-        // 제휴 택시가 있는 도시면 캐시 대신 그 택시의 차 여정 (ADR-0031) — 지도가 라벨을 pill로 띄우고 광고 카드를 단다
-        const ride = rideSponsorFor(bed.city);
-        const journey = ride ? carJourney(cursor.place, bed, ride.label) : journeys[journeyKey(cursor.place.id, bed.id)] ?? estimateJourney(cursor.place, bed);
+        // 제휴 택시가 있는 도시면 캐시 대신 그 택시의 차 여정 (ADR-0031) — 지도가 라벨을 pill로 띄우고 광고 카드를 단다.
+        // 단, 걸어갈 거리(추정 여정이 걷기뿐)면 택시를 안 부른다 — 집 앞 코인노래방에서 택시를 타면 이상하다 (오너 2026-09-17, ADR-0032)
+        const est = journeys[journeyKey(cursor.place.id, bed.id)] ?? estimateJourney(cursor.place, bed);
+        const ride = est.legs.every(l => l.mode === 'walk') ? null : rideSponsorFor(bed.city);
+        const journey = ride ? carJourney(cursor.place, bed, ride.label) : est;
         const departAt = Math.max(cursor.free, slot.start - (journey.totalMin + BED_MARGIN_MIN) * 60_000);
         const arriveAt = departAt + journey.totalMin * 60_000;
         const dayKey = dayKeyIn(departAt, tz);

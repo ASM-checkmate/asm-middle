@@ -16,10 +16,10 @@ cp /tmp/rec2/demo.mp4 ../design/out/nadeuli-demo-busan-$(date +%F)-2-v3.mp4
   술 광고는 포차 방·카메라 배경·생성 사진의 **아사히 제품 배치**(ADR-0032)로만 — 모모는 브랜드를 말하지 않는다. 그림은 `uv run --with pillow scripts/asahi-asset.py`가 만든다
   (`public/demo/asahi-can.png`·`pocha-asahi.png`, `public/backdrops/busan/samjin-table.webp`를 `art/backdrops/samjin-table.orig.webp`에서 다시 그린다).
 - **2편 `demo-gongsi.json`** (기능 소개, 공시생의 하루): **인트로 없이 바로**(오너) 9:40 스타벅스 부산대점(에듀윌 교재·노트북, AD 태그 나레이션) → **시간표**(밤 카드를 집→코인노래방으로 사용자가 바꾼다)
-  → 사진(AI 배경이 없어 기본 카페 무대) → 10:40 현이와 친구 → 장소 지도 → 20:01 걸어서 코인노래방(코인 존 → 마이크 존) → 택시(제휴 광고 나레이션) → 집 → SNS 친구 탭 → 잠.
+  → 사진(AI 배경이 없어 기본 카페 무대) → 10:40 현이와 친구 → 장소 지도 → 20:01 걸어서 코인노래방(코인 존 → 마이크 존) → 걸어서 귀가(택시 아님 — 걷는 거리면 제휴 택시를 안 부른다, 나레이션 없음) → 잠 화면 → SNS 친구 탭 → 잠. AD 태그 나레이션은 뺐다(오너).
   시나리오 블록: am·lunch·pm 셋 다 스타벅스(같은 곳이라 이동 없음), evening 집, night 코노. 현이는 강제 마주침(10:00–12:00, 10:20 말 틈).
-  **귀가 함정**: 코노→집 택시가 5분이라 23:48에 닿는다 — 자정 전 도착은 집 방 눕는 장면(HomeNightScreen, `since > until-7h` 조건)이 없고 잔디 대기 화면이 뜬다.
-  그래서 택시는 `scale 45`로 짧게 보여 주고 지도가 사라지면(`!document.querySelector('.map-scene')`) 바로 `jump "+1 0:40"`(다음 날)으로 잠 화면에서 대사·SNS를 한다. (v2 1편처럼 택시가 28분이면 00:11 도착이라 집 방 장면이 있다.)
+  **귀가 함정**: 코노→집이 걸어서 5분이라 23:48에 닿는다 — 자정 전 도착은 집 방 눕는 장면(HomeNightScreen, `since > until-7h` 조건)이 없고 잔디 대기 화면이 뜬다.
+  그래서 귀갓길은 `scale 45`로 짧게 보여 주고 지도가 사라지면(`!document.querySelector('.map-scene')`) 바로 `jump "+1 0:40"`(다음 날)으로 잠 화면에서 대사·SNS를 한다. (v2 1편처럼 택시가 28분이면 00:11 도착이라 집 방 장면이 있다.)
 - 두 대본은 `cut`/`PART` 없이 각각 통째로 한 편이다. 일레븐랩스 번호도 대본별로 따로(`design/voice/v3-1/{momo,narr}`·`v3-2/…`처럼 폴더를 나눈다 — `demo-voice.mjs`의 마지막 인자에 대본 파일).
 - 아래는 v2 대본(`demo-busan.json`, 조새호 포함) 절차 — 그대로 남긴다.
 

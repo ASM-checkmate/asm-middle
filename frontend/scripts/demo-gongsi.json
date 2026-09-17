@@ -14,14 +14,6 @@
     "wait": 800
   },
   {
-    "waitVoice": true,
-    "say": [
-      "가게 방문이 광고일 땐 장소 태그에 AD 표시가 붙습니다.",
-      ""
-    ],
-    "wait": 300
-  },
-  {
     "eval": "window.__world.getState().chooseOption('night', 'gongsi-night-alt0', 'agent')"
   },
   {
@@ -198,10 +190,10 @@
     "jump": "23:44",
     "scale": 45,
     "say": [
-      "귀가 택시는 제휴 광고입니다.",
-      ""
+      "",
+      "다 불렀다~ 이제 집 가자 🚶"
     ],
-    "mark": "6 택시"
+    "mark": "6 걸어서 귀가"
   },
   {
     "waitUntil": {

@@ -14,6 +14,7 @@ import { bakeShot, newShotId, type BakeInput } from '../photo/bake';
 import { BD_PAN_MAX } from '../photo/geometry';
 import { putLocal } from '../sim/media';
 import { requestShotGen } from '../sim/shotgen';
+import { demoShotFor } from '../dev/scenario';
 import { PhotoImg } from '../photo/PhotoImg';
 import './camera.css';
 
@@ -233,10 +234,17 @@ export function CameraOverlay({ act, nowMs, backdropId, preview, onClose }: Came
     };
     const withBackdrop = backdrop ? backdropDataUrl(backdrop).then(url => ({ ...input, backdrop: url })) : Promise.resolve(input);
     void withBackdrop.then(async i => {
-      const b = await bakeShot(i);
-      await putLocal(id, b.blob, 'shot');
+      const meta = { place: act.place.name, spot: backdrop?.spot, sit: backdrop?.sit, mePose: me.pose, friendPose: fr?.pose, friendColor: friend?.color, backdrop: !!backdrop, backdropId: backdrop?.id };
+      try {
+        const b = await bakeShot(i);
+        await putLocal(id, b.blob, 'shot');
+      } catch (e) {
+        // 시연 브랜치: 미리 만든 컷이 있으면 굽기가 실패해도(Safari는 WebP가 없어 그림 배경 PNG가 60 KB를 넘는다) 그 컷으로 간다
+        if (!demoShotFor(backdrop?.id)) throw e;
+        console.warn(`camera: 굽기 실패 — 시연 컷으로 (${id})`, e);
+      }
       // 서버 화풍 생성 (ADR-0029 결정 6): 그동안 필름 칸은 현상 중, 오면 그 픽셀로 바뀐다. 실패·오프라인이면 단순 합성본 그대로
-      void requestShotGen(id, i, { place: act.place.name, spot: backdrop?.spot, sit: backdrop?.sit, mePose: me.pose, friendPose: fr?.pose, friendColor: friend?.color, backdrop: !!backdrop, backdropId: backdrop?.id });
+      void requestShotGen(id, i, meta);
     }).catch((e: unknown) => {
       console.warn(`camera: 굽기 실패 — 옛 경로로 (${id})`, e);
       dropShotId(id);

@@ -14,9 +14,6 @@
     "wait": 800
   },
   {
-    "eval": "window.__world.getState().chooseOption('night', 'gongsi-night-alt0', 'agent')"
-  },
-  {
     "waitVoice": true,
     "say": [
       "하루 일정은 캐릭터가 취향대로 짜 두고, 사용자는 카드로 바꿀 수 있습니다.",

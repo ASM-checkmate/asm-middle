@@ -90,9 +90,10 @@ export const SCENARIOS: Record<string, Scenario> = {
       lunch: { title: '스타벅스에서 샌드위치로 점심', reason: '자리 뺏기기 싫어서', emoji: '🥪', placeId: 'starbucks-pnu', category: 'meal', sponsored: true },
       pm: { title: '스타벅스에서 기출문제 풀기', reason: '오후엔 문제 풀이', emoji: '✏️', placeId: 'starbucks-pnu', category: 'study', sponsored: true },
       evening: { title: '집에서 저녁 먹고 한숨 돌리기', reason: '엄마 반찬', emoji: '🍚', placeId: 'busan-home', category: 'meal' },
-      night: { title: '코인노래방에서 스트레스 풀기', reason: '하루 종일 공부했으니까', emoji: '🎤', placeId: 'coin-noraebang-pnu', category: 'play',
+      // 밤은 에이전트가 '집에서 넷플릭스'를 골라 둔 상태 — 시연자(또는 대본)가 시간표에서 코인노래방으로 바꾼다 (라이브 시연, 오너 2026-09-17)
+      night: { title: '집에서 넷플릭스 보기', reason: '누워서 한 편', emoji: '📺', placeId: 'busan-home', category: 'play',
         alts: [
-          { title: '집에서 넷플릭스 보기', reason: '누워서 한 편', emoji: '📺', placeId: 'busan-home' },
+          { title: '코인노래방에서 스트레스 풀기', reason: '하루 종일 공부했으니까', emoji: '🎤', placeId: 'coin-noraebang-pnu' },
           { title: '온천천에서 밤 산책', reason: '바람 쐬기', emoji: '🌊', placeId: 'oncheoncheon' },
         ] },
     },

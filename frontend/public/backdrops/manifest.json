@@ -134,14 +134,14 @@
    "url": "/backdrops/busan/starbucks-window.webp",
    "sit": true,
    "me": {
-    "x": 62,
-    "y": 78,
-    "scale": 0.44
+    "x": 66,
+    "y": 70,
+    "scale": 0.4
    },
    "friend": {
-    "x": 40,
-    "y": 82,
-    "scale": 0.4
+    "x": 44,
+    "y": 74,
+    "scale": 0.36
    }
   },
   {

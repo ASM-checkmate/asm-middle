@@ -33,6 +33,13 @@ function localLeg(from: Place, to: Place): Leg | null {
   return makeLeg('car', from, to);
 }
 
+/** 차 한 구간짜리 여정 — 제휴 택시(ADR-0031)처럼 모드를 못 박을 때. 라벨이 기본('차 타고')과 다르면 지도가 탑승 순간 그 이름을 띄운다 */
+export function carJourney(from: Place, to: Place, label: string): Journey {
+  if (from.id === to.id) return { legs: [], totalMin: 0 };
+  const leg = makeLeg('car', from, to, label);
+  return { legs: [leg], totalMin: leg.durationMin };
+}
+
 export function estimateJourney(from: Place, to: Place): Journey {
   if (from.id === to.id) return { legs: [], totalMin: 0 };
   const legs: Leg[] = [];

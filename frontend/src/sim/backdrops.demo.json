@@ -1,0 +1,166 @@
+{
+ "_": "AI 배경 데모 묶음 (ADR-0029) — art/backdrops/manifest.json에서 생성. me/friend: 발 자리 %와 프레임 대비 폭. zone: 방의 트리거 존(Room Zone.key) — 그 존에 서야 📷 칩이 뜬다. event: 방의 시간 이벤트(RoomSpec.events) 동안만 뜨는 배경",
+ "backdrops": [
+  {
+   "id": "busan:samjin-table",
+   "placeId": "samjin-pocha",
+   "spot": "앞 테이블",
+   "zone": "seat",
+   "url": "/backdrops/busan/samjin-table.webp",
+   "sit": true,
+   "me": {
+    "x": 37,
+    "y": 92,
+    "scale": 0.5
+   },
+   "friend": {
+    "x": 63,
+    "y": 92,
+    "scale": 0.5
+   }
+  },
+  {
+   "id": "busan:samjin-night",
+   "placeId": "samjin-pocha",
+   "spot": "해변 난간",
+   "zone": "rail",
+   "url": "/backdrops/busan/gwangalli-night.webp",
+   "sit": false,
+   "me": {
+    "x": 50,
+    "y": 96,
+    "scale": 0.5
+   },
+   "friend": {
+    "x": 74,
+    "y": 96,
+    "scale": 0.44
+   }
+  },
+  {
+   "id": "busan:samjin-drone",
+   "placeId": "samjin-pocha",
+   "spot": "드론쇼 앞",
+   "zone": "rail",
+   "event": "drone",
+   "url": "/backdrops/busan/gwangalli-drone.webp",
+   "sit": false,
+   "me": {
+    "x": 50,
+    "y": 96,
+    "scale": 0.5
+   },
+   "friend": {
+    "x": 74,
+    "y": 96,
+    "scale": 0.44
+   }
+  },
+  {
+   "id": "busan:pnu",
+   "placeId": "pnu",
+   "spot": "대학본부 앞",
+   "zone": "front",
+   "url": "/backdrops/busan/pnu.webp",
+   "sit": false,
+   "me": {
+    "x": 46,
+    "y": 92,
+    "scale": 0.42
+   },
+   "friend": {
+    "x": 66,
+    "y": 93,
+    "scale": 0.38
+   }
+  },
+  {
+   "id": "busan:josaeho-window",
+   "placeId": "josaeho",
+   "spot": "창가 자리",
+   "zone": "seat",
+   "url": "/backdrops/busan/josaeho-window.webp",
+   "sit": true,
+   "me": {
+    "x": 22,
+    "y": 84,
+    "scale": 0.5
+   },
+   "friend": {
+    "x": 40,
+    "y": 78,
+    "scale": 0.42
+   }
+  },
+  {
+   "id": "busan:gwangalli-night",
+   "placeId": "gwangalli",
+   "spot": "해변 난간",
+   "url": "/backdrops/busan/gwangalli-night.webp",
+   "sit": false,
+   "me": {
+    "x": 50,
+    "y": 96,
+    "scale": 0.5
+   },
+   "friend": {
+    "x": 74,
+    "y": 96,
+    "scale": 0.44
+   }
+  },
+  {
+   "id": "busan:gwangalli-drone",
+   "placeId": "gwangalli",
+   "spot": "드론쇼 앞",
+   "url": "/backdrops/busan/gwangalli-drone.webp",
+   "sit": false,
+   "me": {
+    "x": 50,
+    "y": 96,
+    "scale": 0.5
+   },
+   "friend": {
+    "x": 74,
+    "y": 96,
+    "scale": 0.44
+   }
+  },
+  {
+   "id": "busan:starbucks-window",
+   "placeId": "starbucks-pnu",
+   "spot": "창가 자리",
+   "zone": "seat",
+   "url": "/backdrops/busan/starbucks-window.webp",
+   "sit": true,
+   "me": {
+    "x": 66,
+    "y": 70,
+    "scale": 0.4
+   },
+   "friend": {
+    "x": 44,
+    "y": 74,
+    "scale": 0.36
+   }
+  },
+  {
+   "id": "busan:noraebang-mic",
+   "placeId": "coin-noraebang-pnu",
+   "spot": "마이크 앞",
+   "zone": "mic",
+   "url": "/backdrops/busan/noraebang-mic.webp",
+   "sit": false,
+   "me": {
+    "x": 50,
+    "y": 94,
+    "scale": 0.5
+   },
+   "friend": {
+    "x": 72,
+    "y": 94,
+    "scale": 0.44
+   }
+  }
+ ]
+}

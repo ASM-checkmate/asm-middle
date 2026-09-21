@@ -1,0 +1,456 @@
+[
+  {
+    "goto": "http://localhost:5173/?scenario=busan&reset=1&day=2026-09-15",
+    "load": 7000,
+    "keepHold": true,
+    "mark": "0 인트로"
+  },
+  {
+    "intro": "안녕 나는 모모야! 오늘 내 하루를 구경해볼래?",
+    "wait": 600
+  },
+  {
+    "introOff": true,
+    "wait": 300
+  },
+  {
+    "jump": "16:20",
+    "say": [
+      "나들이는 능동적으로 살아가는 에이전트의 세계입니다. 우리 캐릭터는 스스로 하루를 살아갑니다.",
+      "민수야, 오늘 저녁에 광안리 갈까? 드론쇼 한다는데?"
+    ],
+    "mark": "1 부산대",
+    "wait": 800
+  },
+  {
+    "eval": "window.__world.getState().chooseOption('evening', 'busan-evening-alt0', 'agent')"
+  },
+  {
+    "waitVoice": true,
+    "tapClick": ".chrome-tt",
+    "wait": 400
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.tt-sheet')",
+      "max": 5000
+    },
+    "wait": 500
+  },
+  {
+    "eval": "window.__world.getState().selectBlock('evening')",
+    "wait": 900
+  },
+  {
+    "say": [
+      "",
+      "조새호 조개구이집에서 광안대교 보인대! 여기로 가자 🦪"
+    ],
+    "mark": "1 시간표 저녁",
+    "wait": 900
+  },
+  {
+    "tapClick": [
+      ".opt",
+      "조새호"
+    ],
+    "wait": 900
+  },
+  {
+    "tapClick": ".tt-cta",
+    "wait": 1200
+  },
+  {
+    "waitVoice": true,
+    "tapClick": ".tt-close",
+    "wait": 700
+  },
+  {
+    "jump": "18:10",
+    "scale": 30,
+    "say": [
+      "",
+      "광안리로 슝~ 🚇"
+    ],
+    "mark": "2 지하철",
+    "wait": 500
+  },
+  {
+    "scale": 400,
+    "mark": "2 이동"
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.act') && !document.querySelector('.map-scene')",
+      "max": 45000
+    },
+    "mark": "2 도착"
+  },
+  {
+    "scale": 30
+  },
+  {
+    "hold": {
+      "expr": "!!document.querySelector('.room')",
+      "max": 8000
+    },
+    "wait": 800
+  },
+  {
+    "say": [
+      "",
+      "와, 여기 조개구이 너무 맛있겠다. 전망도 너무 좋아!"
+    ],
+    "mark": "3 조새호",
+    "wait": 300
+  },
+  {
+    "eval": "document.querySelectorAll('.room-zone')[2].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 9000
+    },
+    "wait": 400
+  },
+  {
+    "say": [
+      "",
+      "가리비 익는 동안 찰칵 🐚"
+    ],
+    "mark": "3 창가 사진",
+    "wait": 300
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 15000
+    }
+  },
+  {
+    "click": ".room-shoot",
+    "wait": 2200
+  },
+  {
+    "click": ".cam-shutter",
+    "wait": 2400
+  },
+  {
+    "dropPhoto": {
+      "url": "/demo/josaeho.png",
+      "cell": 0
+    },
+    "wait": 1500
+  },
+  {
+    "tapClick": ".cam-x",
+    "wait": 900
+  },
+  {
+    "say": [
+      "",
+      ""
+    ],
+    "mark": "3 끝",
+    "wait": 1200
+  },
+  {
+    "cut": true
+  },
+  {
+    "jump": "19:33",
+    "scale": 30,
+    "say": [
+      "",
+      "조개구이 잘 먹었다~ 밤엔 뭐 하지? 시간표 좀 볼까?"
+    ],
+    "mark": "3 조새호",
+    "wait": 300
+  },
+  {
+    "waitVoice": true,
+    "tapClick": ".chrome-tt",
+    "wait": 400
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.tt-sheet')",
+      "max": 5000
+    },
+    "wait": 500
+  },
+  {
+    "eval": "window.__world.getState().selectBlock('night')",
+    "wait": 900
+  },
+  {
+    "say": [
+      "일정은 캐릭터의 취향으로 짜여집니다.",
+      "밤엔 삼진포차에서 드론쇼 보자. 여기 완전 잘 보인대 🚁"
+    ],
+    "mark": "3 시간표 밤",
+    "wait": 600
+  },
+  {
+    "waitVoice": true,
+    "tapClick": ".tt-close",
+    "wait": 700
+  },
+  {
+    "say": [
+      "",
+      "이제 포차로 슬슬 걸어가자 🚶"
+    ],
+    "mark": "3 조새호 출발",
+    "wait": 600
+  },
+  {
+    "waitVoice": true,
+    "scale": 5
+  },
+  {
+    "jump": "20:01",
+    "scale": 15,
+    "mark": "3 걸어서 이동"
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.act') && !document.querySelector('.map-scene')",
+      "max": 60000
+    },
+    "mark": "3 도착"
+  },
+  {
+    "scale": 30,
+    "hold": {
+      "expr": "!!document.querySelector('.room')",
+      "max": 8000
+    },
+    "wait": 800
+  },
+  {
+    "say": [
+      "",
+      "역시 밤에는 포차를 가야지~ 드론쇼 전에 좋은 자리 찾았다."
+    ],
+    "mark": "4 포차",
+    "wait": 300
+  },
+  {
+    "eval": "document.querySelectorAll('.room-zone')[2].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 9000
+    },
+    "wait": 400
+  },
+  {
+    "say": [
+      "기록하고 싶은 장소에서 사진을 찍어보세요.",
+      "치즈! 🍶"
+    ],
+    "mark": "4 테이블 사진",
+    "wait": 200
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 15000
+    }
+  },
+  {
+    "click": ".room-shoot",
+    "wait": 2200
+  },
+  {
+    "click": ".cam-shutter",
+    "wait": 2400
+  },
+  {
+    "dropPhoto": {
+      "url": "/demo/pocha.png",
+      "cell": 0
+    },
+    "wait": 1500
+  },
+  {
+    "tapClick": ".cam-x",
+    "wait": 900
+  },
+  {
+    "say": [
+      "한번 가보고 싶다면 지도에서 가게를 바로 찾아보세요.",
+      ""
+    ],
+    "mark": "4 장소 지도",
+    "wait": 400
+  },
+  {
+    "click": ".act-map-btn"
+  },
+  {
+    "hold": {
+      "expr": "window.__demoReady && window.__demoReady()",
+      "max": 15000
+    },
+    "wait": 3000
+  },
+  {
+    "tapClick": ".ps-x",
+    "wait": 900
+  },
+  {
+    "say": [
+      "",
+      "와, 드론쇼 시작한다! 드론 너무 예쁘다. 사람도 완전 많아."
+    ],
+    "mark": "5 드론쇼",
+    "wait": 300,
+    "jump": "20:55"
+  },
+  {
+    "eval": "document.querySelectorAll('.room-zone')[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
+  },
+  {
+    "wait": 9000
+  },
+  {
+    "say": [
+      "근처의 에이전트와 친구가 될 수 있습니다.",
+      "봉주르~ 우리 친구해요!"
+    ],
+    "mark": "5 친구",
+    "wait": 3000
+  },
+  {
+    "waitUntil": {
+      "expr": "(() => { const d = new Date(window.__world.getState().now); return d.getHours() * 60 + d.getMinutes() >= 21 * 60 + 5; })()",
+      "max": 30000
+    }
+  },
+  {
+    "say": [
+      "",
+      "다같이 치즈~ 📸"
+    ],
+    "mark": "5 드론쇼 사진",
+    "wait": 300
+  },
+  {
+    "eval": "document.querySelectorAll('.room-zone')[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }))"
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 9000
+    },
+    "wait": 400
+  },
+  {
+    "waitUntil": {
+      "expr": "!!document.querySelector('.room-shoot')",
+      "max": 15000
+    }
+  },
+  {
+    "click": ".room-shoot",
+    "wait": 2200
+  },
+  {
+    "click": ".cam-shutter",
+    "wait": 2600
+  },
+  {
+    "tapClick": ".cam-x",
+    "wait": 900
+  },
+  {
+    "jump": "23:44",
+    "scale": 150,
+    "say": [
+      "이동은 진짜 지도 위에서 하고 실제 이동 시간만큼 걸립니다.",
+      ""
+    ],
+    "mark": "6 택시"
+  },
+  {
+    "say": [
+      "귀가 택시는 제휴 광고입니다.",
+      ""
+    ]
+  },
+  {
+    "waitUntil": {
+      "expr": "window.__world.getState().phase.kind === 'sleeping' && !!document.querySelector('.room')",
+      "max": 40000
+    },
+    "mark": "6 도착"
+  },
+  {
+    "scale": 30
+  },
+  {
+    "hold": {
+      "expr": "!!document.querySelector('.room')",
+      "max": 5000
+    },
+    "wait": 300
+  },
+  {
+    "say": [
+      "",
+      "아, 이제 누워야겠다. 너무 잘 놀았어."
+    ],
+    "mark": "7 집",
+    "wait": 4500
+  },
+  {
+    "say": [
+      "",
+      "자기 전에 SNS나 한번 봐 볼까?"
+    ],
+    "mark": "7 SNS",
+    "wait": 300
+  },
+  {
+    "tapClick": ".chrome-sns",
+    "wait": 1500
+  },
+  {
+    "tapClick": [
+      ".sns-tabs button",
+      "친구"
+    ],
+    "wait": 600
+  },
+  {
+    "say": [
+      "친구의 활동을 SNS에서 확인할 수 있습니다.",
+      ""
+    ],
+    "wait": 3200
+  },
+  {
+    "eval": "(() => { const b = [...document.querySelectorAll('button[aria-label=\"닫기\"]')].at(-1); if (!b) return 'no close'; const r = b.getBoundingClientRect(); window.__demoTap(r.left + r.width / 2, r.top + r.height / 2); setTimeout(() => b.click(), 150); return 'sns closed'; })()",
+    "wait": 1200
+  },
+  {
+    "jump": "0:45",
+    "say": [
+      "",
+      "나 이제 졸려. 잘게 😴"
+    ],
+    "mark": "8 잠",
+    "wait": 3500
+  },
+  {
+    "say": [
+      "",
+      ""
+    ],
+    "wait": 800
+  }
+]

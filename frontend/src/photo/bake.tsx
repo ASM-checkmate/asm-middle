@@ -4,14 +4,13 @@
 // <use> 세 번(가운데 한 장, 양옆 거울), 캐릭터(나·동행·상대·배경 인물)는 겉모습을 명시해 nested <svg>, 크롭은 <g transform>, 심도는 feGaussianBlur,
 // 조도는 feComponentTransfer. 그 svg를 Blob → <img> → canvas → WebP. 숫자는 전부 photo/geometry.ts(순수, node 검사).
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { Look } from '../sim/types';
-import type { ShotCrop } from '../sim/types';
+import type { Look, ShotCrop, ShotFigure } from '../sim/types';
 import { Character, type Pose } from '../character';
 import { HAIR, SKIN, TOP } from '../character/look';
 import { SCENES, type SceneType } from '../scenes';
 import {
   DEFAULT_LONG_EDGE, DEFAULT_QUALITY, MAX_BYTES, PRESENT_OPACITY, SCENE_CSS, SCENE_VB, STILL_CSS, TOKEN, TOKEN_VARS,
-  bakeAttempts, bgParallax, bgTile, bgTransforms, blurFilterDefs, blurRadii, castLayout, cropTransform, frameSize, isIdentityLight,
+  BD_OVER, bakeAttempts, bgParallax, bgTile, bgTransforms, blurFilterDefs, blurRadii, castLayout, cropTransform, figureBox, frameSize, isIdentityLight,
   lightFilterDef, lightTransfer, pngAttempts,
   type Box, type Size,
 } from './geometry';
@@ -33,8 +32,16 @@ export interface BakeInput {
   friend?: BakeFigure;
   /** 말을 건 마주침 상대 (앞쪽) — encounter.at 뒤의 컷에만 */
   met?: BakeFigure;
+  /** 같이 온 둘째 말 튼 사람 (encounter.also, ADR-0031) — 왼쪽 뒤, 나보다 뒤에 */
+  met2?: BakeFigure;
   /** 같은 공간에 있던 사람들 (FRIENDS_SPEC §6): 뒤의 왼쪽·오른쪽에 뒷모습으로 작게, 최대 둘. glance면 돌아본 얼굴 */
   present?: BakeFigure[];
+  /** AI 배경 (ADR-0029) — data URL. 있으면 무대(type) 대신 이 그림을 프레임에 slice로 채운다 (sim/backdrops backdropDataUrl) */
+  backdrop?: string;
+  /** 내 자리·크기·자세 (배경 위). 없으면 castLayout의 기본 자리, 자세는 `pose` */
+  me?: ShotFigure;
+  /** 동행의 자리·자세. 없으면 castLayout의 기본 자리에 손 흔들기 */
+  friendPos?: ShotFigure;
 }
 
 export interface BakeSvgOptions { longEdge?: number }
@@ -87,7 +94,7 @@ export function bakeSvg(input: BakeInput, opts: BakeSvgOptions = {}): string {
   const size: Size = frameSize(opts.longEdge ?? DEFAULT_LONG_EDGE);
   const { w, h } = size;
   const present = input.present ?? [];
-  const cast = { friend: !!input.friend, met: !!input.met, present: present.length };
+  const cast = { friend: !!input.friend, met: !!input.met, met2: !!input.met2, present: present.length };
   const lay = castLayout(size, cast);
   const blur = blurRadii(input.crop, size);
   const light = lightTransfer(input.crop.light ?? 1);
@@ -95,14 +102,18 @@ export function bakeSvg(input: BakeInput, opts: BakeSvgOptions = {}): string {
 
   // 필터는 전부 sRGB(geometry.ts FILTER_COLOR_SPACE) — CSS filter와 같은 색 공간. 실루엣 필터(ghost)는 이제 안 쓴다
   const defs: string[] = [
-    `<symbol id="sc" viewBox="0 0 ${SCENE_VB.w} ${SCENE_VB.h}" preserveAspectRatio="xMidYMid slice">${sceneBody(input.type)}</symbol>`,
+    ...(input.backdrop ? [] : [`<symbol id="sc" viewBox="0 0 ${SCENE_VB.w} ${SCENE_VB.h}" preserveAspectRatio="xMidYMid slice">${sceneBody(input.type)}</symbol>`]),
     ...blurFilterDefs(blur, false),
   ];
   const lightDef = lightFilterDef(light, size);
   if (lightDef) defs.push(lightDef);
 
   const useTile = `<use href="#sc" x="${num(tile.x)}" y="${num(tile.y)}" width="${num(tile.w)}" height="${num(tile.h)}"/>`;
-  const bg = bgTransforms(size).map(t => (t ? `<g transform="${t}">${useTile}</g>` : useTile)).join('');
+  // AI 배경은 프레임보다 사방 12 % 큰 상자(BD_OVER)에 slice로 — 카메라의 배경 이동 한도(±12 %)만큼 여유 (camera.css .cam-bg img와 같은 식)
+  const over = (BD_OVER - 1) / 2;
+  const bg = input.backdrop
+    ? `<image href="${esc(input.backdrop)}" x="${num(-over * w)}" y="${num(-over * h)}" width="${num(BD_OVER * w)}" height="${num(BD_OVER * h)}" preserveAspectRatio="xMidYMid slice"/>`
+    : bgTransforms(size).map(t => (t ? `<g transform="${t}">${useTile}</g>` : useTile)).join('');
   const parallax = bgParallax(input.crop.pitch ?? 0, size);
   const bgAttrs = [parallax ? `transform="translate(0 ${num(parallax)})"` : '', blur.bg > 0 ? 'filter="url(#bgblur)"' : ''].filter(Boolean).join(' ');
 
@@ -114,9 +125,22 @@ export function bakeSvg(input: BakeInput, opts: BakeSvgOptions = {}): string {
     const body = characterSvg(box, 'idle', 'friend', p.look, p.color, p.glance ? { glance: true } : { back: true });
     people.push(`<g opacity="${PRESENT_OPACITY}"${blur.bg > 0 ? ' filter="url(#bgblur)"' : ''}>${body}</g>`);
   });
-  if (lay.friend && input.friend) people.push(fg(characterSvg(lay.friend, 'wave', 'friend', input.friend.look, input.friend.color, { glance: input.friend.glance })));
-  people.push(fg(characterSvg(lay.me, input.pose, 'me', input.look)));
-  if (lay.met && input.met) people.push(fg(characterSvg(lay.met, 'wave', 'friend', input.met.look, input.met.color, { glance: input.met.glance })));
+  // 말 튼 사람이 둘이면 둘 다 뒷줄 — 나·동행보다 먼저(뒤에) 그린다 (camera.css .has-met2 z-index 1)
+  const metSvg = lay.met && input.met ? fg(characterSvg(lay.met, 'wave', 'friend', input.met.look, input.met.color, { glance: input.met.glance })) : '';
+  if (lay.met2 && input.met2) {
+    people.push(fg(characterSvg(lay.met2, 'wave', 'friend', input.met2.look, input.met2.color, { glance: input.met2.glance })));
+    people.push(metSvg);
+  }
+  // 자리·자세(ADR-0029): 카메라가 옮긴 값이 있으면 그대로, 없으면 옛 기본 자리. 동행이 나보다 뒤(발이 위)면 먼저 그린다
+  const meBox = input.me ? figureBox(size, input.me) : lay.me;
+  const friendBox = input.friend ? (input.friendPos ? figureBox(size, input.friendPos) : lay.friend) : undefined;
+  const meSvg = fg(characterSvg(meBox, input.me?.pose ?? input.pose, 'me', input.look));
+  const friendSvg = friendBox && input.friend ? fg(characterSvg(friendBox, input.friendPos?.pose ?? 'wave', 'friend', input.friend.look, input.friend.color, { glance: input.friend.glance })) : '';
+  const friendBehind = !!friendBox && friendBox.y + friendBox.h <= meBox.y + meBox.h;
+  if (friendBehind) people.push(friendSvg);
+  people.push(meSvg);
+  if (!friendBehind) people.push(friendSvg);
+  if (!lay.met2) people.push(metSvg);
 
   const shot = `<g transform="${cropTransform(input.crop, size)}"><g ${bgAttrs}>${bg}</g>${people.join('')}</g>`;
   const stage = `<rect width="${w}" height="${h}" fill="${TOKEN.paper2}"/>${shot}`;
@@ -179,4 +203,37 @@ export async function bakeShot(input: BakeInput, opts: BakeShotOptions = {}): Pr
   if (notes.length) last.note = notes.join(' · ');
   if (last.blob.size > MAX_BYTES) throw new BakeOversizeError(last);
   return last;
+}
+
+/** svg 문자열을 그대로 캔버스에 그려 Blob으로 — 크기 상한 없음 (서버로 보내는 재료용, ADR-0029) */
+async function rasterize(svg: string, w: number, h: number, mime: 'image/webp' | 'image/png', quality: number): Promise<Blob> {
+  if (typeof document === 'undefined') throw new Error('bake needs a browser');
+  const { img, release } = await loadSvg(svg);
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('bake: no 2d context');
+    ctx.drawImage(img, 0, 0, w, h);
+    const blob = await toBlob(canvas, mime, quality);
+    // WebP를 못 만드는 브라우저(Safari)는 PNG로
+    return blob.type === mime ? blob : toBlob(canvas, 'image/png', 1);
+  } finally { release(); }
+}
+
+/** 서버 컷 생성의 재료 1: 뷰파인더 그대로의 단순 합성본을 크게(긴 변 기본 768) — 자리·크기를 모델이 읽을 만큼 */
+export function bakeComposite(input: BakeInput, longEdge = 768, quality = 0.86): Promise<Blob> {
+  const { w, h } = frameSize(longEdge);
+  return rasterize(bakeSvg(input, { longEdge }), w, h, 'image/webp', quality);
+}
+
+/**
+ * 서버 컷 생성의 재료 2: 캐릭터 한 명을 투명 PNG로 (정체성 참고 — 얼굴·머리·옷 색). 자세는 기본 서기 — 모델은 합성본에서 자세를 읽고
+ * 여기서는 생김새만 읽는다. 겉모습은 굽기와 같이 명시한다 (OwnerLookContext 밖).
+ */
+export function bakeFigure(look: Look, variant: 'me' | 'friend' = 'me', color?: string, size = 480): Promise<Blob> {
+  const raw = renderToStaticMarkup(<Character pose="idle" size={200} variant={variant} look={look} color={color} paused />);
+  const inner = characterMarkup(raw, { skin: SKIN[look.skin], hair: HAIR[look.hairColor], top: TOP[look.top], color });
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 200 200"><style>${STILL_CSS}</style>${inner}</svg>`;
+  return rasterize(svg, size, size, 'image/png', 1);
 }

@@ -392,7 +392,8 @@ function travelOptions(ctx: SuggestCtx, r: R, softUsed: Set<string>): ActivityOp
   const home = placeById(ctx.memory.homePlaceId);
   const away = ctx.from.city !== home.city;
   // Away from home the home city is not a "trip" — "집으로 돌아가기" below is the way there.
-  const dests = PLACES.filter(p => p.city !== ctx.from.city && !HUB.includes(p.type) && !(away && p.city === home.city));
+  // 남의 집(home — 손님 NPC의 파리 집 등)은 여행지가 아니다 (ADR-0031)
+  const dests = PLACES.filter(p => p.city !== ctx.from.city && !HUB.includes(p.type) && p.type !== 'home' && !(away && p.city === home.city));
   const buckets: Record<TripKind, Place[]> = { train: [], boat: [], 'plane-near': [], 'plane-far': [] };
   for (const p of dests) buckets[tripKind(ctx.from, p)].push(p);
   // One option per kind, always in this order, so the far-away flight (뉴욕) is never shuffled out of the list.

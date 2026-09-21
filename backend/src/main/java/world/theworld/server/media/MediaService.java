@@ -35,8 +35,9 @@ public class MediaService {
   public static final Pattern ID = Pattern.compile("^[0-9a-f]{32}$");
   public static final long MAX_BYTES = BodyLimitFilter.MEDIA_MAX;
   public static final Set<String> KINDS = Set.of("shot", "sketch", "npc");
-  /** WebP가 원칙, PNG는 Safari 폴백 (§2.5). */
+  /** WebP가 원칙, PNG는 Safari 폴백 (§2.5). JPEG는 서버가 만든 생성 컷(ADR-0029)만 — 올리는 쪽은 못 쓴다 (mime()). */
   public static final Set<String> MIMES = Set.of("image/webp", "image/png");
+  public static final String GENERATED_MIME = "image/jpeg";
   public static final String CACHE_CONTROL = "private, max-age=31536000";
 
   private final MediaRepository media;
@@ -52,6 +53,9 @@ public class MediaService {
   }
 
   // ── 검증 ──
+
+  /** 다른 패키지(photo)가 같은 규칙으로 id를 검사한다 */
+  public static String checkId(String id) { return id(id); }
 
   static String id(String id) {
     if (id == null || !ID.matcher(id).matches()) throw ApiException.badRequest("id must be 32 hex chars");
@@ -102,6 +106,20 @@ public class MediaService {
     write(id, body);
     return new Stored(toDto(m), true);
   }
+
+  /**
+   * 서버가 만든 픽셀을 새 id로 넣는다 (ADR-0029 컷 생성). 소유자는 요청한 사용자, 크기 상한은 없다(우리가 만든 바이트다) — 호출자가 줄여서 준다.
+   * id는 서버가 뽑은 32자 hex — 클라이언트 id와 같은 모양이라 GET /api/media/{id}·글의 컷·대표컷이 그대로 쓴다.
+   */
+  @Transactional
+  public MediaDtos.Media storeGenerated(String me, String kind, String mime, byte[] body) {
+    String id = java.util.HexFormat.of().formatHex(randomBytes(16));
+    Media m = media.saveAndFlush(new Media(id, me, kind(kind), mime, body.length, System.currentTimeMillis()));
+    write(id, body);
+    return toDto(m);
+  }
+
+  private static byte[] randomBytes(int n) { byte[] b = new byte[n]; new java.security.SecureRandom().nextBytes(b); return b; }
 
   private void write(String id, byte[] body) {
     try {

@@ -121,12 +121,12 @@ export function BookOverlay({ onClose, comics, pick }: { onClose: () => void; co
   const filtering = !!q || !!cat;
 
   return (
-    <div className="book" role="dialog" aria-label="book">
+    <div className="book" role="dialog" aria-label="앨범">
       <div className="book-hd">
         {cur && <Button round ariaLabel="목록으로" onClick={() => setOpenId(null)}><Glyph name="back" /></Button>}
         <h2>
-          {cur ? cur.title : pick ? '컷 고르기' : 'book'}
-          <small className="num">{cur ? meta(cur) : pick ? `${pick.selected.length} / ${pick.max}${filtering ? ` · ${shown.length}개 찾음` : ''}` : filtering ? `${shown.length}개 찾음 · 전체 ${list.length}개` : `${list.length}개의 이야기`}</small>
+          {cur ? cur.title : pick ? '사진 고르기' : '앨범'}
+          <small className="num">{cur ? meta(cur) : pick ? `${pick.selected.length} / ${pick.max}${filtering ? ` · ${shown.length}개 찾음` : ''}` : filtering ? `${shown.length}개 찾음 · 전체 ${list.length}개` : `${list.length}개의 하루`}</small>
         </h2>
         {/* 아침에 그린 그림 (ADR-0004) — 상세 헤더에 40px 썸네일 */}
         {cur?.sketch && <img className="book-sketch" src={cur.sketch} alt="아침에 그린 그림" title="아침에 그린 것" draggable={false} />}
@@ -141,7 +141,7 @@ export function BookOverlay({ onClose, comics, pick }: { onClose: () => void; co
       ) : list.length === 0 ? (
         <div className="book-empty">
           <Character pose="think" size={170} />
-          <span>아직 이야기가 없어요<br />캐릭터가 다녀오면 여기에 쌓여요</span>
+          <span>아직 사진이 없어요<br />캐릭터가 다녀오면 여기에 쌓여요</span>
         </div>
       ) : (
         <>

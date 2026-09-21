@@ -10,6 +10,13 @@ import { MUSEUM } from './museum';
 import { PARK } from './park';
 import { RIVER } from './river';
 import { BEACH } from './beach';
+import { SAMJIN } from './places/samjin';
+import { JOSAEHO } from './places/josaeho';
+import { PNU } from './places/pnu';
+import { STARBUCKS } from './places/starbucks';
+import { NORAEBANG } from './places/noraebang';
+import { sceneTypeFor } from '../scenes';
+import type { Place } from '../sim/types';
 import type { RoomSpec } from './Room';
 
 export { RoomStage } from './RoomStage';
@@ -20,3 +27,9 @@ const ROOMS: Record<SceneType, RoomSpec> = { cafe: CAFE, home: HOME, restaurant:
 
 /** 그 장소의 방. 지금은 모든 장면 종류에 방이 있다 — undefined는 없지만 화면의 폴백(정면 무대) 분기는 남겨 둔다 */
 export const roomFor = (type: SceneType): RoomSpec | undefined => ROOMS[type];
+
+/** 장소별 방 (ADR-0015 개정 4): 그 가게처럼 그린 방이 있으면 그것 — 카메라 배경(sim/backdrops)의 자리와 같은 존을 가진다. 부산 데모 셋 + 공시생 데모 둘 */
+const PLACE_ROOMS: Record<string, RoomSpec> = { 'samjin-pocha': SAMJIN, josaeho: JOSAEHO, pnu: PNU, 'starbucks-pnu': STARBUCKS, 'coin-noraebang-pnu': NORAEBANG };
+
+/** 그 장소의 방: 장소별 방 → 장면 종류의 기본 방 */
+export const roomForPlace = (place: Pick<Place, 'id' | 'type'>): RoomSpec | undefined => PLACE_ROOMS[place.id] ?? roomFor(sceneTypeFor(place.type));

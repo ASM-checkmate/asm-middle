@@ -8,7 +8,8 @@ import type { Face, Variant } from './shapes';
 import type { Look } from '../sim/types';
 import { lookVars, useOwnerLook } from './look';
 
-export type Pose = 'idle' | 'walk' | 'sit' | 'sleep' | 'wave' | 'draw' | 'happy' | 'eat' | 'read' | 'think';
+export type Pose = 'idle' | 'walk' | 'sit' | 'sleep' | 'wave' | 'draw' | 'happy' | 'eat' | 'read' | 'think' | 'sing';
+export type Food = 'onigiri' | 'scallop';
 
 export interface CharacterProps {
   pose?: Pose;
@@ -25,32 +26,36 @@ export interface CharacterProps {
   glance?: boolean;
   /** 겉모습 (ADR-0019). 없으면 'me'는 OwnerLookContext(내 캐릭터), 'friend'는 기본 */
   look?: Look;
+  /** 먹기 자세에서 손에 든 것 — 기본 주먹밥. 조개구이집은 가리비 (방이 정한다, RoomSpec.food) */
+  food?: Food;
 }
 
 const FACE: Record<Pose, Face> = {
   idle: 'default', walk: 'default', sit: 'default', sleep: 'sleep', wave: 'happy',
-  draw: 'down', happy: 'happy', eat: 'default', read: 'down', think: 'up',
+  draw: 'down', happy: 'happy', eat: 'default', read: 'down', think: 'up', sing: 'happy',
 };
 /** Arm wrapper rotation (deg) for [left, right]. 0 = hanging straight down; negative on the right lifts it outward. */
 const ARM: Record<Pose, [number, number]> = {
   idle: [22, -22], walk: [22, -22], sit: [-12, 12], sleep: [34, -34], wave: [22, -138],
   draw: [-44, 58], happy: [150, -150], eat: [-112, 112], read: [-36, 36], think: [22, 100],
+  // 노래: 오른손이 입 앞에 (핸드마이크는 Mic이 그 손에 그린다), 왼손은 내리고
+  sing: [22, -118],
 };
 const HEAD_TILT: Partial<Record<Pose, number>> = { sleep: -12, think: -5, sit: 3 };
 const ROOT: Partial<Record<Pose, string>> = { sleep: 'rotate(6 100 190)' };
 const LABEL: Record<Pose, string> = {
   idle: '가만히 있는 캐릭터', walk: '걷는 캐릭터', sit: '앉아 있는 캐릭터', sleep: '자는 캐릭터', wave: '손 흔드는 캐릭터',
-  draw: '그림 그리는 캐릭터', happy: '기뻐하는 캐릭터', eat: '먹는 캐릭터', read: '책 읽는 캐릭터', think: '생각하는 캐릭터',
+  draw: '그림 그리는 캐릭터', happy: '기뻐하는 캐릭터', eat: '먹는 캐릭터', read: '책 읽는 캐릭터', think: '생각하는 캐릭터', sing: '노래 부르는 캐릭터',
 };
 
-export function Character({ pose = 'idle', size = 240, variant = 'me', color, className, style, paused, back: backProp = false, glance = false, look: lookProp }: CharacterProps) {
+export function Character({ pose = 'idle', size = 240, variant = 'me', color, className, style, paused, back: backProp = false, glance = false, look: lookProp, food }: CharacterProps) {
   const back = backProp && !glance;
   const owner = useOwnerLook();
   const look = lookProp ?? (variant === 'me' ? owner : undefined);
   const face = FACE[pose];
   const [al, ar] = ARM[pose];
   const sit = pose === 'sit';
-  const armsFront = pose === 'think' || pose === 'eat' || pose === 'wave' || pose === 'draw';
+  const armsFront = pose === 'think' || pose === 'eat' || pose === 'wave' || pose === 'draw' || pose === 'sing';
   const tilt = HEAD_TILT[pose];
   const st = { ...(color ? { '--friend': color } : null), ...lookVars(look), ...style } as CSSProperties;
   const cls = ['ch', paused ? 'is-paused' : '', className ?? ''].filter(Boolean).join(' ');
@@ -81,12 +86,14 @@ export function Character({ pose = 'idle', size = 240, variant = 'me', color, cl
             </g>
           </g>
           {armsFront && arms}
-          {pose === 'eat' && <Onigiri />}
+          {pose === 'eat' && (food === 'scallop' ? <Scallop /> : <Onigiri />)}
+          {pose === 'sing' && <Mic />}
         </g>
       </g>
       <g className="ch-fx">
         {pose === 'sleep' && <Zzz />}
         {pose === 'happy' && <Sparkles />}
+        {pose === 'sing' && <Notes />}
         {pose === 'think' && <Thought />}
       </g>
     </svg>
@@ -149,6 +156,19 @@ function Onigiri() {
   );
 }
 
+/** 가리비 한 점 — 껍데기 위 관자, 젓가락으로 집었다 (조개구이집) */
+function Scallop() {
+  return (
+    <g className="ch-food">
+      <path d="M100 150 l-14 -30" fill="none" stroke={C.night} strokeWidth="3" strokeLinecap="round" />
+      <path d="M100 150 l-6 -32" fill="none" stroke={C.night} strokeWidth="3" strokeLinecap="round" />
+      <path d="M84 126 a16 12 0 0 1 32 0 l-3 6 h-26 z" fill="#FFD2C4" {...INK} />
+      <path d="M90 126 v-8 M96 124 v-9 M102 124 v-9 M108 126 v-8" stroke={C.ink} strokeWidth="1.5" opacity=".5" />
+      <ellipse cx="100" cy="126" rx="8" ry="5" fill={C.sun} stroke={C.ink} strokeWidth="2" />
+    </g>
+  );
+}
+
 function Zzz() {
   const t = { fill: C.sun, stroke: C.ink, strokeWidth: 2, paintOrder: 'stroke' as const, style: { fontFamily: 'var(--mono)', fontWeight: 500 } };
   return (
@@ -161,6 +181,29 @@ function Zzz() {
 }
 
 const STAR = 'M0 -9 q1.5 7 9 9 q-7.5 2 -9 9 q-1.5 -7 -9 -9 q7.5 -2 9 -9z';
+/** 핸드마이크 — 오른손(sing 자세, 손이 입 옆)에서 입 쪽으로 기울여 든다. 세계 좌표 */
+function Mic() {
+  return (
+    <g className="ch-mic" transform="translate(152 134) rotate(25)">
+      <rect x="-30" y="-4.5" width="34" height="9" rx="4.5" fill={C.night} {...INK3} />
+      <rect x="-14" y="-2" width="6" height="4" rx="1" fill={C.coral} />
+      <circle cx="-38" cy="0" r="11" fill="#8A8F99" {...INK3} />
+      <path d="M-46 -4 h16 M-47 0 h18 M-46 4 h16 M-42 -8 v16 M-38 -10 v20 M-34 -8 v16" stroke={C.ink} strokeWidth="1.2" opacity=".55" />
+    </g>
+  );
+}
+
+/** 노래 음표 — 기뻐하기의 반짝이 자리에 */
+function Notes() {
+  const t = { fill: C.sun, stroke: C.ink, strokeWidth: 2, paintOrder: 'stroke' as const, style: { fontFamily: 'var(--display)', fontWeight: 700 } };
+  return (
+    <>
+      <text className="ch-spark" x="36" y="70" fontSize="30" {...t}>♪</text>
+      <text className="ch-spark" x="156" y="52" fontSize="26" {...t}>♫</text>
+    </>
+  );
+}
+
 function Sparkles() {
   return (
     <>

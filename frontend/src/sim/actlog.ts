@@ -36,6 +36,7 @@ const ARRIVE: Partial<Record<PlaceType, string[]>> = {
   museum: ['도착. 입장권 끊음', '도착. 1층부터'],
   beach: ['도착. 신발에 모래', '도착. 파도 소리'],
   bar: ['도착. 구석 자리 앉음'],
+  arcade: ['도착. 빈 방 있음', '도착. 동전부터 바꿈'],
 };
 const ARRIVE_DEFAULT = ['도착', '도착. 일단 둘러봄'];
 
@@ -55,6 +56,8 @@ const MIDDLE: Partial<Record<PlaceType, string[]>> = {
   museum: ['한 방 더 봄', '설명 읽음', '사진 찍음'],
   beach: ['발만 담가봄', '조개 주움', '모래에 앉음'],
   bar: ['한 잔 더 시킴', '안주 나옴'],
+  // 오락실·코인노래방 (코인노래방 방은 room/places/noraebang이 이 문장을 큐로 쓴다)
+  arcade: ['코인 넣음', '한 곡 더', '점수 97점', '물 마심'],
 };
 const MIDDLE_DEFAULT = ['가만히 있음', '주변 구경', '시간 감', '잠깐 앉음', '생각 정리'];
 

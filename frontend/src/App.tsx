@@ -1,7 +1,12 @@
 import { Component, Suspense, lazy, useEffect, type ComponentType, type ReactNode } from 'react';
+import { createRoot } from 'react-dom/client';
 import { useWorld } from './sim/store';
+import { putLocal } from './sim/media';
+import { presentLook } from './screens/util';
 import { PLACES } from './sim/places';
-import { CharacterDefs, OwnerLookContext } from './character';
+import { Character, CharacterDefs, OwnerLookContext, type Pose } from './character';
+import { DEFAULT_LOOK, type Look } from './sim/types';
+import { SCENARIOS, markScenarioSeeded, scenarioParam, scenarioPlans, scenarioSeeded } from './dev/scenario';
 import { Home } from './screens/Home';
 import { DevPanel } from './dev/DevPanel';
 
@@ -10,9 +15,14 @@ const DEV = params.get('dev') === '1';
 const LAB = params.get('lab');
 // Dev/QA hook: drive the sim from scripts (jumpToHour, setScale, chooseOption…)
 if (import.meta.env.DEV) {
-  const w = window as unknown as { __world?: typeof useWorld; __places?: typeof PLACES };
+  const w = window as unknown as { __world?: typeof useWorld; __places?: typeof PLACES; __media?: { putLocal: typeof putLocal }; __demoCharacter?: (el: HTMLElement, pose?: Pose, size?: number) => void };
   w.__world = useWorld;
   w.__places = PLACES;   // place catalogue for headless assertions (which city a chosen placeId lives in)
+  w.__media = { putLocal };   // 데모 녹화(scripts/record.mjs)가 '생성된 사진'을 끼워 넣는다
+  // 데모 녹화 인트로: 빈 컨테이너에 주인 캐릭터 한 명을 포즈대로 그린다 (몸 전체, 기본은 손 흔들기). 심볼 defs는 앱 루트의 CharacterDefs를 쓴다
+  w.__demoCharacter = (el, pose = 'wave', size = 340) => {
+    createRoot(el).render(<OwnerLookContext.Provider value={useWorld.getState().memory.look}><Character pose={pose} size={size} /></OwnerLookContext.Provider>);
+  };
 }
 
 // `?lab=character` → src/dev/CharacterLab.tsx (built concurrently). Loaded through a glob so a missing file
@@ -47,6 +57,14 @@ export default function App() {
   const tick = useWorld(s => s.tick);
   const planDay = useWorld(s => s.planDay);
   useEffect(() => {
+    // `?scenario=busan` (dev/scenario.ts): 한 번만 오늘을 심는다. 다시 심으려면 개발 패널 reset 뒤 새로고침
+    const sc = scenarioParam();
+    const def = sc ? SCENARIOS[sc] : undefined;
+    if (def && !scenarioSeeded(def.key)) {
+      // 시계·집은 prepScenario(main.tsx)가 스토어 부팅 전에 놓았다 — 여기선 블록만 심는다
+      useWorld.getState().seedPlans(scenarioPlans(def), def.home);
+      markScenarioSeeded(def.key);
+    }
     tick();
     void planDay();   // 오늘의 빈 블록을 모델이 미리 짓는다 (ADR-0010). tier가 off면 아무것도 안 한다
     const id = setInterval(tick, 1000);
@@ -64,6 +82,26 @@ export default function App() {
             <CharacterLab />
           </Suspense>
         </Boundary>
+      </OwnerLookContext.Provider>
+    );
+  }
+
+  // `?lab=charpng&pose=idle[&variant=friend&color=%23…]` → 캐릭터 한 명만 투명 바탕에 크게 (scripts/char-png.mjs 가 찍어 간다 — 카메라 시험용, 임시)
+  if (LAB === 'charpng') {
+    const q = new URLSearchParams(window.location.search);
+    const pose = (q.get('pose') ?? 'idle') as Pose;
+    const variant = q.get('variant') === 'friend' ? 'friend' : 'me';
+    const color = q.get('color') ?? undefined;
+    const food = q.get('food') === 'scallop' ? 'scallop' : undefined;   // `&food=scallop` — 먹기 자세의 손에 든 것
+    // `&hair=short` — 동행(NPC)의 머리 모양 (민수는 short). 생성 컷의 정체성 참고 PNG에 쓴다 (scripts/shot-gen.mjs)
+    const hair = q.get('hair');
+    const look = variant === 'friend' && hair ? presentLook(hair as Look['hairStyle']) : undefined;
+    return (
+      <OwnerLookContext.Provider value={ownerLook ?? DEFAULT_LOOK}>
+        <CharacterDefs />
+        <div style={{ background: 'transparent', width: 800, height: 800 }}>
+          <Character pose={pose} size={800} variant={variant} color={color} food={food} look={look} paused />
+        </div>
       </OwnerLookContext.Provider>
     );
   }

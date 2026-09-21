@@ -221,6 +221,8 @@ Shared route-source rules: one GeoJSON source per leg, `lineMetrics:true`, **a s
 
 ### 5.1 Layout (one card, fixed heights, never resizes)
 
+- 제휴 광고(ADR-0031)는 이 카드 안에 넣지 않는다 — `.mc` 위 10 px 띄운 별도 56 px 카드(`.mc-ad`)로 서고, attribution ⓘ가 그만큼 올라간다. 귀가가 제휴 택시일 때만.
+
 - `position:absolute; left:16px; right:16px; bottom: calc(22px + env(safe-area-inset-bottom))`; height **132 px**; background paper `#FFF6E6`; `border: 2px solid #2A2118`; `border-radius: 24px`; `box-shadow: 4px 4px 0 #2A2118`; padding `14px 18px 12px`.
 - Grid: two columns (`1fr auto`), rows 30 / 20 / 28 px + 10 px progress.
 - **Row 1 left:** 22 px mode glyph (inline SVG mini of the costume, ink outline, sun `#FFC64D` fill) + destination, Jua 22 px `#2A2118`, one line, ellipsis.

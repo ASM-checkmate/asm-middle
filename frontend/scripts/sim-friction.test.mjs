@@ -85,7 +85,8 @@ if (diverted.length) {
 } else {
   check('우회한 활동이 하나는 있다', false, '없음');
 }
-for (const a of many) check(`활동이 블록 안에서 끝난다 (${a.key})`, a.endAt <= a.comicUntil && a.arriveAt < a.endAt, `${a.arriveAt}/${a.endAt}`);
+// 취침 전 이동(category 'sleep')은 활동이 아니라 endAt = arriveAt — 검사에서 뺀다 (scripts/sim-bedtime.test.mjs가 따로 본다)
+for (const a of many.filter(a => a.option.category !== 'sleep')) check(`활동이 블록 안에서 끝난다 (${a.key})`, a.endAt <= a.comicUntil && a.arriveAt < a.endAt, `${a.arriveAt}/${a.endAt}`);
 
 // ── 만화가 어긋남을 말한다 ───────────────────────────────────────────────────
 console.log('\n── 만화 ──');

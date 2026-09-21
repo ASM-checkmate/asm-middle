@@ -99,8 +99,8 @@
 .tt-agent.is-ok { color: var(--mint); }
 .tt-list {
   /* 3 × 50px + 2 × 5px gap + 5px padding = 165px: fits the panel (top 344) without scrolling */
-  flex: 1; min-height: 0; overflow-y: auto; display: grid; gap: 5px; align-content: start; margin-top: 4px;
-  padding: 2px 4px 3px 1px; scrollbar-width: none;
+  flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; align-content: start; margin-top: 4px;
+  padding: 2px 4px 3px 1px; scrollbar-width: none;   /* minmax(0,1fr): 암시적 auto 열은 긴 제목(nowrap)+칩+체크의 max-content로 패널보다 넓어져 오른쪽이 잘렸다 */
 }
 .tt-list::-webkit-scrollbar { display: none; }
 .opt {
@@ -317,6 +317,8 @@
 .done b { display: block; font-family: var(--display); font-weight: 400; font-size: 16px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .done span { display: block; font-size: 12px; color: var(--ink-2); line-height: 1.3; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .done-tag { flex: none; }
+/* 광고 가게의 AD 알약 (ui/AdTag)은 활동 화면의 장소 태그에만 — 시간표 카드에는 안 단다 (오너 2026-09-16: 고르는 자리에서 광고광고 하지 않기) */
+.act-tag .act-ad { margin-left: 6px; position: relative; top: -1px; }
 .tt-empty { font-size: 12px; color: var(--ink-2); margin-top: 8px; }
 
 /* ─── 3 · Activity (active) ──────────────────────────────────────────────── */
@@ -344,6 +346,14 @@
   font-family: var(--display); font-size: 15px; line-height: 1.25; box-shadow: var(--shadow-hard-sm);
 }
 .act-tag small { display: block; font-family: var(--mono); font-size: 11px; color: var(--ink-2); letter-spacing: .02em; }
+/* 태그 줄: 태그 + 옆의 동그란 지도 버튼 (ADR-0031). 태그의 절대 위치를 줄이 대신 가진다 */
+.act-tagrow { position: absolute; left: 16px; top: calc(74px + var(--safe-top)); z-index: 4; display: flex; align-items: center; gap: 8px; }
+.act-tagrow .act-tag { position: static; }
+.act-map-btn {
+  flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  background: var(--card); border: var(--outline); box-shadow: var(--shadow-hard-sm); color: var(--ink);
+}
+.act-map-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
 /* 😴 시차 적응 중 hangs off the tag's top-right corner, clear of the place name */
 .act-tag .jetlag--sticker { top: -21px; right: -20px; }
 /* 활동 로그 (ADR-0001 — 과정의 관찰): 왼쪽 좁은 컬럼에 타임스탬프 줄이 쌓인다.
@@ -451,8 +461,6 @@
   background-image: repeating-radial-gradient(circle at 0 0, var(--ink) 0 .6px, transparent .6px 2.4px);
 }
 /* 잘 안 찍힌 컷 (옛 blur 플래그) — 크게 기울고 흐리고, 캡션은 "이건 잘 안 찍혔다" */
-.cm-p.is-blur .cm-shot { filter: blur(1.6px); opacity: .82; }
-.cm-p.is-miss .cm-cap { font-style: italic; color: var(--ink-2); }
 .cm-cap { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 2; background: var(--card); border: 1.5px solid var(--ink); border-radius: 6px; font-size: 11px; padding: 3px 6px; line-height: 1.3; }
 .cm-c { position: absolute; bottom: 34px; left: 50%; margin-left: -59px; }
 .cm-c.is-left { left: 6px; margin-left: 0; }
@@ -474,12 +482,14 @@
    그대로 쓴다 — 동행·마주침이 있을 때 주인공이 39 %로 비켜서는 것까지 "찍은 그대로". 컷 비율(1/1.08)이 뷰파인더와 같아 %크롭이 맞는다 */
 .cm-p.is-user .cam-stage { border-radius: inherit; }
 /* 에이전트가 대충 찍은 흔적 (오너 결정 14). overzoom/cut/tilt는 crop 값에 이미 들어 있어 클래스만 남긴다 */
-.cm-p.is-dark::before { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: var(--night); opacity: .3; mix-blend-mode: multiply; }
-.cm-p.is-dark .cm-shot { filter: brightness(.45) contrast(.85); }
-.cm-p.is-blur.is-dark .cm-shot { filter: brightness(.45) contrast(.85) blur(1.6px); }
-.cm-p.has-flaw.is-blur .cm-shot { filter: blur(2.2px); opacity: .9; }
-.cm-p.has-flaw.is-blur.is-dark .cm-shot { filter: brightness(.45) contrast(.85) blur(2.2px); }
-.cm-p.is-dark .cm-cap { background: var(--paper); }
+/* 사진 1~3장 (ADR-0029): 한 장은 통으로, 두 장은 나란히, 세 장은 첫 장이 위를 통으로 차지하고 둘이 아래에.
+   컷은 늘 1/1.08 비율 — 너비를 컨테이너 높이(100cqh)에서 거꾸로 계산해 넘치지 않게 한다 (한 장 1.08 · 세 장 1.08 + 10px + 0.54 ≈ 1.62) */
+.cm-grid.has-1 { grid-template-columns: 1fr; grid-template-rows: auto; width: min(100%, calc(100cqh / 1.08)); }
+.cm-grid.has-2 { grid-template-columns: 1fr 1fr; grid-template-rows: auto; width: 100%; }
+.cm-grid.has-3 { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; width: min(100%, calc((100cqh - 10px) / 1.62)); }
+.cm-grid.has-3 .cm-p:first-child { grid-column: 1 / -1; }
+/* 어디서: 캡션 앞의 자리 이름 */
+.cm-spot { display: block; font-family: var(--display); font-weight: 400; font-size: 10px; color: var(--coral); margin-bottom: 1px; }
 
 .cm-me { position: absolute; left: 6px; bottom: calc(84px + var(--safe-bottom)); z-index: 2; animation: act-breathe 3s ease-in-out infinite; }
 .cm-me-bubble { position: absolute; left: 150px; bottom: calc(200px + var(--safe-bottom)); z-index: 3; }

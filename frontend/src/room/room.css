@@ -25,6 +25,16 @@
   animation: room-bubble-in .3s cubic-bezier(.34, 1.56, .64, 1) both;
 }
 .room-zone-tag.is-full { background: var(--paper-2); color: var(--ink-2); }
+/* 시간 이벤트 (ADR-0015 개정 4): 배경 svg의 data-ev 조각은 방 루트에 ev-{key}가 붙은 동안만 보인다 (지금은 드론쇼 하나) */
+.room [data-ev] { display: none; }
+.room.ev-drone [data-ev="drone"] { display: initial; }
+.room.ev-drone [data-ev="drone"] circle { animation: room-drone 1.6s ease-in-out infinite alternate; }
+@keyframes room-drone { from { opacity: .55; } to { opacity: 1; } }
+/* 존 위의 📷 칩 (ADR-0029 개정 2): 이름표 자리에, 배경마다 하나. 방이 축소돼도 같이 줄어든다 */
+.room-zone-shoot { position: absolute; transform: translate(-50%, -100%); display: flex; gap: 6px; white-space: nowrap; animation: room-bubble-in .3s cubic-bezier(.34, 1.56, .64, 1) both; }
+.room-zone-shoot .room-shoot { pointer-events: auto; min-height: 36px; font-size: 13px; padding: 4px 10px; gap: 5px; border-radius: 12px; box-shadow: var(--shadow-hard-sm); }
+.room-shoot-n { font-style: normal; font-size: 10px; line-height: 1.3; padding: 1px 5px; border-radius: 999px; background: var(--card); color: var(--ink); border: 1.5px solid var(--ink); }
+.room-zone-shoot.is-full .room-shoot-n { background: var(--mint); }
 @keyframes room-zone-pulse { 0%, 100% { opacity: .22; } 50% { opacity: .4; } }
 @media (prefers-reduced-motion: reduce) { .room-zone.is-near { animation: none; } }
 .room-actor .ch { display: block; }
@@ -66,6 +76,9 @@
 /* 방이 있는 장소에선 옛 정면 무대·큰 캐릭터를 쓰지 않는다 */
 .act.has-room .act-scene, .act.has-room .act-chara, .act.has-room .act-friend, .act.has-room .act-met, .act.has-room .act-met-bubble, .act.has-room .act-ghost { display: none; }
 .act.has-room { background: var(--paper); }
+/* 방이 있으면 동행·새 친구 칩은 오른쪽 위(장소 태그 줄 높이)로 — 방 위쪽에 뜨는 📷 존 칩(난간·건물 앞)을 가리지 않게 */
+.act.has-room .act-with, .act.has-room .act-metchip { left: auto; right: 16px; top: calc(74px + var(--safe-top)); }
+.act.has-room .act-with ~ .act-metchip { top: calc(118px + var(--safe-top)); }
 /* ─── 살아 있기 (ADR-0015 개정 1): 로그와 무관하게 20~40초마다 잔동작, 1~3분마다 자리 비우기 ───
    잔동작은 .room-actor에 2.4초짜리 클래스로 붙는다 — 캐릭터 자체의 자세 애니메이션(character.css)을 잠깐 덮어쓴다 */
 .room-actor.fidget-look .ch-head { animation: room-look 2.4s ease-in-out both !important; }

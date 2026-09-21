@@ -3,7 +3,7 @@
 import { useEffect, useId, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { TransportMode } from '../sim/types';
-import { Character } from './Character';
+import { Character, type Food } from './Character';
 import type { CharacterProps, Pose } from './Character';
 import { CharacterDefs } from './defs';
 import { Boat, Car, Plane, Subway, Train, Walk } from './costumes';
@@ -13,7 +13,7 @@ import './character.css';
 
 export { Character, CharacterDefs };
 export { OwnerLookContext, lookVars, SKIN, HAIR, TOP } from './look';
-export type { CharacterProps, Pose };
+export type { CharacterProps, Food, Pose };
 
 export interface RiderProps {
   mode: TransportMode;
@@ -28,6 +28,7 @@ export interface RiderProps {
   // ── optional extras (the map may ignore them) ──
   friendColor?: string;          // friend accent (`--friend`), default mint
   night?: boolean;               // car headlight at 100 % (18:00–06:00)
+  taxi?: boolean;                // 제휴 택시 — 차 코스튬을 택시로 (ADR-0031)
   sleeping?: boolean;            // plane: #chara-face-sleep + a floating "z" (p 0.40–0.75)
   doors?: 'open' | 'closed';     // subway doors (information; survives reduced motion)
   altScale?: number;             // plane `--alt-scale` 0.55–1 (inherits from the marker root when omitted)
@@ -42,9 +43,11 @@ export const RIDER_SIZE: Record<TransportMode, number> = { walk: 96, car: 120, b
  * the height follows the costume's viewBox. Defaults → walk 96×96, car/boat 120×100, subway 140×100,
  * train 144×100, plane 128×80.
  */
-export function riderBox(mode: TransportMode, size = RIDER_SIZE[mode]): { width: number; height: number; viewBox: string } {
-  const [vw, vh] = VIEWBOX[mode];
-  const width = Math.round(Math.max(96, size));
+export function riderBox(mode: TransportMode, size = RIDER_SIZE[mode], friend = false): { width: number; height: number; viewBox: string } {
+  // 걸을 때 동행은 옆에 나란히 — 겹치지 않게 상자를 1.7배 넓힌다 (탈것은 한 칸에 둘이 타니 그대로)
+  const [vw0, vh] = VIEWBOX[mode];
+  const vw = mode === 'walk' && friend ? vw0 * 1.7 : vw0;
+  const width = Math.round(Math.max(96, size) * (vw / vw0));
   const height = Math.round(width * (vh / vw));
   return { width, height, viewBox: `0 0 ${vw} ${vh}` };
 }
@@ -60,9 +63,9 @@ const COSTUME: Record<TransportMode, (p: CostumeProps) => React.JSX.Element> = {
  */
 export function Rider({
   mode, size, facing = 'right', tilt, moving = true, boarding = false, friend = false,
-  className, style, friendColor, night = false, sleeping = false, doors = 'closed', altScale, lineColor,
+  className, style, friendColor, night = false, sleeping = false, doors = 'closed', altScale, lineColor, taxi = false,
 }: RiderProps) {
-  const box = riderBox(mode, size);
+  const box = riderBox(mode, size, friend);
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
 
   // Squash-flip only on a facing CHANGE after mount (never on first render).
@@ -107,7 +110,7 @@ export function Rider({
     <div className={cls} style={rootStyle} data-mode={mode} data-facing={facing}>
       <div className="mv-tilt">
         <svg className="mv-svg" viewBox={box.viewBox} width={box.width} height={box.height} role="img" aria-label={`${LABEL[mode]} 타고 이동 중`}>
-          <Costume friend={friend} night={night} sleeping={sleeping} waving={waving} uid={uid} />
+          <Costume friend={friend} night={night} taxi={taxi} sleeping={sleeping} waving={waving} uid={uid} />
         </svg>
       </div>
     </div>

@@ -198,7 +198,8 @@ export function foldStatus(anchor: Anchor, acts: ScheduledActivity[], until: num
   let s = anchor.status ?? INITIAL_STATUS;
   let day = dayKeyIn(anchor.t, anchor.tz);
   s = payAllowance(s, monthOf(day));
-  const done = acts.filter(a => a.endAt <= until).sort((a, b) => a.endAt - b.endAt);
+  // 취침 전 이동(timeline isBedtime — category 'sleep')은 세지 않는다: 밤이 피로를 되돌리고, 하루씩 접어도 같은 값이 나와야 한다 (prune 불변)
+  const done = acts.filter(a => a.endAt <= until && a.option.category !== 'sleep').sort((a, b) => a.endAt - b.endAt);
   for (const a of done) {
     if (a.dayKey !== day) {
       for (let n = nightsBetween(day, a.dayKey); n > 0; n--) s = passNight(s);

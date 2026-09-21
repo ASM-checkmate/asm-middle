@@ -25,6 +25,9 @@ async function boot() {
       if (entered) { clearLocalDocs(); await bootstrapSync(); }
     }
   }
+  // dev 시나리오(`?scenario=`): 스토어가 localStorage를 읽기 전에 시계·집·저장본을 준비한다 (dev/scenario.ts)
+  const { prepScenario } = await import('./dev/scenario');
+  prepScenario();
   const { default: App } = await import('./App');
   root.render(<StrictMode><App /></StrictMode>);
 }

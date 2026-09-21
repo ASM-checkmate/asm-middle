@@ -5,7 +5,7 @@ import { blockAtIn, nextBlockId } from '../sim/blocks';
 import { movingPhase } from '../sim/timeline';
 import { placeById } from '../sim/places';
 import { sceneTypeFor } from '../scenes';
-import { roomFor } from '../room';
+import { roomFor, roomForPlace } from '../room';
 import { MapScene } from '../map';
 import { TopChrome } from '../ui';
 import { usePreview, usePreviewOverlay, usePreviewSns } from '../dev/preview';
@@ -13,6 +13,7 @@ import { TimetableScreen } from './TimetableScreen';
 import { ActivityScreen } from './ActivityScreen';
 import { ComicScreen } from './ComicScreen';
 import { SleepScreen } from './SleepScreen';
+import { HomeNightScreen, HOME_LIE_MS } from './HomeNightScreen';
 import { SummarySheet } from './SummarySheet';
 import { BookOverlay } from './BookOverlay';
 import { SnsOverlay } from './SnsOverlay';
@@ -23,6 +24,7 @@ import { ChatOverlay } from './ChatOverlay';
 import { SayBubble } from './SayBubble';
 import { SketchOverlay } from './SketchOverlay';
 import { CameraOverlay } from './CameraOverlay';
+import { PlaceSheet } from './PlaceSheet';
 import { pendingOf, untoldOf } from '../sim/requests';
 import { buildThread, unreadCount } from '../sim/chat';
 import { chromeLabel } from './util';
@@ -73,9 +75,11 @@ export function Home() {
   const say = useWorld(s => s.say);
   const dismissSay = useWorld(s => s.dismissSay);
   const sketchOpen = useWorld(s => s.sketchOpen);
+  const placeOpen = useWorld(s => s.placeOpen);
+  const closePlace = useWorld(s => s.closePlace);
   const setSketchOpen = useWorld(s => s.setSketchOpen);
-  const cameraOpen = useWorld(s => s.cameraOpen);
-  const setCameraOpen = useWorld(s => s.setCameraOpen);
+  const camera = useWorld(s => s.camera);
+  const closeCameraStore = useWorld(s => s.closeCamera);
   const schedule = useWorld(s => s.timeline);
   const bookOpen = useWorld(s => s.bookOpen);
   const scale = useWorld(s => s.clock.scale);
@@ -150,13 +154,15 @@ export function Home() {
     phase = { kind: 'active', act, remainingMin: Math.max(1, Math.ceil((act.endAt - now) / 60_000)), progress: 0, tz: act.tz, jetlag: act.jetlagUntil !== null && now < act.jetlagUntil, companions: phase.companions, encounter: phase.encounter };
   }
   movingKeyRef.current = phase.kind === 'moving' ? phase.act.key : null;
-  const screen = SCREEN_OF[phase.kind];
+  // 귀가 뒤 눕기 (ADR-0030): 취침 전 이동으로 집에 닿은 직후는 집 방에서 눕는 장면 — 그 뒤 수면 화면
+  const homeNight = !isPreview && phase.kind === 'sleeping' && now < phase.since + HOME_LIE_MS && phase.since > phase.until - 7 * 3600_000 && !!roomForPlace(phase.at);
+  const screen = homeNight ? 'active' : SCREEN_OF[phase.kind];
 
-  // ── 카메라 (ADR-0004 오너 결정 7): 활동 중에만 뜬다. 활동이 끝나 만화로 넘어가면 접는다 — 만화는 endAt에 한 번 굳어
-  //    (store.addShot 가드) 더 찍을 곳이 없고, 스토어 플래그가 남아 다음 활동에서 저절로 열리면 안 된다 ──
-  const camPhase = phase.kind === 'active' && (cameraOpen || previewCam) ? phase : null;
-  useEffect(() => { if (cameraOpen && phase.kind !== 'active') setCameraOpen(false); }, [cameraOpen, phase.kind, setCameraOpen]);
-  const closeCamera = () => { setCameraOpen(false); setPreviewCam(false); };
+  // ── 카메라 (ADR-0029): 활동 중에만 뜬다. 활동이 끝나 앨범으로 넘어가면 접는다 — 앨범은 endAt에 한 번 굳어
+  //    (store.addShot 가드) 더 찍을 곳이 없고, 스토어 플래그가 남아 다음 활동에서 저절로 열리면 안 된다. 배경은 연 쪽(트리거 존 버튼)이 정한다 ──
+  const camPhase = phase.kind === 'active' && (camera || previewCam) ? phase : null;
+  useEffect(() => { if (camera && phase.kind !== 'active') closeCameraStore(); }, [camera, phase.kind, closeCameraStore]);
+  const closeCamera = () => { closeCameraStore(); setPreviewCam(false); };
 
   // ── transitions: keep the previous screen mounted as a "ghost" while it animates out ──
   // The ghost is derived during render (not in an effect) so the leaving screen never unmounts for a frame;
@@ -201,7 +207,7 @@ export function Home() {
       // 만화의 "다음" 버튼은 시간표를 **시트로** 연다 — 기본 화면을 시간표로 바꾸면 내릴 수 없고 크롬의 링 버튼도 사라진다.
       // 만화 창이 끝나면(comicUntil) 스토어가 알아서 대기(시간표)로 넘어간다.
       case 'comic': return <ComicScreen phase={p} onNext={block => { selectBlock(block); setTtOpen(true); }} />;
-      case 'sleeping': return <SleepScreen phase={p} />;
+      case 'sleeping': return homeNight ? <HomeNightScreen phase={p} now={now} /> : <SleepScreen phase={p} />;
     }
   };
 
@@ -244,10 +250,12 @@ export function Home() {
       {(ttOpen || previewSheetOpen) && <TimetableScreen phase={pseudoWaiting(phase, now)} asSheet onClose={() => { setTtOpen(false); setPreviewSheetOpen(false); }} world={previewWorld ?? undefined} />}
       {/* 그려서 알려줘 (ADR-0004): 시간표 시트(z 45) 위. 카드 분기의 "✎ 카드 대신 그려서 알려줄래" / 그림 카드의 "다시 그리기"가 연다 */}
       {sketchOpen && <SketchOverlay blockId={sketchOpen} onClose={() => setSketchOpen(null)} />}
+      {/* 장소 시트 (ADR-0031): 그 가게를 작은 지도로, 네이버·구글 링크 */}
+      {placeOpen && <PlaceSheet placeId={placeOpen} onClose={closePlace} />}
       {/* 카메라: nowMs는 ActivityScreen과 같은 식으로 progress에서 되짚는다 — 화면은 스토어의 now를 따로 안 읽는다. preview면 샷은 오버레이 로컬 */}
-      {camPhase && <CameraOverlay act={camPhase.act} progress={camPhase.progress} nowMs={camPhase.act.arriveAt + (camPhase.act.endAt - camPhase.act.arriveAt) * Math.min(1, Math.max(0, camPhase.progress))} companions={camPhase.companions} encounter={camPhase.encounter} preview={isPreview} onClose={closeCamera} />}
+      {camPhase && <CameraOverlay key={camera?.backdrop ?? 'stage'} act={camPhase.act} nowMs={camPhase.act.arriveAt + (camPhase.act.endAt - camPhase.act.arriveAt) * Math.min(1, Math.max(0, camPhase.progress))} backdropId={camera?.backdrop ?? null} preview={isPreview} onClose={closeCamera} />}
       {/* 쪽지: 시트·그림·카메라가 떠 있지 않고 혼잣말이 (보이는 채로) 지나가는 중도 아닐 때만, 한 번에 하나 (ADR-0001 §1) */}
-      {pendingReq && !summaryItems?.length && !ttOpen && !showBook && !snsOpen && !sketchOpen && !camPhase && !sayVisible && <RequestCard req={pendingReq} tz={phase.tz} />}
+      {pendingReq && !summaryItems?.length && !ttOpen && !showBook && !snsOpen && !sketchOpen && !placeOpen && !camPhase && !sayVisible && <RequestCard req={pendingReq} tz={phase.tz} />}
       {summaryItems && summaryItems.length > 0 && <SummarySheet items={summaryItems} gap={summaryGap} tz={phase.tz} untold={untold} missed={summaryGap ? calls.filter(c => c.dir === 'in' && c.result !== 'answered' && c.at >= summaryGap.from && c.at <= summaryGap.to) : []} onClose={closeSummary} />}
       {showBook && <BookOverlay onClose={closeBook} comics={previewOverlay.book ?? undefined} />}
     </div>

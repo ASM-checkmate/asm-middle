@@ -1,53 +1,47 @@
-import { memo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect } from 'react';
+import { memo, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useWorld } from '../sim/store';
-import { rng } from '../sim/rng';
-import type { Friend, PhaseEncounter, PlaceType, ScheduledActivity, ShotWin, UserShot } from '../sim/types';
-import { WIN_LABEL, shotsFor, winAt, winState } from '../sim/shots';
+import type { Look, PlaceType, ScheduledActivity, ShotCrop, ShotFigure, ShotPose, UserShot } from '../sim/types';
+import { DEFAULT_LOOK } from '../sim/types';
+import { agentById, castAt, hairStyleOf, type Agent, type CastMet } from '../sim/agents';
+import { MAX_SHOTS, shotsFor } from '../sim/shots';
+import { DEFAULT_FRIEND, DEFAULT_ME, DEFAULT_ME_WITH_FRIEND, backdropById, backdropDataUrl, type Backdrop } from '../sim/backdrops';
 import { hhmmIn } from '../sim/tz';
 import { Character, type Pose } from '../character';
 import { Scene, sceneTypeFor } from '../scenes';
 import { Button } from '../ui';
-import { poseFor, presentLook, shotCastOf, type PresentFigure } from './util';
-import { DEFAULT_LOOK } from '../sim/types';
-import { castAt } from '../sim/agents';
+import { poseFor, presentLook, type PresentFigure } from './util';
 import { bakeShot, newShotId, type BakeInput } from '../photo/bake';
+import { BD_PAN_MAX } from '../photo/geometry';
 import { putLocal } from '../sim/media';
+import { requestShotGen } from '../sim/shotgen';
+import { PhotoImg } from '../photo/PhotoImg';
 import './camera.css';
 
-type Crop = UserShot['crop'];
-const CROP0: Crop = { scale: 1, x: 0, y: 0, rot: 0, pitch: 0, light: 1, dof: 0, focus: 'near' };
-/**
- * 카메라를 열면 구도가 일부러 흐트러져 있다 — 자리·확대·기울임·각도·조도·심도·초점이 조금씩 어긋난 채 시작한다
- * (오너 결정 2026-09-08: 맞추는 게 촬영이다). 활동·창마다 같은 값(시드)이라 닫았다 열어도 같은 자리에서 다시 시작한다.
- */
-export function messyStart(actKey: string, win: ShotWin): Crop {
-  const r = rng(`cam:${actKey}:${win}`);
-  const sp = (a: number, b: number) => a + r.next() * (b - a);
-  const step = (v: number, q: number) => Math.round(v / q) * q;
-  return {
-    x: step(sp(-18, 18), 0.1), y: step(sp(-14, 14), 0.1), scale: step(sp(1.0, 1.7), 0.05), rot: step(sp(-10, 10), 0.5),
-    pitch: step(sp(-10, 10), 1), light: step(sp(0.7, 1.25), 0.05), dof: step(sp(0.15, 0.8), 0.05), focus: r.next() < 0.5 ? 'near' : 'far',
-  };
-}
-/** 프레이밍 범위 — types.ts ShotCrop 주석 그대로: x/y ±35 %(뷰포트 자기 크기 대비), 확대 1.0~2.2, 기울임 ±15°, 각도 ±18°, 조도 0.55~1.45, 심도 0~1 */
+type Crop = ShotCrop;
+const CROP0: Crop = { scale: 1, x: 0, y: 0, rot: 0 };
+/** 배경 이동·확대 범위: x/y ±35 %(뷰포트 자기 크기 대비), 확대 1.0~2.2 — types.ts ShotCrop 주석 그대로 */
 const PAN_MAX = 35;
 const SCALE_MIN = 1;
 const SCALE_MAX = 2.2;
-const ROT_MAX = 15;
-const PITCH_MAX = 18;
-const LIGHT_MIN = 0.55;
-const LIGHT_MAX = 1.45;
+/** 인물 크기(프레임 너비 대비 상자 폭) */
+const FIG_MIN = 0.25;
+const FIG_MAX = 1.2;
+/** 카메라가 고르는 자세 (ShotPose) — 칩 순서 */
+const POSES: { pose: ShotPose; label: string }[] = [
+  { pose: 'idle', label: '서기' }, { pose: 'sit', label: '앉기' }, { pose: 'wave', label: '인사' }, { pose: 'happy', label: '만세' },
+  { pose: 'eat', label: '먹기' }, { pose: 'think', label: '생각' }, { pose: 'read', label: '읽기' }, { pose: 'draw', label: '그리기' }, { pose: 'walk', label: '걷기' },
+];
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const round1 = (v: number) => Math.round(v * 10) / 10;
-/** `.cam-shot`의 CSS 변수 — 만화 `.cm-shot`과 같은 이름(--rot/--cs/--cx/--cy), 단위만 %(unit 'pct').
- *  각도(--pitch/--pitchn)와 조도(--light)는 카메라에서만 쓰는 변수 — 옛 샷(필드 없음)은 0°·1배로 그린다 */
+/** `.cam-shot`의 CSS 변수 — 만화 `.cm-shot`과 같은 이름(--rot/--cs/--cx/--cy), 단위는 %. 옛 컷의 각도·조도·심도 변수도 그대로 읽힌다 */
 const cropVars = (c: Crop): CSSProperties => ({
   ['--rot' as string]: `${c.rot}deg`, ['--cs' as string]: String(c.scale), ['--cx' as string]: `${c.x}%`, ['--cy' as string]: `${c.y}%`,
   ['--pitch' as string]: `${c.pitch ?? 0}deg`, ['--pitchn' as string]: String(c.pitch ?? 0), ['--light' as string]: String(c.light ?? 1), ['--dof' as string]: String(c.dof ?? 0),
-  // 초점: near면 배경이 흐리고(bg 1) far면 캐릭터가 흐리다(fg 1) — camera.css의 blur 계수
   ['--bgblur' as string]: (c.focus ?? 'near') === 'far' ? '0' : '1', ['--fgblur' as string]: (c.focus ?? 'near') === 'far' ? '1' : '0',
 });
+/** 인물 자리(ShotFigure) → 인라인 자리: 발(상자의 91 %)이 (x %, y %)에 닿고 폭은 scale × 프레임 — photo/geometry.ts figureBox와 같은 식 */
+const figStyle = (f: ShotFigure, z: number): CSSProperties => ({ left: `${f.x}%`, top: `${f.y}%`, bottom: 'auto', width: `${f.scale * 100}%`, transform: 'translate(-50%, -91%)', zIndex: z });
 /** range의 채운 비율(--pct) */
 const pctVar = (v: number, min: number, max: number): CSSProperties => ({ ['--pct' as string]: `${((v - min) / (max - min)) * 100}%` });
 
@@ -59,11 +53,19 @@ export interface ShotStageProps {
   type: PlaceType;
   pose: Pose;
   crop: Crop;
-  /** 동행 색 (있으면 오른쪽 옆에 손 흔드는 친구) */
+  /** AI 배경 (ADR-0029) — 있으면 SVG 무대 대신 이 그림 */
+  backdrop?: Backdrop | null;
+  /** 내 자리·크기·자세 — 없으면 camera.css의 기본 자리(가운데)와 `pose` */
+  me?: ShotFigure;
+  /** 동행 색 (있으면 동행이 같이 선다) */
   friendColor?: string;
-  /** 말을 건 마주침 상대의 색 (encounter.at 뒤부터) */
+  /** 동행의 자리·자세 — 없으면 오른쪽 옆에서 손 흔들기 */
+  friendPos?: ShotFigure;
+  /** 말을 건 마주침 상대의 색 (옛 컷 — `mets`가 없을 때만) */
   metColor?: string;
-  /** 같은 공간에 있던 사람들 (FRIENDS_SPEC §6): 뒷모습·작게·얼굴 없이 뒤의 왼쪽·오른쪽에, 최대 둘 */
+  /** 말 튼 사람들 (castAt의 met·metAlso, ADR-0031): 첫째는 오른쪽 앞, 둘째는 왼쪽 뒤. 최대 둘. 카메라도 같이 찍는다 */
+  mets?: MetFigure[];
+  /** 같은 공간에 있던 사람들 (옛 컷, FRIENDS_SPEC §6): 뒷모습·작게 */
   present?: PresentFigure[];
   /** 썸네일: 캐릭터 루프도 멈춘다 (무대는 항상 scene--still) */
   still?: boolean;
@@ -71,222 +73,265 @@ export interface ShotStageProps {
 }
 
 /**
- * 무대 한 장: 정지 Scene + 캐릭터(프레임 너비 84 %, 발이 78 % 높이) + 동행/마주침/배경 인물, 그 위에 사용자 크롭(% 단위).
- * 뷰파인더·필름 썸네일이 같은 컴포넌트를 쓰니 "찍은 그대로"가 보장된다 — 만화의 사용자 컷도 이걸 쓰면 같은 그림이 나온다.
+ * 무대 한 장: 배경(AI 그림 또는 정지 Scene) + 나 + 동행(+ 옛 컷의 마주침·배경 인물), 그 위에 배경 이동·확대(% 단위).
+ * 뷰파인더·필름 썸네일·앨범 컷이 같은 컴포넌트를 쓰니 "찍은 그대로"가 보장된다. 굽기(photo/bake)는 같은 숫자를 svg로 옮겨 적는다.
  */
-export function ShotStage({ type, pose, crop, friendColor, metColor, present, still, className = '' }: ShotStageProps) {
+export function ShotStage({ type, pose, crop, backdrop, me, friendColor, friendPos, metColor, mets, present, still, className = '' }: ShotStageProps) {
+  // 동행이 나보다 앞(발이 아래)이면 위에 그린다
+  const friendFront = !!friendPos && !!me && friendPos.y > me.y;
+  const metList = (mets ?? (metColor ? [{ color: metColor }] : [])).slice(0, METS_MAX);
   return (
-    // 변수는 무대(.cam-stage)에 둔다: 밝기·톤은 무대가, transform은 그 안의 .cam-shot이, blur는 .scene/캐릭터가 물려받아 읽는다
-    <div className={`cam-stage ${friendColor ? 'has-friend' : ''} ${metColor ? 'has-met' : ''} ${className}`} style={cropVars(crop)}>
+    // 변수는 무대(.cam-stage)에 둔다: transform은 그 안의 .cam-shot이, blur·조도는 옛 컷 변수로 물려받는다
+    <div className={`cam-stage ${friendColor ? 'has-friend' : ''} ${metList.length ? 'has-met' : ''} ${metList.length > 1 ? 'has-met2' : ''} ${backdrop ? 'has-bd' : ''} ${className}`} style={cropVars(crop)}>
       <div className="cam-shot">
-        {/* 배경은 프레임보다 넓게(가로 3장·세로 2배) — 밀고 돌려도 끝이 안 보인다. 양옆은 거울처럼 뒤집어 이어 붙인다 */}
-        <div className="cam-bg"><Still type={type} /><Still type={type} /><Still type={type} /></div>
-        {/* 배경 인물: 뒷모습(얼굴 없음) — 비공개 계정 사람이 남의 사진에 얼굴로 나오는 일이 없다 (ADR-0026). 설렘 대상만 슬쩍 돌아본 3/4 얼굴 (AFFECTION_SPEC §4) */}
+        {/* 배경: AI 그림은 프레임보다 사방 12 % 큰 상자에 cover(camera.css .cam-bg img, geometry BD_OVER) — ±12 % 밀어도 끝이 안 보인다. SVG 무대는 옛 방식(가로 3장·세로 2배, 양옆 거울) */}
+        <div className="cam-bg">{backdrop ? <img src={backdrop.url} alt="" draggable={false} /> : <><Still type={type} /><Still type={type} /><Still type={type} /></>}</div>
         {present?.slice(0, 2).map((p, i) => <Chara key={i} className={`cam-present cam-present-${i}`} pose="idle" size={120} variant="friend" color={p.color} look={presentLook(p.hairStyle)} back glance={p.glance} paused={still} />)}
-        {friendColor && <Chara className="cam-friend" pose="wave" size={224} variant="friend" color={friendColor} paused={still} />}
-        <Chara className="cam-me" pose={pose} size={300} paused={still} />
-        {metColor && <Chara className="cam-met" pose="wave" size={190} variant="friend" color={metColor} paused={still} />}
+        {/* 둘째 말 튼 사람은 왼쪽 뒤(나보다 뒤) — camera.css .cam-met-1, 굽기는 geometry castLayout.met2 */}
+        {metList[1] && <Chara className="cam-met cam-met-1" pose="wave" size={170} variant="friend" color={metList[1].color} look={metList[1].look} paused={still} />}
+        {friendColor && <Chara className="cam-friend" style={friendPos ? figStyle(friendPos, friendFront ? 4 : 2) : undefined} pose={friendPos?.pose ?? 'wave'} size={224} variant="friend" color={friendColor} paused={still} />}
+        <Chara className="cam-me" style={me ? figStyle(me, 3) : undefined} pose={me?.pose ?? pose} size={300} paused={still} />
+        {metList[0] && <Chara className="cam-met cam-met-0" pose="wave" size={190} variant="friend" color={metList[0].color} look={metList[0].look} paused={still} />}
       </div>
     </div>
   );
 }
 
+/** 샷 하나를 무대로 (필름 썸네일·앨범 컷이 같은 식으로 되살린다). 말 튼 사람들은 샷의 `mets`(agent id)에서 되찾는다 */
+export function stageOfShot(shot: Pick<UserShot, 'crop' | 'backdrop' | 'me' | 'friend' | 'mets'>, type: PlaceType, pose: Pose, friendColor?: string): Omit<ShotStageProps, 'still' | 'className'> {
+  return { type, pose, crop: shot.crop, backdrop: backdropById(shot.backdrop), me: shot.me, friendColor, friendPos: shot.friend, mets: metsOfIds(shot.mets) };
+}
+
+/** 말 튼 사람 하나 — 무대에 그릴 색·겉모습 */
+export interface MetFigure { color: string; look?: Look }
+/** 무대에 서는 말 튼 사람은 둘까지 (루이·클로에) — geometry castLayout의 met·met2 */
+export const METS_MAX = 2;
+/** castAt의 met·metAlso → 무대 인물 (겉모습은 방과 같은 식: 머리 모양 + 피부·머리색) */
+export const metsOfCast = (c: { met?: CastMet; metAlso?: CastMet[] }): MetFigure[] =>
+  [c.met, ...(c.metAlso ?? [])].filter((m): m is CastMet => !!m).slice(0, METS_MAX).map(m => ({ color: m.color, look: presentLook(m.hairStyle, m.look) }));
+/** 샷에 저장한 agent id들 → 무대 인물 (에이전트 풀에서 되찾는다 — 없어진 사람은 뺀다) */
+export const metsOfIds = (ids?: string[]): MetFigure[] | undefined => {
+  if (!ids?.length) return undefined;
+  const out = ids.map(id => agentById(id)).filter((a): a is Agent => !!a).slice(0, METS_MAX).map(a => ({ color: a.color, look: presentLook(hairStyleOf(a), a.look) }));
+  return out.length ? out : undefined;
+};
+
 export interface CameraOverlayProps {
   act: ScheduledActivity;
-  /** 활동 진행률 0..1 — 지금 창(winAt)을 정한다 */
-  progress: number;
   /** 촬영 시각(sim ms) — ActivityScreen과 같은 식으로 progress에서 되짚은 값 */
   nowMs: number;
-  companions: Friend[];
-  encounter?: PhaseEncounter;
-  /** `?preview=active:…&camera=1` — 스토어를 건드리지 않는다 (dev/preview.ts 계약): 샷은 로컬 state에만, 굽지도 올리지도 않는다 (id 없음) */
+  /** 어느 배경으로 열렸나 (트리거 존 버튼이 정한다, ADR-0029). null이면 SVG 무대 */
+  backdropId?: string | null;
+  /** `?preview=active:…&camera=1` — 스토어를 건드리지 않는다 (dev/preview.ts 계약): 샷은 로컬 state에만, 굽지도 올리지도 않는다 */
   preview?: boolean;
   onClose: () => void;
 }
 
+type Sel = 'me' | 'friend';
+
 /**
- * 카메라 — 에이전트가 혼자라 못 찍는 사진을 사용자가 찍어 준다 (ADR-0004). 오버레이라 밑의 활동 화면을 파괴하지 않는다.
- * 지금 창만 셔터가 듣고(재촬영은 같은 창을 덮어쓴다: store.addShot), 지난 창은 잠겨 에이전트가 채우고(열화 컷), 미래 창은 비활성.
- * 마운트는 Home이 한다(active phase에서만) — 만화는 endAt에 한 번 만들어져 굳으니 그 뒤의 샷은 갈 곳이 없다.
+ * 카메라 (ADR-0029) — 트리거 존 버튼이 배경을 정해 열고, 여기서는 **자리·크기·자세**만 만진다. 활동당 아무 때나 최대 3장(MAX_SHOTS);
+ * 꽉 차면 셔터가 잠기고 한 장을 지워야 다시 찍는다. 동행(`act.companions`)은 항상 같이 찍힌다. 찍은 컷은 단순 합성본으로 바로 굽고,
+ * 서버 화풍 생성(`gen`)이 오면 앨범이 그 픽셀로 바꾼다. 오버레이라 밑의 활동 화면을 파괴하지 않는다. 마운트는 Home이 한다(active phase에서만).
  */
-/** `companions`/`encounter`는 Home이 phase에서 넘기지만 그림은 castAt이 정한다 (아래) — 헤더 칩이 없는 화면이라 읽지 않는다 */
-export function CameraOverlay({ act, progress, nowMs, preview, onClose }: CameraOverlayProps) {
+export function CameraOverlay({ act, nowMs, backdropId, preview, onClose }: CameraOverlayProps) {
   const addShot = useWorld(s => s.addShot);
+  const removeShot = useWorld(s => s.removeShot);
   const dropShotId = useWorld(s => s.dropShotId);
   const stored = useWorld(s => s.shots);
-  const name = useWorld(s => s.memory.name);
-  const look = useWorld(s => s.memory.look);
+  const memory = useWorld(s => s.memory);
+  const look = memory.look;
   const [local, setLocal] = useState<UserShot[]>([]);
   const taken = shotsFor(preview ? local : stored, act.key);
-  const now = winAt(progress);
-  const count = Object.keys(taken).length;
-  // 열 때 지금 창에 이미 찍은 게 있으면 그 프레이밍에서, 아니면 일부러 흐트러진 구도(messyStart)에서 시작한다
-  const [crop, setCrop] = useState<Crop>(() => taken[now]?.crop ?? messyStart(act.key, now));
-  // 창이 넘어가면(활동이 진행돼 다음 장면) 그 창의 사진이나 새 흐트러진 구도에서 다시 시작한다
-  const [seenWin, setSeenWin] = useState(now);
-  if (seenWin !== now) { setSeenWin(now); setCrop(taken[now]?.crop ?? messyStart(act.key, now)); }
+  const count = taken.length;
+  const full = count >= MAX_SHOTS;
+  const backdrop = backdropById(backdropId) ?? null;
+  const friend = memory.friends.find(f => act.companions.includes(f.id));
+  // 말 튼 사람들(루이·클로에)도 같이 찍힌다 (ADR-0031) — 방(RoomStage)과 같은 castAt, 이 시각 기준. 자리는 고정(끌지 않는다)
+  const cast = castAt(act, nowMs, memory);
+  const mets = metsOfCast(cast);
+  const metIds = [cast.met, ...(cast.metAlso ?? [])].filter((m): m is CastMet => !!m).slice(0, METS_MAX).map(m => m.agent.id);
+  const basePose = poseFor(act.option);
+
+  // 시작 자리: 배경이 정한 자리(앉는 자리면 앉아서), 없으면 무대의 기본 자리 — 동행이 있으면 둘이 나눠 선다
+  const [me, setMe] = useState<ShotFigure>(() => backdrop ? { ...backdrop.me, pose: backdrop.sit ? 'sit' : (basePose as ShotPose) } : { ...(friend ? DEFAULT_ME_WITH_FRIEND : DEFAULT_ME), pose: basePose as ShotPose });
+  const [fr, setFr] = useState<ShotFigure | null>(() => friend ? { ...(backdrop?.friend ?? DEFAULT_FRIEND), pose: backdrop?.sit ? 'sit' : 'wave' } : null);
+  const [crop, setCrop] = useState<Crop>(CROP0);
+  const [sel, setSel] = useState<Sel>('me');
   const [flash, setFlash] = useState(0);
-  const [dragging, setDragging] = useState(false);
-  /** 톡 누른 자리의 초점 표시 — 잠깐 떴다 사라진다 */
-  const [ring, setRing] = useState<{ x: number; y: number; n: number } | null>(null);
-  useEffect(() => { if (!ring) return; const id = window.setTimeout(() => setRing(null), 800); return () => window.clearTimeout(id); }, [ring]);
+  const [dragging, setDragging] = useState<Sel | 'bg' | null>(null);
+  /** 방금 찍은 컷 — 필름 칸에서 폴라로이드처럼 현상된다 */
+  const [fresh, setFresh] = useState<{ id: string; n: number } | null>(null);
+  const [shake, setShake] = useState(0);
   const frameRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ id: number; sx: number; sy: number; x0: number; y0: number; w: number; h: number; moved: boolean } | null>(null);
+  const dragRef = useRef<{ id: number; what: Sel | 'bg'; sx: number; sy: number; x0: number; y0: number; w: number; h: number } | null>(null);
+  const shakeRef = useRef<{ id: number; x: number; n: number } | null>(null);
 
-  const pose = poseFor(act.option);
-  // 찍는 순간의 인물 구성 (ADR-0026): 동행은 정면, 말을 건 상대는 encounter.at 뒤부터 정면, 같은 공간의 사람들은 뒷모습.
-  // phase의 companions/encounter는 헤더 칩용 그대로 두고 그림은 castAt 하나로 — 방(RoomStage)·만화와 같은 규칙
-  const memory = useWorld(s => s.memory);
-  const stage = { type: act.place.type, pose, ...shotCastOf(castAt(act, nowMs, memory)) };
+  const figOf = (s: Sel) => (s === 'me' ? me : fr);
+  const setFig = (s: Sel, patch: Partial<ShotFigure>) => (s === 'me' ? setMe(f => ({ ...f, ...patch })) : setFr(f => (f ? { ...f, ...patch } : f)));
 
-  // ── 드래그 (pointer capture): 프레임 밖으로 나가도 놓을 때까지 따라온다 ──
+  // ── 드래그 (pointer capture): 캐릭터를 잡으면 캐릭터가, 배경을 잡으면 배경이 움직인다 ──
   const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     const el = frameRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    dragRef.current = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x0: crop.x, y0: crop.y, w: Math.max(1, r.width), h: Math.max(1, r.height), moved: false };
+    const hit = (e.target as HTMLElement).closest?.('.cam-me, .cam-friend');
+    const what: Sel | 'bg' = hit?.classList.contains('cam-me') ? 'me' : hit?.classList.contains('cam-friend') && fr ? 'friend' : 'bg';
+    const fig = what === 'bg' ? null : figOf(what);
+    dragRef.current = { id: e.pointerId, what, sx: e.clientX, sy: e.clientY, x0: fig ? fig.x : crop.x, y0: fig ? fig.y : crop.y, w: Math.max(1, r.width), h: Math.max(1, r.height) };
     el.setPointerCapture(e.pointerId);
-    setDragging(true);
+    setDragging(what);
+    if (what !== 'bg') setSel(what);
   };
   const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     const d = dragRef.current;
     if (!d || d.id !== e.pointerId) return;
-    // transform이 rotate → scale → translate 순(.cm-shot과 동일)이라 translate는 회전·확대 전 좌표다:
-    // 화면 이동량을 기울기만큼 되돌리고 시야각으로 나눠야 손가락을 따라온다
-    const a = (-crop.rot * Math.PI) / 180;
-    const dx = e.clientX - d.sx;
-    const dy = e.clientY - d.sy;
-    if (Math.abs(dx) + Math.abs(dy) > 6) d.moved = true;
-    if (!d.moved) return;   // 아직 톡 누르기일 수 있다 — 손가락이 흔들린 만큼은 무시
-    const lx = (dx * Math.cos(a) - dy * Math.sin(a)) / crop.scale;
-    const ly = (dx * Math.sin(a) + dy * Math.cos(a)) / crop.scale;
-    const x = round1(clamp(d.x0 + (lx / d.w) * 100, -PAN_MAX, PAN_MAX));
-    const y = round1(clamp(d.y0 + (ly / d.h) * 100, -PAN_MAX, PAN_MAX));
-    setCrop(c => (c.x === x && c.y === y ? c : { ...c, x, y }));
+    const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+    if (d.what === 'bg') {
+      // transform이 scale → translate 순이라 translate는 확대 전 좌표다: 화면 이동량을 시야각으로 나눠야 손가락을 따라온다
+      // AI 배경은 상자 여유(BD_OVER)만큼만 — SVG 무대는 옛 한도
+      const lim = backdrop ? BD_PAN_MAX : PAN_MAX;
+      const x = round1(clamp(d.x0 + (dx / crop.scale / d.w) * 100, -lim, lim));
+      const y = round1(clamp(d.y0 + (dy / crop.scale / d.h) * 100, -lim, lim));
+      setCrop(c => (c.x === x && c.y === y ? c : { ...c, x, y }));
+    } else {
+      // 인물은 프레임 % 로 — 확대된 배경 위에서도 손가락 아래에 있어야 하니 crop.scale로 나누지 않는다 (인물은 .cam-shot 안이라 같이 확대되지만 자리는 %)
+      const x = round1(clamp(d.x0 + (dx / d.w) * 100, 4, 96));
+      const y = round1(clamp(d.y0 + (dy / d.h) * 100, 20, 100));
+      setFig(d.what, { x, y });
+    }
   };
   const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
     const d = dragRef.current;
     if (d?.id !== e.pointerId) return;
     dragRef.current = null;
-    setDragging(false);
-    // 톡 누르기(안 끌었다) = 초점: 캐릭터를 눌렀으면 캐릭터가 선명하고 배경이 흐려지고, 배경을 눌렀으면 반대 —
-    // 어디가 잘 나올지는 사용자가 정한다. 얼마나 흐릴지는 심도 슬라이더
-    if (!d.moved) {
-      const hit = document.elementFromPoint(e.clientX, e.clientY);
-      const near = !!hit?.closest('.cam-me, .cam-friend, .cam-met');
-      setCrop(c => ({ ...c, focus: near ? 'near' : 'far' }));
-      const r = frameRef.current?.getBoundingClientRect();
-      if (r) setRing({ x: e.clientX - r.left, y: e.clientY - r.top, n: (ring?.n ?? 0) + 1 });
-    }
+    setDragging(null);
   };
 
-  // ── 셔터: 지금 창에만. 같은 창을 다시 찍으면 뒤가 이긴다 ──
+  // ── 셔터: 최대 3장. 찍는 순간 id를 정하고 샷을 저장, 굽기는 뒤에서 (ADR-0024 결정 1) ──
   const shoot = () => {
-    // 찍는 순간 id를 정하고(폰이 정한다 — CONTRACT §2.5) 샷은 바로 저장한다. 굽기는 뒤에서 — 저장을 기다리게 하지 않는다 (ADR-0024 결정 1).
-    // ?preview는 id 없이 로컬 state에만 — 굽지도(IDB·업로드 줄·서버에 남는다) 않는다. ComicScreen의 지연 굽기가 PREVIEW를 건너뛰는 것과 같다
+    if (full) return;
+    const shot: UserShot = { actKey: act.key, at: nowMs, crop: { ...crop }, me: { ...me }, ...(fr ? { friend: { ...fr } } : {}), ...(metIds.length ? { mets: metIds } : {}), ...(backdrop ? { backdrop: backdrop.id } : {}), gen: 'plain' };
+    setFlash(n => n + 1);
+    try { navigator.vibrate?.(24); } catch { /* 진동 없는 브라우저 */ }
     if (preview) {
-      setLocal(ss => [...ss.filter(s => s.win !== now), { actKey: act.key, win: now, at: nowMs, crop: { ...crop } }]);
-      setFlash(n => n + 1);
+      const id = newShotId();
+      setLocal(ss => [...ss, { ...shot, shotId: id }]);
+      setFresh({ id, n: (fresh?.n ?? 0) + 1 });
       return;
     }
     const id = newShotId();
-    addShot({ actKey: act.key, win: now, at: nowMs, crop: { ...crop }, shotId: id });
-    setFlash(n => n + 1);
-    try { navigator.vibrate?.(24); } catch { /* 진동 없는 브라우저 */ }
-    // 무대(ShotStage)에 보이던 그대로: 장면·자세·크롭·내 겉모습·동행·말 튼 상대·배경 인물. 60 KB를 넘거나(BakeOversizeError) 어떤 이유로든 못 구우면
-    // id를 떼어 옛 경로(crop 재렌더)로 둔다 — 그 사이 다시 찍었으면 다른 id라 건드리지 않는다
+    addShot({ ...shot, shotId: id });
+    setFresh({ id, n: (fresh?.n ?? 0) + 1 });
+    // 뷰파인더(ShotStage)에 보이던 그대로: 배경·자리·자세·내 겉모습·동행·말 튼 사람들. 60 KB를 넘거나(BakeOversizeError) 못 구우면 id를 떼어 옛 경로(다시 그리기)로
     const input: BakeInput = {
-      type: sceneTypeFor(act.place.type), pose, crop: { ...crop }, look: look ?? DEFAULT_LOOK,
-      friend: stage.friendColor ? { color: stage.friendColor } : undefined, met: stage.metColor ? { color: stage.metColor } : undefined,
-      present: stage.present?.map(p => ({ color: p.color, look: presentLook(p.hairStyle), ...(p.glance ? { glance: true } : {}) })),
+      type: sceneTypeFor(act.place.type), pose: basePose, crop: { ...crop }, look: look ?? DEFAULT_LOOK, me: { ...me },
+      ...(friend && fr ? { friend: { color: friend.color }, friendPos: { ...fr } } : {}),
+      ...(mets[0] ? { met: { color: mets[0].color, look: mets[0].look } } : {}),
+      ...(mets[1] ? { met2: { color: mets[1].color, look: mets[1].look } } : {}),
     };
-    void bakeShot(input).then(b => putLocal(id, b.blob, 'shot')).catch((e: unknown) => {
+    const withBackdrop = backdrop ? backdropDataUrl(backdrop).then(url => ({ ...input, backdrop: url })) : Promise.resolve(input);
+    void withBackdrop.then(async i => {
+      const b = await bakeShot(i);
+      await putLocal(id, b.blob, 'shot');
+      // 서버 화풍 생성 (ADR-0029 결정 6): 그동안 필름 칸은 현상 중, 오면 그 픽셀로 바뀐다. 실패·오프라인이면 단순 합성본 그대로
+      void requestShotGen(id, i, { place: act.place.name, spot: backdrop?.spot, sit: backdrop?.sit, mePose: me.pose, friendPose: fr?.pose, friendColor: friend?.color, backdrop: !!backdrop });
+    }).catch((e: unknown) => {
       console.warn(`camera: 굽기 실패 — 옛 경로로 (${id})`, e);
       dropShotId(id);
     });
   };
-  const retake = !!taken[now];
+  const remove = (shotId: string) => {
+    if (preview) setLocal(ss => ss.filter(s => s.shotId !== shotId));
+    else removeShot(shotId);
+    if (fresh?.id === shotId) setFresh(null);
+  };
+
+  // ── 폴라로이드 흔들기: 현상 중인 칸을 문지르면 흔들리고(진동) 현상이 조금 빨라진다 — 서버 시간과 무관한 손맛 ──
+  const onShakeDown = (e: ReactPointerEvent<HTMLLIElement>) => { shakeRef.current = { id: e.pointerId, x: e.clientX, n: 0 }; };
+  const onShakeMove = (e: ReactPointerEvent<HTMLLIElement>) => {
+    const s = shakeRef.current;
+    if (!s || s.id !== e.pointerId) return;
+    if (Math.abs(e.clientX - s.x) > 14) { s.x = e.clientX; s.n++; setShake(n => n + 1); try { navigator.vibrate?.(8); } catch { /* */ } }
+  };
+  const onShakeUp = () => { shakeRef.current = null; };
+  useEffect(() => { if (!fresh) return; const id = window.setTimeout(() => setShake(0), 400); return () => window.clearTimeout(id); }, [shake, fresh]);
+
+  const selFig = figOf(sel) ?? me;
+  const stage: ShotStageProps = { type: act.place.type, pose: basePose, crop, backdrop, me, friendColor: friend?.color, friendPos: fr ?? undefined, ...(mets.length ? { mets } : {}) };
+  const where = backdrop ? `${backdrop.spot}에서` : act.place.area;
 
   return (
     <div className="cam" role="dialog" aria-label="카메라">
       <header className="cam-hd">
         <div>
           <h3>📷 {act.place.name}</h3>
-          <small>{hhmmIn(nowMs, act.tz)} · 지금은 '{WIN_LABEL[now]}' 장면</small>
+          <small>{where} · {hhmmIn(nowMs, act.tz)}</small>
         </div>
-        <span className={`cam-count ${count >= 4 ? 'is-full' : ''}`} aria-label={`찍은 사진 ${count}장`}>{count}/4</span>
+        <span className={`cam-count ${full ? 'is-full' : ''}`} aria-label={`찍은 사진 ${count}장`}>{count}/{MAX_SHOTS}</span>
         <button type="button" className="cam-x" onClick={onClose} aria-label="닫기">✕</button>
       </header>
 
-      <div ref={frameRef} className={`cam-frame ${dragging ? 'is-dragging' : ''}`} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} role="img" aria-label="뷰파인더 — 끌어서 자리를 잡는다">
-        <ShotStage {...stage} crop={crop} />
+      <div ref={frameRef} className={`cam-frame ${dragging ? `is-dragging is-drag-${dragging}` : ''}`} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} role="img" aria-label="뷰파인더 — 캐릭터를 끌어 자리를 잡는다">
+        <ShotStage {...stage} />
         <span className="cam-osd num">{hhmmIn(nowMs, act.tz)}</span>
         <div className="cam-vf" aria-hidden="true"><i /><i /><i /><i /></div>
-        <span className="cam-fchip" aria-live="polite">초점 · {(crop.focus ?? 'near') === 'far' ? '배경' : '캐릭터'}</span>
-        {ring && <i key={ring.n} className="cam-focus" style={{ left: ring.x, top: ring.y }} aria-hidden="true" />}
+        {fr && <span className="cam-fchip" aria-live="polite">{sel === 'me' ? '나' : '친구'}</span>}
         {flash > 0 && <div key={flash} className="cam-flash" aria-hidden="true" />}
         {flash > 0 && <b key={`s${flash}`} className="cam-snap" aria-hidden="true">찰칵!</b>}
       </div>
       <p className="cam-hint">
-        <span>끌어서 자리 잡고, 톡 눌러 초점 맞추고</span>
-        <Button tone="text" onClick={() => setCrop(taken[now]?.crop ?? messyStart(act.key, now))}>처음으로</Button>
+        <span>캐릭터를 끌어 자리 잡고, 배경을 끌어 옮기고</span>
+        <Button tone="text" onClick={() => { setCrop(CROP0); setMe(backdrop ? { ...backdrop.me, pose: backdrop.sit ? 'sit' : (basePose as ShotPose) } : { ...(friend ? DEFAULT_ME_WITH_FRIEND : DEFAULT_ME), pose: basePose as ShotPose }); if (friend) setFr({ ...(backdrop?.friend ?? DEFAULT_FRIEND), pose: backdrop?.sit ? 'sit' : 'wave' }); }}>처음으로</Button>
       </p>
 
       <div className="cam-ctl">
-        {/* 확대 · 각도(위/아래 앵글) · 기울임(더치 앵글) · 조도 · 심도(배경 흐림) — 다섯 개 다 컷에 그대로 실린다 (ShotStage가 같은 변수를 읽는다) */}
         <div className="cam-sliders">
+          {/* 자세 칩: 고른 인물(나 / 친구)의 자세 */}
+          <div className="cam-poses" role="group" aria-label="자세">
+            {POSES.map(p => (
+              <button key={p.pose} type="button" className={`cam-pose ${selFig.pose === p.pose ? 'is-on' : ''}`} aria-pressed={selFig.pose === p.pose} onClick={() => setFig(sel, { pose: p.pose })}>{p.label}</button>
+            ))}
+          </div>
           <label className="cam-sl">
-            <span>확대</span>
-            <input className="cam-range" type="range" min={SCALE_MIN} max={SCALE_MAX} step={0.05} value={crop.scale} style={pctVar(crop.scale, SCALE_MIN, SCALE_MAX)} onChange={e => setCrop(c => ({ ...c, scale: Number(e.target.value) }))} aria-label="확대" />
+            <span>크기</span>
+            <input className="cam-range" type="range" min={FIG_MIN} max={FIG_MAX} step={0.01} value={selFig.scale} style={pctVar(selFig.scale, FIG_MIN, FIG_MAX)} onChange={e => setFig(sel, { scale: Number(e.target.value) })} aria-label="캐릭터 크기" />
+            <output className="num">{Math.round(selFig.scale * 100)}%</output>
+          </label>
+          <label className="cam-sl">
+            <span>배경</span>
+            <input className="cam-range" type="range" min={SCALE_MIN} max={SCALE_MAX} step={0.05} value={crop.scale} style={pctVar(crop.scale, SCALE_MIN, SCALE_MAX)} onChange={e => setCrop(c => ({ ...c, scale: Number(e.target.value) }))} aria-label="배경 확대" />
             <output className="num">{crop.scale.toFixed(2)}×</output>
-          </label>
-          <label className="cam-sl">
-            <span>각도</span>
-            <input className="cam-range" type="range" min={-PITCH_MAX} max={PITCH_MAX} step={1} value={crop.pitch ?? 0} style={pctVar(crop.pitch ?? 0, -PITCH_MAX, PITCH_MAX)} onChange={e => setCrop(c => ({ ...c, pitch: Number(e.target.value) }))} aria-label="각도 (위에서 · 아래에서)" />
-            <output className="num">{(crop.pitch ?? 0) > 0 ? '위 ' : (crop.pitch ?? 0) < 0 ? '아래 ' : ''}{Math.abs(crop.pitch ?? 0)}°</output>
-          </label>
-          <label className="cam-sl">
-            <span>기울임</span>
-            <input className="cam-range" type="range" min={-ROT_MAX} max={ROT_MAX} step={0.5} value={crop.rot} style={pctVar(crop.rot, -ROT_MAX, ROT_MAX)} onChange={e => setCrop(c => ({ ...c, rot: Number(e.target.value) }))} aria-label="기울임" />
-            <output className="num">{crop.rot > 0 ? '+' : ''}{crop.rot}°</output>
-          </label>
-          <label className="cam-sl">
-            <span>조도</span>
-            <input className="cam-range cam-range--light" type="range" min={LIGHT_MIN} max={LIGHT_MAX} step={0.05} value={crop.light ?? 1} style={pctVar(crop.light ?? 1, LIGHT_MIN, LIGHT_MAX)} onChange={e => setCrop(c => ({ ...c, light: Number(e.target.value) }))} aria-label="조도" />
-            <output className="num">{Math.round((crop.light ?? 1) * 100)}%</output>
-          </label>
-          <label className="cam-sl">
-            <span>심도</span>
-            <input className="cam-range" type="range" min={0} max={1} step={0.05} value={crop.dof ?? 0} style={pctVar(crop.dof ?? 0, 0, 1)} onChange={e => setCrop(c => ({ ...c, dof: Number(e.target.value) }))} aria-label="심도 (배경 흐림)" />
-            <output className="num">{(crop.dof ?? 0) === 0 ? '다 선명' : `흐림 ${Math.round((crop.dof ?? 0) * 100)}%`}</output>
           </label>
         </div>
         <div className="cam-shutter-wrap">
-          <button type="button" className={`cam-shutter ${retake ? 'is-retake' : ''}`} onClick={shoot} aria-label={retake ? '다시 찍기' : '찍기'} />
-          <span className="cam-shutter-lbl">{retake ? '다시 찍기' : '찍기'}</span>
+          <button type="button" className="cam-shutter" onClick={shoot} disabled={full} aria-label={full ? '다 찍었다 — 한 장 지우면 다시' : '찍기'} />
+          <span className="cam-shutter-lbl">{full ? '꽉 찼어' : '찍기'}</span>
         </div>
       </div>
 
-      {/* 필름 칸 4개: 활동 시간 4등분 = 만화 4컷. 지난 창은 잠겨 {name}가 채우고, 미래 창은 아직 */}
-      <ol className="cam-film" aria-label="장면 4개">
-        {WIN_LABEL.map((label, i) => {
-          const w = i as ShotWin;
-          const st = winState(w, now);
-          const shot = taken[w];
-          // 지금 창에 아직 안 찍었으면 뷰파인더의 프레이밍이 그대로 미리 보인다. 지난 창은 "{name}가 찍음"이니 빈 상자 대신
-          // 기본 프레이밍의 정지 무대를 잠긴 사진처럼 (camera.css .is-past가 회색으로 죽인다) — 실제 열화 컷은 만화에서 나온다
-          const c = shot?.crop ?? (st === 'now' ? crop : st === 'past' ? CROP0 : null);
-          const by = st === 'future' ? '아직' : shot ? '내가 찍음' : st === 'past' ? `${name}가 찍음` : '찍을 차례';
+      {/* 필름 칸 3개: 찍은 순서대로. 방금 찍은 칸은 폴라로이드처럼 현상되고(문지르면 빨라진다), 칸마다 ✕로 지운다 */}
+      <ol className="cam-film" aria-label={`사진 ${MAX_SHOTS}장`}>
+        {Array.from({ length: MAX_SHOTS }, (_, i) => {
+          const shot = taken[i];
+          const isFresh = !!shot?.shotId && fresh?.id === shot.shotId;
+          // 서버 생성(gen): pending이면 현상이 안 끝나고 계속 흔들리는 뿌연 상태, done이면 생성된 픽셀(PhotoImg)이 떠오른다
+          const gen = shot?.gen;
           return (
-            <li key={w} className={`cam-cell is-${st} ${shot ? 'has-shot' : ''}`} aria-label={`${label} — ${by}`}>
+            <li key={shot?.shotId ?? `empty-${i}`} className={`cam-cell ${shot ? 'has-shot' : 'is-empty'} ${gen === 'pending' ? 'is-pending' : gen === 'done' ? 'is-done' : gen === 'plain' && isFresh ? 'is-plain' : ''} ${(isFresh || gen === 'pending') && shake ? 'is-shake' : ''}`}
+              onPointerDown={isFresh || gen === 'pending' ? onShakeDown : undefined} onPointerMove={isFresh || gen === 'pending' ? onShakeMove : undefined} onPointerUp={onShakeUp} onPointerCancel={onShakeUp}
+              aria-label={shot ? `${i + 1}번째 사진` : '빈 칸'}>
               <div className="cam-thumb">
-                {c ? <ShotStage {...stage} crop={c} still /> : <span className="cam-empty" aria-hidden="true">{st === 'future' ? '···' : '?'}</span>}
-                {st === 'past' && <span className="cam-lock" aria-hidden="true">🔒</span>}
-                {st === 'now' && (shot ? <span className="cam-ok" aria-hidden="true">✓</span> : <span className="cam-here" aria-hidden="true">지금!</span>)}
+                {shot
+                  ? (gen === 'done' && shot.shotId
+                    ? <PhotoImg key={shot.shotId} shotId={shot.shotId} className="cam-photo" alt=""><ShotStage {...stageOfShot(shot, act.place.type, basePose, friend?.color)} still /></PhotoImg>
+                    : <ShotStage {...stageOfShot(shot, act.place.type, basePose, friend?.color)} still />)
+                  : <span className="cam-empty" aria-hidden="true">{i + 1}</span>}
+                {shot?.shotId && <button type="button" className="cam-del" aria-label="이 사진 지우기" onClick={() => remove(shot.shotId!)}>✕</button>}
               </div>
-              <span className="cam-lbl">{label}</span>
-              <small className="cam-by">{by}</small>
+              {/* plain = 서버 생성이 없었다(오프라인·로그인 안 함·실패) — 단순 합성본이 그대로 사진 */}
+              <small className="cam-by">{shot ? `${hhmmIn(shot.at, act.tz)}${gen === 'pending' ? ' · 현상 중' : gen === 'plain' ? ' · 합성만' : gen === 'done' ? ' · 생성됨' : ''}` : '아직'}</small>
             </li>
           );
         })}

@@ -33,7 +33,7 @@ import { buildTimeline, companionsOf, encounterOf, currentPlaceAt, emptyPlans, m
 import { suggestOptions } from '../sim/suggest';
 import { AGENTS, agentById, type Agent } from '../sim/agents';
 import { makeComic } from '../sim/comic';
-import { shotsFor, winStarts } from '../sim/shots';
+import { shotsFor } from '../sim/shots';
 import { INITIAL_STATUS, type Status } from '../sim/status';
 import { WORRY_CHOICES, type AgentRequest, type RequestKind } from '../sim/requests';
 import { callLines, lateText, type CallEvent } from '../sim/call';
@@ -174,17 +174,17 @@ const NY_TRIP: OptionText = { title: '센트럴파크까지 훌쩍 (3박)', reas
 /** `&sketch=1` 의 그림 — 96×96 PNG, 코랄 붓으로 그린 컵 낙서 (SketchOverlay가 만드는 것과 같은 꼴: PNG dataURL, 긴 변 ≤ 240px). */
 export const SAMPLE_SKETCH = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAIAAABt+uBvAAADU0lEQVR42u2bv2tVMRTH8+e5uejiJm4WoQ4KCiou0koVQYTqUhepoEM7VBwcRKwIXRSKLioWcWonF93it4hS78279yUv35Pk8YUzvOFwX/K5+Z4fN4nzvw5kA+aEQIAEaG4B7b0/NJ5/w4Awz+UFf/bYoeHH6LRj/ZsHtPR3tv/mnNe/bUAbq//N9o8NLIpY/7YBfXwTmO3AhGP9mwfUEcuoZGL92wYUFAsMyySLf9uAJokFFLL4Nw9oOSSWpYVs/m0DQkyNEkusvwDNOyBJTEFaaV6FoloNAZLE1IupF1OaV6GoVsMK0IBYYv3nUGKjYon1bx5QO1s9ReugFjYLtfUsQNUBggo+7dRiWSXpcobeeixfUHeU+rgSRuUBTap3K7Eci0iAJDEF6bqD9NE0f/Fkd6CbD4jpHA/v/B0GUF2aP2rXz3RH/GiFWMXh4Z2/wwCqrqRvne+O+P5VIiA8vC+ua6f9vcv+yV3/8qn/sO33P9cEqD9iIOMB6r+PoF044W+e8w9v+K01v/M8VoCuuTU/pGhCCM8KKBg1eYD6OYFQBGQF9GI9MJSf+xQ6eOyMpcDXd+aA3m4FxnHwhQIIj50R0OsNc0C7r5JfVLThsf3/QhhGMEZIRmAeBfT4jjmg4KBBjQFo9GUgwSPNI9kj5SPxI/13nFcWzQEFlz10xwAUK2esl47z4nFzQMHAicjNABSbEBBxkuTv6KkXuZ8BKLakCMp/ijjt6MUbqR1LKEqhqfg47ejlP6kdS2hrEJXj47QrP26zN5EUp135lW+m5WdrCZ9lXeHYaZYNvu2mfbd2hbOvWT2xeiWtZXWF6zebinR7M7x8pqjynXUHYN/T/PjuL50K+K/fLnF4waYdC76GSd/2AaLvDGQAVwCQTTsWFHKUQXRljr/YtGPBVDC9IWCXPB9k0I71i4koQ8ovCcigHeuXo9MbysXCJ8wM2rHgjhhnw95V0UaSdsRybNgTABm0Y0EVc87lEQBNOlOQ0cw+y1EAzZiD04z0YZcCaPYqLsFIWwMUQME+gG2kzSUKoCIHF2nXFTgn7Y0P5TGvsHIAWR5cJF8EYt7VMLifwL8IpMssAiRAAiRAAiRAAiRAMgESIAESIAESIAESIJkACZAAWdlv0Tu1GhVwrTUAAAAASUVORK5CYII=';
 
-/** `&shots=` 의 가짜 사용자 컷 — 창마다 다른 프레이밍(% 단위·확대·각도·기울임·조도·심도), 촬영 시각은 그 창의 앞쪽. */
+/** `&shots=` 의 가짜 사용자 컷 — 번호(0~3)마다 다른 프레이밍·시각(활동 시간의 그 사분면 앞쪽). 창은 없어졌지만(ADR-0029) 프리뷰 URL의 번호는 그대로 받는다 */
 function fakeShots(act: ScheduledActivity, wins: ShotWin[]): UserShot[] {
-  const starts = winStarts(act);
   const span = Math.max(1, act.endAt - act.arriveAt);
   const CROP = [
-    { scale: 1.15, x: -8, y: 4, rot: -5, pitch: 8, light: 1.15, dof: 0.6, focus: 'near' as const },
-    { scale: 1.6, x: 6, y: -6, rot: 3, pitch: -10, light: 0.75, dof: 0.7, focus: 'far' as const },
-    { scale: 2.0, x: 0, y: 8, rot: -2, pitch: 0, light: 1.3, dof: 1, focus: 'near' as const },
-    { scale: 1.3, x: -4, y: 0, rot: 9, pitch: 12, light: 0.6, dof: 0.35, focus: 'far' as const },
+    { scale: 1.15, x: -8, y: 4, rot: 0 },
+    { scale: 1.6, x: 6, y: -6, rot: 0 },
+    { scale: 2.0, x: 0, y: 8, rot: 0 },
+    { scale: 1.3, x: -4, y: 0, rot: 0 },
   ];
-  return wins.map(w => ({ actKey: act.key, win: w, at: starts[w] + span * 0.06, crop: { ...CROP[w] } }));
+  const ME = [{ x: 50, y: 78, scale: 0.84 }, { x: 36, y: 80, scale: 0.7 }, { x: 60, y: 76, scale: 1 }, { x: 48, y: 82, scale: 0.6 }];
+  return wins.map(w => ({ actKey: act.key, at: act.arriveAt + span * (w * 0.25 + 0.06), crop: { ...CROP[w] }, me: { ...ME[w] }, gen: 'plain' as const }));
 }
 
 const TYPE_TITLE: Partial<Record<PlaceType, { title: string; emoji: string; category: Category }>> = {
@@ -233,11 +233,13 @@ const ONBOARD_HOURS: Record<'sleep' | 'meal', number[]> = { sleep: [3, 2, 4, 1, 
 function fakeAct(place: Place, o: OptionText, journey: Journey, departAt: number, activityMin = 100, originTz = ownerTz, from: Place = placeById('home'), jetlagUntil: number | null = null): ScheduledActivity {
   const blk = blockAtIn(departAt, originTz);
   const blockId: BlockId = blk === 'sleep' ? 'morning' : blk;
-  const option: ActivityOption = { id: `preview-${place.id}`, title: o.title, reason: o.reason, emoji: o.emoji, placeId: place.id, category: o.category, friendId: o.friendId };
+  // `&friend=1`: 동행(민수)을 붙인다 — 걷기 등 원래 혼자인 미리보기도 둘이 가는 그림을 본다
+  const friendId = (typeof location !== 'undefined' && new URLSearchParams(location.search).get('friend') === '1') ? 'minsu' : o.friendId;
+  const option: ActivityOption = { id: `preview-${place.id}`, title: o.title, reason: o.reason, emoji: o.emoji, placeId: place.id, category: o.category, friendId };
   const arriveAt = departAt + journey.totalMin * 60_000;
   const endAt = arriveAt + activityMin * 60_000;
   const dayKey = dayKeyIn(departAt, originTz);
-  return { key: `${dayKey}:${blockId}`, dayKey, blockIds: [blockId], option, place, fromPlace: from, journey, departAt, arriveAt, endAt, comicUntil: endAt + 8 * 60_000, originTz, tz: tzOf(place), jetlagUntil, companions: o.friendId ? [o.friendId] : [], presentNearby: [] };
+  return { key: `${dayKey}:${blockId}`, dayKey, blockIds: [blockId], option, place, fromPlace: from, journey, departAt, arriveAt, endAt, comicUntil: endAt + 8 * 60_000, originTz, tz: tzOf(place), jetlagUntil, companions: friendId ? [friendId] : [], presentNearby: [] };
 }
 
 function memory() { return useWorld.getState().memory; }
@@ -464,7 +466,7 @@ export function usePreview(): { phase: Phase | null; world: TimetableWorld | nul
     switch (base.spec.kind) {
       case 'moving': {
         const act = base.act!;
-        return movingPhase(Math.min(now, act.arriveAt - 500), act);
+        return movingPhase(Math.min(now, act.arriveAt - 500), act, companionsOf(act, useWorld.getState().memory));   // 동행도 지도에 (friend=1)
       }
       case 'active': {
         const act = base.act!;
@@ -476,7 +478,7 @@ export function usePreview(): { phase: Phase | null; world: TimetableWorld | nul
       case 'sleeping': {
         const tz = base.spec.tz;
         const at = placeInTz(tz, ['home', 'hotel']) ?? placeById('home');
-        return { kind: 'sleeping', until: blockEndAt(dayStartIn(now, tz), 'sleep'), at, tz };
+        return { kind: 'sleeping', until: blockEndAt(dayStartIn(now, tz), 'sleep'), at, tz, since: dayStartIn(now, tz) };
       }
       case 'timetable': {
         const tz = base.spec.tz;

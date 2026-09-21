@@ -24,7 +24,7 @@ const check = (name, ok, detail = '') => { n++; console.log(`${ok ? '  ok ' : ' 
 const { AGENTS, agentsAt, agentById, castAt, castOfComic, comicCastOf, friendOf, learnedLine, appendLearned, LEARNED_CAP, PRESENT_MAX, hairStyleOf } = await import('../src/sim/agents.ts');
 const { panelCast, shotCastOf } = await import('../src/screens/util.ts');
 const { buildTimeline, emptyPlans, presentIds, talkAt } = await import('../src/sim/timeline.ts');
-const { makeComic } = await import('../src/sim/comic.ts');
+const { makeComic, makeComicWith } = await import('../src/sim/comic.ts');
 const { PLACES, placeById } = await import('../src/sim/places.ts');
 const { blockStartAt, blockEndAt, categoryDef } = await import('../src/sim/blocks.ts');
 const { dayKeyIn, dayStartOfKey } = await import('../src/sim/tz.ts');
@@ -135,17 +135,19 @@ if (talked) {
   const comic = makeComic(talked, memory);
   check('makeComic: cast가 실린다 (met.at = encounter.at, present = presentNearby — 굴림 상대가 맨 앞)', comic.cast && comic.cast.met?.id === e.agentId && comic.cast.met.at === e.at && comic.cast.present.map(p => p.id).sort().join() === [...talked.presentNearby].sort().join() && comic.cast.present[0].id === e.agentId && comic.cast.companions.length === 0, JSON.stringify(comic.cast));
   check('makeComic: cast는 comicCastOf와 같고 결정적', JSON.stringify(comic.cast) === JSON.stringify(comicCastOf(talked, memory)) && JSON.stringify(makeComic(talked, memory)) === JSON.stringify(comic), '');
-  const c0 = castOfComic(comic.cast, comic.panels[0].t), c3 = castOfComic(comic.cast, comic.panels[3].t);
-  check('castOfComic: 1컷(5 %)은 그 사람이 배경, 4컷(95 %)은 정면', !c0.met && c0.present.some(p => p.id === e.agentId) && c3.met?.id === e.agentId && !c3.present.some(p => p.id === e.agentId), JSON.stringify([c0, c3]));
-  check('castOfComic: 3컷(65 %)은 만남 장면 — 정면', castOfComic(comic.cast, comic.panels[2].t).met?.id === e.agentId, '');
+  const tspan = talked.endAt - talked.arriveAt;
+  const c0 = castOfComic(comic.cast, talked.arriveAt + tspan * 0.05), c3 = castOfComic(comic.cast, talked.arriveAt + tspan * 0.95);
+  check('castOfComic: 앞(5 %)은 그 사람이 배경, 끝(95 %)은 정면', !c0.met && c0.present.some(p => p.id === e.agentId) && c3.met?.id === e.agentId && !c3.present.some(p => p.id === e.agentId), JSON.stringify([c0, c3]));
+  check('castOfComic: 65 %는 만남 뒤 — 정면', castOfComic(comic.cast, talked.arriveAt + tspan * 0.65).met?.id === e.agentId, '');
   check('castOfComic: present는 최대 둘', c0.present.length <= PRESENT_MAX, '');
   const plain = makeComic({ ...talked, encounter: undefined, presentNearby: [] }, memory);
-  check('마주침 없는 활동: cast는 비어 있다', plain.cast && !plain.cast.met && plain.cast.present.length === 0 && plain.panels.length === 4, JSON.stringify(plain.cast));
+  check('마주침 없는 활동: cast는 비어 있다', plain.cast && !plain.cast.met && plain.cast.present.length === 0 && plain.panels.length === 1, JSON.stringify(plain.cast));
   // 캡션·기울기 골든 — cast를 싣는 일이 comic:/shot: 난수 순서를 건드리지 않았는지 (값은 ADR-0022 직전 HEAD의 makeComic에서 뽑았다; 캡션 문구·크롭 규칙을
   // 일부러 바꿨을 때만 다시 뽑는다: node -e 로 아래 golden(comic)을 찍으면 된다)
-  const golden = c => JSON.stringify(c.panels.map(p => [p.caption, p.crop.rot]));
-  check('골든: 마주침 있는 만화의 캡션·기울기가 그대로', golden(comic) === JSON.stringify([['망원시장 도착. 오늘은 뭘 먹지.', 14.5], ['시간 보내기. 양손에 봉지가 하나씩.', 0.1], ['"내일 오세요." 알겠습니다…', 0.1], ['친구가 한 명 늘었다. 민수.', 1.6]]), golden(comic));
-  check('골든: 마주침 없는 만화의 캡션·기울기가 그대로', golden(plain) === JSON.stringify([['망원시장 도착. 오늘은 뭘 먹지.', 14.5], ['시간 보내기. 양손에 봉지가 하나씩.', 0.1], ['"내일 오세요." 알겠습니다…', 0.1], ['시장 냄새가 옷에 배었다.', 1.6]]), golden(plain));
+  // 기울기(shot: 시드)는 ADR-0029에서 사라졌다 — 캡션 넷(comic: 시드)만 본다
+  const golden = (a, m) => JSON.stringify(Object.values(makeComicWith(a, m).captions));
+  check('골든: 마주침 있는 앨범의 캡션이 그대로', golden(talked, memory) === JSON.stringify(['망원시장 도착. 오늘은 뭘 먹지.', '시간 보내기. 양손에 봉지가 하나씩.', '"내일 오세요." 알겠습니다…', '친구가 한 명 늘었다. 민수.']), golden(talked, memory));
+  check('골든: 마주침 없는 앨범의 캡션이 그대로', golden({ ...talked, encounter: undefined, presentNearby: [] }, memory) === JSON.stringify(['망원시장 도착. 오늘은 뭘 먹지.', '시간 보내기. 양손에 봉지가 하나씩.', '"내일 오세요." 알겠습니다…', '시장 냄새가 옷에 배었다.']), golden({ ...talked, encounter: undefined, presentNearby: [] }, memory));
 }
 
 // ── 컷의 인물 (screens/util panelCast): cast가 있으면 그것이 전부, 만난 사람은 컷 시각이 정한다 ─────────────
@@ -169,8 +171,8 @@ console.log('\n── panelCast ──');
     check('진짜 만화: 동행이 없으니 어느 컷에도 friendColor가 없다', comic.panels.every(p => panelCast(p, shotCastOf(castOfComic(comic.cast, p.t)), F0, true).friendColor === undefined), '');
     // 이미 친구를 또 만난 활동(again): 4컷의 withFriend는 동행 굴림뿐이라 false여도, 만난 사람은 at 뒤라 나온다
     const againComic = makeComic({ ...talked, encounter: { ...e, again: true } }, { ...memory, friends: [friendOf(agentById(e.agentId))] });
-    const p4 = againComic.panels[3];
-    check('again: 4컷은 withFriend가 아니어도 만난 친구가 정면', !p4.withFriend && panelCast(p4, shotCastOf(castOfComic(againComic.cast, p4.t)), F0, true).metColor === metColor, JSON.stringify([p4.withFriend, againComic.cast]));
+    const p4 = { ...againComic.panels[0], t: talked.endAt - 1, withFriend: false };   // 활동 끝 컷 (at 뒤)
+    check('again: at 뒤의 컷은 withFriend가 아니어도 만난 친구가 정면', !p4.withFriend && panelCast(p4, shotCastOf(castOfComic(againComic.cast, p4.t)), F0, true).metColor === metColor, JSON.stringify([p4.withFriend, againComic.cast]));
   }
 }
 

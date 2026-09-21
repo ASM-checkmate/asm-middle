@@ -135,6 +135,7 @@ const CUES: Record<string, Cue> = {
 };
 function cueOf(line: LogLine): Cue | null {
   if (line.fx) return { kind: 'fx' };
+  if (line.text === '집. 눕는다') return { go: 'bedlie', pose: 'sleep', say: '😴' };   // 귀가 뒤 눕기 (HomeNightScreen) — 돌아오지 않는다
   if (line.text.startsWith('집.')) return { go: 'bedlie', then: 'seat', pose: 'sit', say: '휴' };
   if (line.text.startsWith('도착')) return { go: 'kitchen', then: 'seat', at: 'kitchen', say: '안녕!' };
   if (/원 씀$/.test(line.text)) return { go: 'door', then: 'seat', at: 'door', say: `−${line.text.replace(' 씀', '')}`, kind: 'money' };

@@ -3,8 +3,10 @@
 import './ts-hooks.mjs';
 import { readFileSync } from 'node:fs';
 
-const { makeComic } = await import('../src/sim/comic.ts');
-const { shotsFor, winStarts } = await import('../src/sim/shots.ts');
+const { makeComic, makeComicWith } = await import('../src/sim/comic.ts');
+/** 앨범 + 캡션 넷 — 검사는 캡션을 본다 (컷은 1~3장) */
+const comicOf = (a, shots = []) => { const { comic, captions } = makeComicWith(a, memory, shots); return { ...comic, captions }; };
+const { shotsFor } = await import('../src/sim/shots.ts');
 const { placeById, PLACES, tzOf } = await import('../src/sim/places.ts');
 const { estimateJourney } = await import('../src/sim/journey.ts');
 const { blockSlotIn } = await import('../src/sim/blocks.ts');
@@ -42,17 +44,19 @@ function act(fromId, placeId, departAt, blockId, title, category = 'play', extra
 /** Later activities inside the 24 h window inherit the jet-lag window (engine deviation 3). */
 const inherit = (prev) => ({ jetlagUntil: prev.jetlagUntil !== null && prev.arriveAt < prev.jetlagUntil ? prev.jetlagUntil : null });
 
-function show(label, a, shots = {}) {
-  const c = makeComic(a, memory, shots);
+function show(label, a, shots = []) {
+  const c = comicOf(a, shots);
   const legs = a.journey.legs.map(l => l.mode).join('>') || 'stay';
   console.log(`\n▶ ${label}  [${a.place.type} · ${legs} · ${a.originTz} → ${a.tz}${a.jetlagUntil && a.arriveAt < a.jetlagUntil ? ' · 😴 jetlag' : ''}]`);
   console.log(`  ${c.title}`);
-  for (const p of c.panels) {
-    const n = len(p.caption);
-    const who = p.by === 'user' ? '  📷 내가' : p.flaws?.length ? `  (${p.flaws.join(',')})` : '';
-    console.log(`  ${p.beat.padEnd(6)} ${String(n).padStart(2)}  ${p.caption}${p.withFriend ? '  (+친구)' : ''}${who}`);
-    if (n > MAX) fails.push(`${label}/${p.beat} caption ${n} > ${MAX}: ${p.caption}`);
-    if (p.caption.endsWith('…')) console.log(`         ↑ trimmed`);
+  // 캡션 넷 전부 검사한다 (28자) — 앨범엔 1~3장만 실리지만 대본은 넷이 다 뽑힌다
+  for (const [beat, cap] of Object.entries(c.captions)) {
+    const n = len(cap);
+    const used = c.panels.find(p => p.beat === beat);
+    const who = used ? (used.by === 'user' ? '  📷 내가' : '  📷 에이전트') : '';
+    console.log(`  ${beat.padEnd(6)} ${String(n).padStart(2)}  ${cap}${used?.withFriend ? '  (+친구)' : ''}${who}`);
+    if (n > MAX) fails.push(`${label}/${beat} caption ${n} > ${MAX}: ${cap}`);
+    if (cap.endsWith('…')) console.log(`         ↑ trimmed`);
   }
   console.log(`  » ${c.summary}`);
   return c;
@@ -70,7 +74,7 @@ const ny0 = act('home', 'central-park', KST(2026, 9, 3, 9, 0), 'am', '뉴욕으�
 }
 const c0 = show('01 비행 · 센트럴파크', ny0);
 // the 17 % blur roll (`shot:` seed, at most one panel) can land on the arrive panel and replace its caption — that is the rule, not a regression
-check('flight comic uses an on-board opener (기내식/잠) unless that panel is the blurred one', /기내|잤|자니|잠|담요|졸/.test(c0.panels[0].caption) || c0.panels[0].blur === true, c0.panels[0].caption);
+check('flight comic uses an on-board opener (기내식/잠) unless that panel is the blurred one', /기내|잤|자니|잠|담요|졸/.test(c0.captions.arrive), c0.captions.arrive);
 const t1 = ny0.comicUntil + 20 * MIN;
 const nyActs = [
   ['02 카페', 'central-park', 'stumptown-nomad', 'pm', '스텀프타운 커피에서 커피 한 잔'],
@@ -93,11 +97,11 @@ for (const [label, from, to, block, title, cat = 'play', extra = {}] of nyActs) 
 const home = act('standard-high-line', 'home', ny0.arriveAt + 3 * 24 * H, 'morning', '집으로 돌아가기', 'travel', { option: { spanBlocks: ['morning', 'am', 'lunch', 'pm', 'evening', 'night'] } });
 nyComics.push(show('10 귀국 · 집', home));
 check('10 comics for the New York day', nyComics.length === 10, String(nyComics.length));
-check('return flight comic uses an on-board opener', /기내|잤|자니|잠|담요|졸/.test(nyComics[9].panels[0].caption), nyComics[9].panels[0].caption);
+check('return flight comic uses an on-board opener', /기내|잤|자니|잠|담요|졸/.test(nyComics[9].captions.arrive), nyComics[9].captions.arrive);
 check('return flight lands in Asia/Seoul (originTz America/New_York)', home.originTz === 'America/New_York' && home.tz === 'Asia/Seoul');
-const nyJet = nyComics.slice(1, 9).flatMap(c => c.panels.map(p => p.caption)).filter(s => /시차|하품|졸|몸 시계|새벽 4시/.test(s));
+const nyJet = nyComics.slice(1, 9).flatMap(c => Object.values(c.captions)).filter(s => /시차|하품|졸|몸 시계|새벽 4시/.test(s));
 check('jet-lag lines show up on the New York day (≥ 2)', nyJet.length >= 2, String(nyJet.length));
-const nyFlavor = nyComics.flatMap(c => c.panels.map(p => p.caption)).filter(s => /택시|피자|급행|재킷|팁|빌딩|베이글|옐로캡|브루클린|사이렌|횡단보도|뉴욕은/.test(s));
+const nyFlavor = nyComics.flatMap(c => Object.values(c.captions)).filter(s => /택시|피자|급행|재킷|팁|빌딩|베이글|옐로캡|브루클린|사이렌|횡단보도|뉴욕은/.test(s));
 check('New York flavour lines show up (≥ 1)', nyFlavor.length >= 1, String(nyFlavor.length));
 
 // ── Tokyo day: ICN → HND in the morning (no jet lag: +0 h), a full Tokyo day ──
@@ -123,7 +127,7 @@ for (const [label, from, to, block, title, cat = 'play', extra = {}] of tkActs) 
 }
 check('10 comics for the Tokyo day', tkComics.length === 10, String(tkComics.length));
 check('no jet lag on a Seoul → Tokyo hop', tk0.jetlagUntil === null);
-const tkFlavor = tkComics.flatMap(c => c.panels.map(p => p.caption)).filter(s => /자판기|계란샌드|건널목|스이카|역까지|고양이 카페|전철|푸딩|골목마다|어느 동네/.test(s));
+const tkFlavor = tkComics.flatMap(c => Object.values(c.captions)).filter(s => /자판기|계란샌드|건널목|스이카|역까지|고양이 카페|전철|푸딩|골목마다|어느 동네/.test(s));
 check('Tokyo flavour lines show up (≥ 1)', tkFlavor.length >= 1, String(tkFlavor.length));
 
 // ── all three on-board kinds and all vehicles render, and a domestic hotel works ──
@@ -133,30 +137,28 @@ show('배 · 밤 출발 (잠)', boat);
 check('boat journey goes by boat', boat.journey.legs.some(l => l.mode === 'boat'));
 const train = act('home', 'paradise-busan', KST(2026, 9, 13, 11, 30), 'am', 'KTX 타고 부산 파라다이스 호텔 부산 (1박)', 'travel');
 const trainComic = show('기차 · 점심 (도시락) · 호텔', train);
-check('domestic hotel comic uses the hotel script', /체크인|로비|캐리어|침대|엘리베이터|창밖|짐/.test(trainComic.panels[0].caption) || /침대|커튼|냉장고|욕조|슬리퍼|티백|지도|이불/.test(trainComic.panels[1].caption), trainComic.panels.map(p => p.caption).join(' | '));
+check('domestic hotel comic uses the hotel script', /체크인|로비|캐리어|침대|엘리베이터|창밖|짐/.test(trainComic.captions.arrive) || /침대|커튼|냉장고|욕조|슬리퍼|티백|지도|이불/.test(trainComic.captions.doing), Object.values(trainComic.captions).join(' | '));
 
-// ── 사용자 컷 (ADR-0004): 창 0·2는 내가 찍은 그대로, 나머지는 에이전트가 채운 열화 컷 ──
+// ── 사용자 컷 (ADR-0029): 찍은 사진이 곧 컷, 안 찍으면 에이전트 한 장 ──
 console.log('\n══ 사진 ══');
 {
   const a = act('home', 'layered-yeonnam', KST(2026, 9, 14, 9, 0), 'am', '카페 레이어드 연남에서 그림 그리기');
-  const starts = winStarts(a);
+  const span = a.endAt - a.arriveAt;
   const mine = [
-    { actKey: a.key, win: 0, at: starts[0] + 3 * MIN, crop: { scale: 1.2, x: -10, y: 6, rot: -4 } },
-    { actKey: a.key, win: 2, at: starts[2] + 5 * MIN, crop: { scale: 1.8, x: 4, y: -8, rot: 7 } },
+    { actKey: a.key, at: a.arriveAt + span * 0.1, crop: { scale: 1.2, x: -10, y: 6, rot: 0 }, me: { x: 40, y: 80, scale: 0.6, pose: 'wave' }, shotId: 'a1'.repeat(16) },
+    { actKey: a.key, at: a.arriveAt + span * 0.6, crop: { scale: 1.8, x: 4, y: -8, rot: 0 }, me: { x: 55, y: 84, scale: 0.9, pose: 'sit' }, shotId: 'b2'.repeat(16) },
   ];
   const plain = show('사진 없음 · 카페', a);
-  const withMine = show('내가 0·2 · 카페', a, shotsFor(mine, a.key));
-  check('user panels keep the shot as taken (by user, pct, crop, time, no blur/flaws)',
-    [0, 2].every(i => { const p = withMine.panels[i], s = mine.find(x => x.win === i); return p.by === 'user' && p.unit === 'pct' && p.t === s.at && ['scale', 'x', 'y', 'rot'].every(k => p.crop[k] === s.crop[k]) && !p.blur && !p.flaws; }),
-    JSON.stringify([withMine.panels[0], withMine.panels[2]]));
-  check('agent panels are px and the same with or without user shots', [1, 3].every(i => withMine.panels[i].by === 'agent' && withMine.panels[i].unit === 'px' && JSON.stringify(withMine.panels[i]) === JSON.stringify(plain.panels[i])));
-  check('captions do not change when shots are added (seed order intact)', withMine.panels.every((p, i) => p.caption === plain.panels[i].caption));
-  check('header counts: 내가 2장, 토리가 2장', withMine.shots.user === 2 && withMine.shots.agent === 2, JSON.stringify(withMine.shots));
-  check('no shots → all agent', plain.shots.user === 0 && plain.panels.every(p => p.by === 'agent'), JSON.stringify(plain.shots));
-  const many = Array.from({ length: 60 }, (_, i) => makeComic(act('home', 'layered-yeonnam', KST(2026, 9, 1 + (i % 28), 9, 0), 'pm', '카페에서 그림 그리기'), memory).panels).flat();
-  const flawed = many.filter(p => p.flaws?.length).length;
-  check(`agent panels are almost always flawed (${flawed}/${many.length} ≥ 80%)`, flawed / many.length >= 0.8);
+  const withMine = show('내가 2장 · 카페', a, shotsFor(mine, a.key));
+  check('user panels keep the shot as taken (by user, pct, crop, me, time, shotId)',
+    withMine.panels.length === 2 && withMine.panels.every((p, i) => { const s = mine[i]; return p.by === 'user' && p.unit === 'pct' && p.t === s.at && ['scale', 'x', 'y', 'rot'].every(k => p.crop[k] === s.crop[k]) && p.me.pose === s.me.pose && p.shotId === s.shotId && !p.flaws; }),
+    JSON.stringify(withMine.panels));
+  check('two shots → arrive-ish then doing/end beats', withMine.panels[0].beat === 'arrive' && ['doing', 'end'].includes(withMine.panels[1].beat), withMine.panels.map(p => p.beat).join());
+  check('summary does not change when shots are added (seed order intact)', withMine.summary === plain.summary, `${withMine.summary} / ${plain.summary}`);
+  check('header counts: 내가 2장', withMine.shots.user === 2 && withMine.shots.agent === 0, JSON.stringify(withMine.shots));
+  check('no shots → one agent panel, no flaws', plain.panels.length === 1 && plain.shots.user === 0 && plain.panels[0].by === 'agent' && !plain.panels[0].flaws, JSON.stringify(plain.shots));
 }
+
 
 // ── every template line in comic.ts fits a panel once filled with typical values ──
 console.log('\n══ 대사 길이 검사 ══');

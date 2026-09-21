@@ -17,6 +17,7 @@ import { buildStyle } from './style';
 import { RouteLayers } from './route';
 import { ACTOR_OFFSET, createActorDom, createActorMarker, createPinDom, createPinMarker, setActorBubble, setActorMode, type ActorDom, type BubbleKind } from './marker';
 import { MoveCard, type CardHandle } from './card';
+import { AdCard } from './AdCard';
 import { refineAndStore, sameShape } from './routing';
 import {
   PLANE_MAX_ZOOM, PLANE_MIN_ZOOM, PLANE_SHORT_KM, bboxOf, departEase, easeInOutCubic, isRail, lerpK, lerpLngLat, lerpPose, makeSampler, modeCam,
@@ -517,7 +518,7 @@ class Scene {
     if (t >= this.actJ.arriveAt || ph.totalProgress >= 1) { this.arrive(); return; }
     const card = this.hooks.card();
     if (now >= this.nextSplitAt) {
-      this.nextSplitAt = now + 250;
+      this.nextSplitAt = now + 250 / Math.max(1, this.timeScale / 30);   // 배속이 높으면 그만큼 자주 — 지나온 길이 탈것을 따라오지 않게
       this.routes?.update(this.legIndex, p);
       card?.setProgress(ph.totalProgress);
       this.checkStations(p);
@@ -554,7 +555,8 @@ class Scene {
       this.cam = this.target;
     }
     const tgt = s.leg.mode === 'plane' ? this.planeCenter(pos, s) : this.approach ? this.approachCenter(pos, s) : pos;
-    this.camPos = lerpLngLat(this.camPos, tgt, lerpK(dt, this.tau));
+    // 배속이 높으면(데모·QA) 카메라가 그만큼 빨리 따라붙는다 — 30배속까지는 원래 여유(tau), 그 위로는 비례해 줄여 인물이 가운데에 남는다
+    this.camPos = lerpLngLat(this.camPos, tgt, lerpK(dt, this.tau / Math.max(1, this.timeScale / 30)));
     if (s.leg.mode === 'plane' && !this.planeApproach && !easing) {
       // Hold the *framing* constant, not the zoom number: 2^zoom / cos(lat) is the globe's apparent scale (camera.ts).
       const z = planeZoomAtLat(this.planeZEq, this.camPos.lat, this.planeShort);
@@ -859,7 +861,7 @@ export function MapScene({ act, onArrive, onReady }: MapSceneProps) {
   useEffect(() => { void refineAndStore(fromId, toId, journey).catch(() => { /* estimate stays */ }); }, [fromId, toId, journey]);
 
   return (
-    <div className={'map-scene' + (ready ? '' : ' is-loading')} data-to={act.place.id}>
+    <div className={'map-scene' + (ready ? '' : ' is-loading') + (act.ride ? ' has-ad' : '')} data-to={act.place.id}>
       <div className="map-canvas" ref={container} />
       <div className="map-loading" aria-hidden="true">
         <div className="map-loading-park p1" /><div className="map-loading-park p2" /><div className="map-loading-park p3" />
@@ -871,11 +873,13 @@ export function MapScene({ act, onArrive, onReady }: MapSceneProps) {
       {createPortal(
         <Rider
           mode={rider.mode} size={RIDER_SIZE[rider.mode]} facing={rider.facing} moving={rider.moving} boarding={rider.boarding}
-          friend={companions.length > 0} friendColor={companions[0]?.color} sleeping={rider.sleeping} doors={rider.doors} night={rider.night}
+          friend={companions.length > 0} friendColor={companions[0]?.color} sleeping={rider.sleeping} doors={rider.doors} night={rider.night} taxi={!!act.ride}
         />,
         dom.rider,
       )}
       <MoveCard act={act} journey={journey} legIndex={leg.index} ticks={leg.ticks} companions={companions} ref={card} />
+      {/* 제휴 택시 광고 (ADR-0031): 이동 카드 위 별도 요소 — .mc는 크기 고정이라 안 건드린다 */}
+      {act.ride && <AdCard ride={act.ride} />}
     </div>
   );
 }

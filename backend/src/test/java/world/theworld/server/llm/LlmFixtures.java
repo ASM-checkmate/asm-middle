@@ -52,7 +52,8 @@ public final class LlmFixtures {
       new TheworldProps.Search(apiKey),
       new TheworldProps.Nominatim(nominatimUrl, "", 0),
       new TheworldProps.Docs(4_194_304),
-      new TheworldProps.Media("build/test-media"));
+      new TheworldProps.Media("build/test-media"),
+      new TheworldProps.Gemini("", "http://127.0.0.1:9", "img", 1_000));
   }
 
   /**

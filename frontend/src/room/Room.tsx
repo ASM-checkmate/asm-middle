@@ -2,6 +2,7 @@
 // 방 하나 = 벽(뒤) + 바닥(평면) + 소품 목록 + 자리(spot) 목록 + 로그 줄 → 큐(cue) 표. 소품과 인물은 바닥 접점 행(y)으로 앞뒤가 정해진다.
 import type { ReactNode } from 'react';
 import type { LogLine } from '../sim/actlog';
+import type { Food } from '../character';
 
 /** 방 안의 한 자리 — 인물의 발이 놓이는 점 (방 좌표, px) */
 export interface Spot { x: number; y: number }
@@ -22,7 +23,7 @@ export interface Cue {
   /** 표시 종류: 돈·마찰·음표 */
   kind?: 'money' | 'fx' | 'notes';
   /** 그 자리에서의 자세 (기본: 자리의 자세). sleep은 침대처럼 이불 밑에 누워 자는 것, lie는 소파처럼 옆으로 눕는 것(그림을 눕힌다) */
-  pose?: 'idle' | 'think' | 'sit' | 'happy' | 'sleep' | 'lie';
+  pose?: 'idle' | 'think' | 'sit' | 'happy' | 'sleep' | 'lie' | 'sing';
 }
 
 /**
@@ -46,6 +47,10 @@ export interface Zone {
   alt?: { pose?: Cue['pose']; say?: string };
 }
 
+/** 방의 시간 이벤트 (ADR-0015 개정 4): 그 장소의 현지 시각 [from, to) 동안 방 루트에 `ev-{key}`가 붙고(배경의 `data-ev` 조각이 보인다), 시작 순간 한마디.
+ *  카메라 배경(Backdrop.event)이 같은 키를 가지면 그 동안만 그 배경의 📷 칩이 뜬다 */
+export interface RoomEvent { key: string; from: string; to: string; say?: string }
+
 export interface RoomSpec {
   w: number; h: number;
   /** 뒤 배경(벽·바닥) — 절대 위치 svg들 */
@@ -60,8 +65,13 @@ export interface RoomSpec {
   cueOf(line: LogLine): Cue | null;
   /** 트리거 존. 없으면 내 자리와 strolls에서 만든다 (`zonesOf`) */
   zones?: Zone[];
+  /** 시간 이벤트 (드론쇼 등). 활동 화면이 시계를 주면 RoomStage가 켠다 */
+  events?: RoomEvent[];
   /** 앉은 자리 앞(테이블 위)에 놓이는 활동 물건의 자리와 앞뒤 — 손에 든 것은 테이블에 가리니 테이블 위에 따로 놓는다 */
-  seatItem: { x: number; y: number; base: number };
+  /** 없으면 활동 물건을 안 그린다 — 테이블이 없는 자리(벤치)에선 손에 든 책과 겹친다 */
+  seatItem?: { x: number; y: number; base: number };
+  /** 먹기 자세에서 손에 드는 것 — 없으면 주먹밥 (조개구이집은 가리비) */
+  food?: Food;
 }
 
 /** 자리 이름 → 이름표. 방마다 존을 손으로 안 잡아도 자리 이름만으로 존이 되게 */
@@ -69,7 +79,7 @@ const SPOT_LABEL: Record<string, string> = {
   seat: '내 자리', side: '옆자리', door: '입구', window: '창가', counter: '카운터', kitchen: '부엌', bed: '침대', water: '물가',
   shelf: '책장', treadmill: '러닝머신', cooler: '정수기', mirror: '거울', escalator: '에스컬레이터', board: '안내판', easel: '이젤',
   label: '설명판', desk: '책상', fountain: '분수', flowers: '꽃밭', path: '산책로', shore: '물가', bike: '자전거', bridge: '다리',
-  shells: '조개', kiosk: '매점',
+  shells: '조개', kiosk: '매점', rail: '난간', front: '건물 앞',
 };
 
 /** 자리 하나를 감싸는 기본 존: 발 자리 위로 인물 한 명 크기의 상자 */

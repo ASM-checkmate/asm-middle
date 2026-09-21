@@ -32,6 +32,8 @@ public class BodyLimitFilter extends OncePerRequestFilter {
   public static final long LOOK_MAX = 1536L * 1024;
   /** 구운 컷 하나 — 300px WebP ≤ 60 KB (ADR-0024, CONTRACT §2.5). 서비스도 같은 수로 한 번 더 잰다. */
   public static final long MEDIA_MAX = 60L * 1024;
+  /** /api/shots/{id}/generate — 합성본(768px WebP) + 캐릭터 PNG 둘, base64 (ADR-0029) */
+  public static final long SHOTGEN_MAX = 3L * 1024 * 1024;
   public static final long DEFAULT_MAX = 256L * 1024;
 
   private final TheworldProps props;
@@ -48,6 +50,7 @@ public class BodyLimitFilter extends OncePerRequestFilter {
     if (path.equals("/api/character/look")) return LOOK_MAX;
     if (path.startsWith("/api/me/docs/")) return props.docs().maxBytes();
     if (path.startsWith("/api/media/")) return MEDIA_MAX;
+    if (path.startsWith("/api/shots/")) return SHOTGEN_MAX;
     return DEFAULT_MAX;
   }
 

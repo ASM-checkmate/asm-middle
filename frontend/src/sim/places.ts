@@ -101,7 +101,19 @@ export const PLACES: Place[] = [
   P('gamcheon-village', '감천문화마을', 'museum', 129.0107, 35.0975, '감천동', 'busan', 'KR', '🎨'),
   P('jagalchi-market', '자갈치시장', 'market', 129.0308, 35.0966, '남포동', 'busan', 'KR', '🦑'),
   P('momos-coffee', '모모스커피', 'cafe', 129.0900, 35.2066, '온천동', 'busan', 'KR', '☕'),
+  // 부산 데모 시나리오 (ADR-0029 `?scenario=busan`): AI 배경이 있는 네 곳 — public/backdrops/manifest.json이 placeId로 가리킨다
+  P('busan-home', '부산 집', 'home', 129.0845, 35.2310, '장전동', 'busan', 'KR', '🏠'),
+  P('pnu', '부산대학교', 'school', 129.0817, 35.2333, '장전동', 'busan', 'KR', '🏫'),
+  P('josaeho', '조새호', 'restaurant', 129.1195, 35.1535, '광안동', 'busan', 'KR', '🦪'),
+  P('samjin-pocha', '삼진포차', 'bar', 129.1183, 35.1545, '광안동', 'busan', 'KR', '🍶'),
+  // 손님 NPC의 집 (ADR-0031 — 부산 데모의 프랑스 관광객 루이·클로에). 활동 장소로는 안 뽑힌다 (home)
+  P('paris-home', '파리 집', 'home', 2.3522, 48.8566, '마레', 'paris', 'FR', '🏠'),
   P('paradise-busan', '파라다이스 호텔 부산', 'hotel', 129.1655, 35.1592, '해운대', 'busan', 'KR', '🏨'),
+  // 공시생 데모 시나리오 (`?scenario=gongsi`): 부산대 앞 — 집(장전동)에서 다 걸어간다. 스타벅스·코인노래방은 장소별 방(room/places)이 있다
+  P('starbucks-pnu', '스타벅스 부산대점', 'cafe', 129.0866, 35.2308, '장전동', 'busan', 'KR', '☕'),
+  P('coin-noraebang-pnu', '코인노래방 부산대점', 'arcade', 129.0878, 35.2313, '장전동', 'busan', 'KR', '🎤'),
+  P('pnu-library', '부산대학교 도서관', 'library', 129.0829, 35.2340, '장전동', 'busan', 'KR', '📚'),
+  P('oncheoncheon', '온천천 시민공원', 'river', 129.0888, 35.2266, '장전동', 'busan', 'KR', '🌊'),
 
   // ── 강릉 ──────────────────────────────────────────────────────────────────
   P('gangneung-station', '강릉역', 'station', 128.8990, 37.7640, '교동', 'gangneung', 'KR', '🚄'),
@@ -264,7 +276,7 @@ export const CITY_HUBS: Record<string, CityHubs & { intlAirport?: string; hasSub
 /** Korean display names for city keys (titles, comic captions). */
 export const CITY_NAME_KO: Record<string, string> = {
   seoul: '서울', busan: '부산', gangneung: '강릉', gyeongju: '경주', jeonju: '전주', yeosu: '여수', jeju: '제주', udo: '우도',
-  fukuoka: '후쿠오카', tokyo: '도쿄', osaka: '오사카', taipei: '타이베이', newyork: '뉴욕',
+  fukuoka: '후쿠오카', tokyo: '도쿄', osaka: '오사카', taipei: '타이베이', newyork: '뉴욕', paris: '파리',
 };
 export const cityNameKo = (city: string) => CITY_NAME_KO[city] ?? city;
 /** "교토" → "kyoto". 붙박이든 찾아 온 도시든. 모르면 null. */
@@ -285,9 +297,9 @@ export const stayNightsOf = (city: string, country: string): number => CITY_STAY
 /** IANA zone per city key — the character lives in the zone of the place it is at. */
 export const CITY_TZ: Record<string, string> = {
   seoul: 'Asia/Seoul', busan: 'Asia/Seoul', gangneung: 'Asia/Seoul', gyeongju: 'Asia/Seoul', jeonju: 'Asia/Seoul', yeosu: 'Asia/Seoul', jeju: 'Asia/Seoul', udo: 'Asia/Seoul',
-  fukuoka: 'Asia/Tokyo', tokyo: 'Asia/Tokyo', osaka: 'Asia/Tokyo', taipei: 'Asia/Taipei', newyork: 'America/New_York',
+  fukuoka: 'Asia/Tokyo', tokyo: 'Asia/Tokyo', osaka: 'Asia/Tokyo', taipei: 'Asia/Taipei', newyork: 'America/New_York', paris: 'Europe/Paris',
 };
-const COUNTRY_TZ: Record<string, string> = { KR: 'Asia/Seoul', JP: 'Asia/Tokyo', TW: 'Asia/Taipei', US: 'America/New_York' };
+const COUNTRY_TZ: Record<string, string> = { KR: 'Asia/Seoul', JP: 'Asia/Tokyo', TW: 'Asia/Taipei', US: 'America/New_York', FR: 'Europe/Paris' };
 export const tzOf = (p: Pick<Place, 'city' | 'country'>): string => CITY_TZ[p.city] ?? COUNTRY_TZ[p.country] ?? 'Asia/Seoul';
 /** The first city key in `tz` (for the owner-clock pill: "서울 09:12"), or null when no city lives there. */
 export const cityOfTz = (tz: string): string | null => Object.keys(CITY_TZ).find(c => CITY_TZ[c] === tz) ?? null;

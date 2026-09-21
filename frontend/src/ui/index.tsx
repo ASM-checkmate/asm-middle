@@ -17,4 +17,5 @@ export { Bubble } from './Bubble';
 export type { BubbleProps } from './Bubble';
 export { Glyph } from './Glyph';
 export { JetlagChip } from './JetlagChip';
+export { AdTag } from './AdTag';
 export type { GlyphName } from './Glyph';

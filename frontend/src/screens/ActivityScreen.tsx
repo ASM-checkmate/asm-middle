@@ -1,11 +1,12 @@
 import type { Phase } from '../sim/types';
 import { useWorld } from '../sim/store';
 import { cityNameKo } from '../sim/places';
-import { shotsFor } from '../sim/shots';
+import { MAX_SHOTS, shotsFor } from '../sim/shots';
+import { backdropsFor } from '../sim/backdrops';
 import { Character } from '../character';
-import { Button, CompanionChip, JetlagChip, ProgressBar, type ChipFriend } from '../ui';
-import { Scene, sceneTypeFor } from '../scenes';
-import { roomFor, RoomStage } from '../room';
+import { AdTag, Button, CompanionChip, JetlagChip, ProgressBar, type ChipFriend } from '../ui';
+import { Scene } from '../scenes';
+import { roomForPlace, RoomStage } from '../room';
 import { activityLog } from '../sim/actlog';
 import { hhmmIn } from '../sim/tz';
 import { castAt } from '../sim/agents';
@@ -24,40 +25,54 @@ export function ActivityScreen({ phase }: { phase: Active }) {
   const nowMs = act.arriveAt + (act.endAt - act.arriveAt) * Math.min(1, Math.max(0, progress));
   const fullLog = activityLog(act, nowMs);
   const log = fullLog.slice(-4);
-  // 2.5D 방(ADR-0015)이 있는 장소면 캐릭터가 방 안을 돌아다닌다 — 로그 줄이 곧 동선. 없으면 옛 정면 무대
-  const room = roomFor(sceneTypeFor(act.place.type));
-  // 사진 (ADR-0004): 활동 중에만 찍을 수 있다 — 만화는 endAt에 한 번 만들어져 앨범에 굳는다. 오버레이는 Home이 띄운다.
-  const setCameraOpen = useWorld(s => s.setCameraOpen);
+  // 2.5D 방(ADR-0015)이 있는 장소면 캐릭터가 방 안을 돌아다닌다 — 로그 줄이 곧 동선. 장소별 방(개정 4)이 먼저, 없으면 유형 방. 없으면 옛 정면 무대
+  const room = roomForPlace(act.place);
+  // 사진 (ADR-0029): 활동 중에만 찍을 수 있다 — 앨범은 endAt에 한 번 만들어져 굳는다. 오버레이는 Home이 띄운다.
+  // 방이 있으면 📷 칩은 방의 트리거 존 위에 뜬다(RoomStage shoot, 개정 2). 방 없는 장소만 아래 패널의 버튼 — 배경마다 하나, 없으면 SVG 무대로
+  const openCamera = useWorld(s => s.openCamera);
+  const openPlace = useWorld(s => s.openPlace);
   const shots = useWorld(s => s.shots);
   const memory = useWorld(s => s.memory);
-  const shotCount = Object.keys(shotsFor(shots, act.key)).length;
+  const shotCount = shotsFor(shots, act.key).length;
+  const backdrops = backdropsFor(act.place.id);
+  const full = shotCount >= MAX_SHOTS;
   // 지금 이 순간의 인물 구성 (ADR-0026) — 방·카메라·만화가 같은 규칙으로 그린다
   const cast = castAt(act, nowMs, memory);
   const friend = cast.companions[0];
   const met = cast.met?.agent ?? null;
-  const metChip: ChipFriend[] = met ? [{ id: met.id, name: met.name, color: met.color }] : [];
+  const metChip: ChipFriend[] = met ? [met, ...(cast.metAlso ?? []).map(m => m.agent)].map(a => ({ id: a.id, name: a.name, color: a.color })) : [];
   // real place: 동네 (+ city when abroad) — no implementation vocabulary in the tag
   const where = act.place.country === 'KR' ? act.place.area : `${act.place.area} · ${cityNameKo(act.place.city)}`;
 
   return (
     <div className={`act ${friend ? 'has-friend' : ''} ${met ? 'has-met' : ''} ${room ? 'has-room' : ''}`}>
       <div className="act-iris" />
-      {room && <RoomStage room={room} log={fullLog} seatPose={poseFor(act.option)} cast={cast} seed={act.key} />}
+      {room && <RoomStage room={room} log={fullLog} seatPose={poseFor(act.option)} cast={cast} seed={act.key} shoot={{ backdrops, count: shotCount, max: MAX_SHOTS, onOpen: openCamera }} clock={{ nowMs, tz: act.tz }} />}
       <div className="act-scene"><Scene type={act.place.type} /></div>
       {/* 같은 공간에 있던 사람들 — 배경에 작게. 방은 내가 지금 보는 장면이라 얼굴을 가리지 않는다 (얼굴을 감추는 건 사진 쪽 규칙, FRIENDS_SPEC §6). 방이 있는 장소에선 RoomStage가 그린다 */}
-      {cast.present.map((p, i) => <Character key={p.id} className={`act-present act-present-${i}`} pose="idle" size={132} variant="friend" color={p.color} look={presentLook(p.hairStyle)} />)}
+      {cast.present.map((p, i) => <Character key={p.id} className={`act-present act-present-${i}`} pose="idle" size={132} variant="friend" color={p.color} look={presentLook(p.hairStyle, p.look)} />)}
       {friend && <Character className="act-friend" pose="wave" size={224} variant="friend" color={friend.color} />}
       <Character className="act-chara" pose={poseFor(act.option)} size={350} />
       {met && (
         <>
-          <Character className="act-met" pose="wave" size={190} variant="friend" color={met.color} look={presentLook(cast.met?.hairStyle)} />
-          <div className="act-met-bubble">안녕!</div>
+          <Character className="act-met" pose="wave" size={190} variant="friend" color={met.color} look={presentLook(cast.met?.hairStyle, cast.met?.look)} />
+          <div className="act-met-bubble">{cast.met?.hello ?? '안녕!'}</div>
         </>
       )}
-      <div className="act-tag">
-        {act.place.emoji} {act.place.name}
-        <small>{where}</small>
-        {phase.jetlag && <JetlagChip sticker />}
+      {/* 장소 태그 + 옆의 동그란 지도 버튼 (ADR-0031 PlaceSheet — 가게일 때만; 집·친구 집은 태그뿐) */}
+      <div className="act-tagrow">
+        <div className="act-tag">
+          {act.place.emoji} {act.place.name}
+          {/* 광고 가게 (ADR-0031 확장): 여기 온 게 광고 지면임을 태그가 밝힌다. 사진·앨범엔 붙지 않는다 */}
+          {act.option.sponsored && <AdTag className="act-ad" />}
+          <small>{where}</small>
+          {phase.jetlag && <JetlagChip sticker />}
+        </div>
+        {act.place.type !== 'home' && act.place.type !== 'friend_home' && (
+          <button type="button" className="act-map-btn" onClick={() => openPlace(act.place.id)} aria-label={`${act.place.name} 지도에서 보기`}>
+            <svg viewBox="0 0 40 48" width="18" height="22" aria-hidden="true"><path d="M20 45C12 34 5 27 5 18a15 15 0 0 1 30 0c0 9-7 16-15 27z" fill="var(--coral)" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round" /><circle cx="20" cy="18" r="6" fill="var(--paper)" stroke="var(--ink)" strokeWidth="2" /></svg>
+          </button>
+        )}
       </div>
       {!!companions.length && (
         <CompanionChip className="act-with" friends={companions} />
@@ -79,10 +94,18 @@ export function ActivityScreen({ phase }: { phase: Active }) {
       <div className="act-stat">
         <div>
           <b>{progressLabel(act.option, act.place)}</b>
-          {/* lock 문구 자리: 지켜보기만 하던 활동 중에 유일하게 손댈 수 있는 것 — 사진 */}
-          <Button tone="coral" small className="act-shoot" onClick={() => setCameraOpen(true)} ariaLabel={`사진 찍기 (${shotCount}/4)`}>
-            📷 사진 찍기 <i className={`act-shoot-n ${shotCount >= 4 ? 'is-full' : ''}`}>{shotCount}/4</i>
-          </Button>
+          {/* lock 문구 자리: 지켜보기만 하던 활동 중에 유일하게 손댈 수 있는 것 — 사진. 방이 있으면 존 위의 칩이 이 일을 한다 */}
+          {!room && <div className="act-shoots">
+            {backdrops.length ? backdrops.map((b, i) => (
+              <Button key={b.id} tone="coral" small className="act-shoot" onClick={() => openCamera(b.id)} ariaLabel={`${b.spot}에서 찍기 (${shotCount}/${MAX_SHOTS})`}>
+                📷 {b.spot} {i === 0 && <i className={`act-shoot-n ${full ? 'is-full' : ''}`}>{shotCount}/{MAX_SHOTS}</i>}
+              </Button>
+            )) : (
+              <Button tone="coral" small className="act-shoot" onClick={() => openCamera(null)} ariaLabel={`사진 찍기 (${shotCount}/${MAX_SHOTS})`}>
+                📷 사진 찍기 <i className={`act-shoot-n ${full ? 'is-full' : ''}`}>{shotCount}/{MAX_SHOTS}</i>
+              </Button>
+            )}
+          </div>}
         </div>
         <div className="act-t num">{fmtRemain(remainingMin)}<small>남음</small></div>
         <ProgressBar className="act-bar" value={progress} color="var(--mint)" />

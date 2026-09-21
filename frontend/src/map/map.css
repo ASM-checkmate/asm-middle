@@ -171,6 +171,21 @@
   transform: translateY(190px); transition: transform 400ms cubic-bezier(.22, 1, .36, 1);
 }
 .mc.is-in { transform: translateY(0); }
+/* ─── 제휴 광고 카드 (ADR-0031): .mc 위 별도 요소, 56px. attribution ⓘ는 그만큼 위로 ─── */
+.mc-ad {
+  position: absolute; left: 16px; right: 16px; bottom: calc(22px + 132px + 10px + var(--safe-bottom)); height: 56px; z-index: 19;
+  display: flex; align-items: center; gap: 10px; padding: 0 12px 0 10px;
+  background: var(--card); border: var(--outline); border-radius: 18px; box-shadow: var(--shadow-hard-sm); color: var(--ink);
+  animation: mc-ad-in .5s cubic-bezier(.22, 1, .36, 1) both; animation-delay: .35s;
+}
+@keyframes mc-ad-in { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.mc-ad-ic { flex: none; width: 36px; height: 36px; display: grid; place-items: center; }
+.mc-ad-emoji { font-size: 24px; }
+.mc-ad-txt { flex: 1; min-width: 0; display: grid; line-height: 1.2; }
+.mc-ad-txt b { font-family: var(--display); font-weight: 400; font-size: 16px; }
+.mc-ad-txt small { font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-scene.has-ad .maplibregl-ctrl-bottom-left { bottom: calc(22px + 132px + 10px + 56px + 6px + var(--safe-bottom)); }
+@media (prefers-reduced-motion: reduce) { .mc-ad { animation: none; } }
 .mc-row1 { grid-area: row1; display: flex; align-items: center; gap: 8px; min-width: 0; }
 .mc-glyph { flex: none; }
 .mc-with { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; margin-left: 2px; }

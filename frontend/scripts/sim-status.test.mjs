@@ -78,9 +78,11 @@ check('스토어의 status가 접기와 같다', JSON.stringify(S().status) === 
 check('입력을 변형하지 않는다', anchor0.status === s0.anchor.status, '');
 
 // prune 불변: 중간에서 한 번 구운 뒤 이어 접어도 통째로 접은 것과 같아야 한다
-const mid = acts.length > 2 ? acts[Math.floor(acts.length / 2)].endAt : s0.now;
+// 취침 전 이동(category 'sleep')은 자정을 넘겨 끝날 수 있어 anchor 시각으로 쓰면 그 밤이 안 세어진다 — 상태에도 안 세는 활동이니 앵커 후보에서 뺀다
+const real = acts.filter(a => a.option.category !== 'sleep');
+const mid = real.length > 2 ? real[Math.floor(real.length / 2)].endAt : s0.now;
 const baked = foldStatus(anchor0, acts, mid, s0.memory);
-const midAct = acts.filter(a => a.endAt <= mid).pop();
+const midAct = real.filter(a => a.endAt <= mid).pop();
 const midAnchor = midAct
   ? { placeId: midAct.place.id, t: midAct.endAt, tz: midAct.tz, status: baked }
   : { ...anchor0, status: baked };
